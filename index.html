@@ -23,6 +23,7 @@
           <rect data-base="first" x="39" y="18" width="14" height="14" transform="rotate(45 46 25)" />
           <rect data-base="third" x="7" y="18" width="14" height="14" transform="rotate(45 14 25)" />
         </svg>
+        <span class="hud-batter" id="hud-batter"></span>
         <div class="hud-speed"><b id="hud-speed">0</b> km/h</div>
       </div>
     </div>
@@ -32,19 +33,16 @@
     <div id="toasts" class="toasts"></div>
 
     <div id="decision" class="decision hidden">
-      <div class="decision-title">어디로 던질까?</div>
+      <div class="decision-title" id="decision-title">어디로 던질까?</div>
       <div class="decision-timer"><div id="decision-bar"></div></div>
-      <div class="decision-buttons">
-        <button data-choice="first"><kbd>1</kbd>1루</button>
-        <button data-choice="second"><kbd>2</kbd>2루</button>
-        <button data-choice="third"><kbd>3</kbd>3루</button>
-        <button data-choice="home"><kbd>4</kbd>홈</button>
-        <button data-choice="hold"><kbd>Space</kbd>들고 있기</button>
-      </div>
+      <div class="decision-buttons" id="decision-buttons"></div>
     </div>
+
+    <div id="replay-banner" class="replay-banner hidden">위에서 다시 보는 중 · 클릭하거나 Esc를 누르면 결과로 돌아가요</div>
 
     <div id="help" class="help">마우스: 시점 이동 · 클릭: 바라보는 베이스로 송구 · 1/2/3/4: 1루/2루/3루/홈 · Space: 들고 있기 · Esc: 마우스 풀기</div>
 
+    <div id="menu" class="overlay hidden"></div>
     <div id="briefing" class="overlay hidden"></div>
     <div id="result" class="overlay hidden"></div>
 

@@ -1,0 +1,553 @@
+import * as THREE from 'three';
+import { P } from './coords';
+import type { FielderId, PositionId, Scenario } from './scenario';
+
+// 기본 수비 위치 (필드 좌표: fx는 1루 쪽, fz는 중견수 쪽)
+export const DEFAULT_FIELDERS: Record<FielderId, THREE.Vector3> = {
+  P: P(0, 18.44),
+  C: P(0, -1.1),
+  '1B': P(21.5, 24.5),
+  '2B': P(11, 36),
+  SS: P(-11, 35.5),
+  '3B': P(-21.5, 24),
+  LF: P(-30, 68),
+  CF: P(0, 76),
+  RF: P(30, 68),
+};
+
+// 자주 쓰는 수비 위치
+const DP = { '2B': P(9.5, 34), SS: P(-9, 34) }; // 병살 대형
+const HOLD_1B = { '1B': P(20.2, 18.4) }; // 1루 주자 견제 대비
+const INFIELD_IN = { '1B': P(17.5, 17), '2B': P(7, 26.5), SS: P(-7, 26.5), '3B': P(-14.5, 18.5) }; // 전진 수비
+
+export function fieldersOf(scn: Scenario): Record<FielderId, THREE.Vector3> {
+  return { ...DEFAULT_FIELDERS, ...scn.fielders };
+}
+
+const NO_RUNNERS = { first: false, second: false, third: false };
+const ON_FIRST = { first: true, second: false, third: false };
+
+export const SCENARIOS: Scenario[] = [
+  // ---------------- 1루수 ----------------
+  {
+    id: '1b-hold',
+    kind: 'choice',
+    setup: 'pickoff',
+    title: '주자 1루, 투구 전 위치',
+    position: '1B',
+    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
+    brief: '무사, 주자 1루. 투수가 세트 포지션에 들어가기 전이에요. 1루수는 어디에 서 있어야 할까요?',
+    prompt: '투구 전에 어디에 설까?',
+    options: [
+      {
+        label: '1루에 붙어서 견제 대비',
+        moveTo: P(20.0, 18.7),
+        grade: 'best',
+        takes: true,
+        headline: '주자를 1루에 묶었어요',
+        result: '무사 1루',
+        feedback: '1루수가 베이스에 붙어 있으니 투수가 바로 견제할 수 있었고, 주자는 급히 귀루했어요.',
+      },
+      {
+        label: '평소 수비 위치',
+        moveTo: P(21.5, 24.5),
+        grade: 'bad',
+        headline: '주자가 쉽게 2루를 훔쳤어요',
+        result: '무사 2루',
+        feedback: '베이스가 비어 있으면 투수가 견제를 못 해요. 주자가 리드를 크게 하고 편하게 도루했어요.',
+      },
+      {
+        label: '2루 쪽으로 이동',
+        moveTo: P(15, 30),
+        grade: 'bad',
+        headline: '주자가 쉽게 2루를 훔쳤어요',
+        result: '무사 2루',
+        feedback: '1루에서 더 멀어져서 견제가 불가능해요. 주자가 리드를 크게 하고 편하게 도루했어요.',
+      },
+    ],
+    explanation:
+      '1루 주자를 베이스 근처에 묶어 두는 걸 홀딩이라고 해요. 1루수가 베이스에 붙어 있으면 투수가 언제든 견제할 수 있어서 주자가 리드를 짧게 할 수밖에 없고, 도루도 어려워져요. ' +
+      '2아웃에 점수 차가 클 때는 일부러 안 붙기도 하지만, 기본은 붙는 거예요.',
+  },
+  {
+    id: '1b-liner',
+    kind: 'throw',
+    title: '1사 1루, 1루수 직선타',
+    position: '1B',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '1아웃, 주자 1루. 투구와 동시에 1루 주자가 2루로 뛰었어요(히트 앤드 런). 1루수 정면으로 강한 타구가 날아와요.',
+    fielders: HOLD_1B,
+    batted: { type: 'liner', catchPoint: P(20.8, 20.2), travelTime: 0.35 },
+    covers: { second: '2B', third: '3B', home: 'C' },
+    selfBases: ['first'],
+    hitAndRun: true,
+    explanation:
+      '땅에 닿기 전에 잡은 타구(직선타)는 잡는 순간 타자가 아웃이에요. 이때 주자는 원래 있던 베이스로 돌아가야(귀루) 하고, 돌아오기 전에 공이 그 베이스에 먼저 닿으면 주자도 아웃이에요. ' +
+      '1루가 바로 옆이니 직접 밟으면 한 번에 아웃 2개예요. 2루에는 돌아오는 주자가 없어서 던져도 소용없어요.',
+  },
+  {
+    id: '1b-361',
+    kind: 'throw',
+    title: '1사 1루, 1루수 땅볼',
+    position: '1B',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '1아웃, 주자 1루. 투구 후 1루수는 베이스에서 떨어져 수비 위치로 나왔어요. 1루수 쪽으로 땅볼이 와요. 투수가 1루 커버를 들어가요.',
+    fielders: { '1B': P(21, 25), ...DP },
+    batted: { type: 'grounder', catchPoint: P(20, 27), travelTime: 1.4 },
+    covers: { first: 'P', second: 'SS', third: '3B', home: 'C' },
+    selfBases: ['first'],
+    explanation:
+      '1루를 먼저 밟으면 타자는 아웃이지만, 그 순간 1루 주자는 더 이상 밀려서 뛰는 게 아니게 돼요(포스 해제). 그러면 2루에서는 베이스만 밟아선 안 되고 태그를 해야 해서 병살이 어려워져요. ' +
+      '그래서 2루로 먼저 던지고, 유격수가 1루 커버를 들어온 투수에게 던지는 게(3-6-1 병살) 정석이에요. 판단이 늦었다면 1루를 직접 밟아 아웃 하나를 챙기세요.',
+  },
+  {
+    id: '1b-bunt',
+    kind: 'throw',
+    title: '무사 1루, 1루 쪽 번트',
+    position: '1B',
+    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
+    brief: '무사, 주자 1루. 타자가 번트 자세예요. 1루수는 앞으로 대시하고, 2루수가 1루 커버, 유격수가 2루 커버를 들어가요.',
+    fielders: HOLD_1B,
+    fielderMoves: { '3B': P(-13, 12) },
+    batted: { type: 'bunt', catchPoint: P(7, 9), travelTime: 1.8 },
+    covers: { first: '2B', second: 'SS', third: '3B', home: 'C' },
+    explanation:
+      '희생번트는 공격 팀이 아웃 하나를 내주고 주자를 2루로 보내려는 작전이에요. 수비는 공을 빨리 잡아서 2루에서 선행 주자를 잡을 수 있으면 잡고, 늦었으면 1루에서 확실하게 아웃 하나를 챙겨요. ' +
+      '2루 송구는 판단이 조금만 늦어도 세이프가 되니, 망설여지면 1루가 정답이에요.',
+  },
+  {
+    id: '1b-cutoff',
+    kind: 'choice',
+    setup: 'cutoff',
+    title: '주자 2루, 중전 안타',
+    position: '1B',
+    situation: { outs: 1, runners: { first: false, second: true, third: false }, batter: 'R' },
+    brief: '1아웃, 주자 2루. 1루수는 평소보다 조금 앞에 있어요. 타구가 투수 옆을 지나 중견수 앞으로 굴러가요.',
+    fielders: { '1B': P(21, 22) },
+    prompt: '어디로 움직일까?',
+    options: [
+      {
+        label: '마운드와 홈 사이 커트 위치',
+        moveTo: P(1.5, 14),
+        grade: 'best',
+        takes: true,
+        headline: '커트로 타자 주자를 1루에 묶었어요',
+        result: '1아웃 1, 3루',
+        feedback: '중견수의 홈 송구를 중간에서 끊었어요. 2루 주자는 3루에서 멈췄고, 타자 주자도 2루를 노리지 못했어요.',
+      },
+      {
+        label: '1루 지키기',
+        moveTo: P(19.2, 19.8),
+        grade: 'bad',
+        headline: '타자 주자가 2루까지 갔어요',
+        result: '1아웃 2, 3루',
+        feedback: '송구를 끊어줄 사람이 없어서 공이 홈까지 가는 사이에 타자 주자가 공짜로 2루까지 갔어요.',
+      },
+      {
+        label: '홈 뒤 백업',
+        moveTo: P(0, -7),
+        grade: 'bad',
+        headline: '타자 주자가 2루까지 갔어요',
+        result: '1아웃 2, 3루',
+        feedback: '홈 뒤 백업은 투수 몫이에요. 커트맨이 없어서 공이 홈까지 가는 사이 타자 주자가 2루까지 갔어요.',
+      },
+    ],
+    explanation:
+      '주자 2루에서 외야 안타가 나오면 2루 주자는 홈을 노리고, 외야수는 홈으로 던져요. 중견수와 우익수의 홈 송구는 보통 1루수가 커트맨이에요. ' +
+      '송구 길목(마운드와 홈 사이)에 커트맨이 서 있으면, 홈 승부가 안 될 때 공을 중간에서 잘라 다른 주자를 잡거나 묶을 수 있어요. 커트맨이 없으면 공이 홈까지 가는 사이 타자 주자가 공짜로 한 베이스를 더 가요.',
+  },
+
+  // ---------------- 2루수 ----------------
+  {
+    id: '2b-dp',
+    kind: 'throw',
+    title: '1사 1루, 2루수 정면 땅볼',
+    position: '2B',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '1아웃, 주자 1루. 병살 대형으로 조금 앞당겨 서 있어요. 땅볼이 오면 유격수가 2루 커버를 들어와요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'grounder', catchPoint: P(8.5, 31.5), travelTime: 1.45 },
+    covers: { first: '1B', second: 'SS', third: '3B', home: 'C' },
+    explanation:
+      '1루 주자는 타자가 치면 무조건 2루로 뛰어야 해서 2루는 베이스만 밟아도 아웃(포스아웃)이에요. 2루수가 2루로 던지고, 커버 들어온 유격수가 1루로 이어 던지면 병살(4-6-3)로 이닝이 끝나요. ' +
+      '병살이 어려울 만큼 늦었어도 2루에서 앞 주자를 잡는 게 1루보다 나아요. 주자를 득점권(2루)에 남기지 않으니까요.',
+  },
+  {
+    id: '2b-steal',
+    kind: 'choice',
+    setup: 'steal',
+    title: '주자 1루, 도루 (우타자)',
+    position: '2B',
+    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
+    brief: '무사, 주자 1루. 타석에는 오른손 타자가 있어요. 투수가 공을 던지는 순간 주자가 뛰면 바로 움직여야 해요.',
+    fielders: HOLD_1B,
+    fielderMoves: { SS: P(-3, 44) },
+    prompt: '주자가 뛰었다! 어디로?',
+    options: [
+      {
+        label: '2루 커버',
+        moveTo: P(0.6, 38.3),
+        grade: 'best',
+        takes: true,
+        headline: '도루 저지!',
+        result: '1아웃 주자 없음',
+        feedback: '오른손 타자일 때는 2루수가 커버를 들어가요. 포수 송구를 받아 태그했어요.',
+      },
+      {
+        label: '2루 뒤 백업',
+        moveTo: P(3, 44),
+        grade: 'bad',
+        headline: '2루가 비었어요',
+        result: '무사 3루',
+        feedback: '오른손 타자일 때 커버는 2루수 몫이에요. 유격수는 백업으로 가서 아무도 2루에 없었고, 송구가 외야로 빠졌어요.',
+      },
+      {
+        label: '제자리',
+        moveTo: P(11, 36),
+        grade: 'bad',
+        headline: '2루가 비었어요',
+        result: '무사 3루',
+        feedback: '아무도 2루에 들어가지 않아서 포수 송구가 외야로 빠졌고, 주자는 3루까지 갔어요.',
+      },
+    ],
+    explanation:
+      '도루 때 2루 커버는 보통 타자에 따라 정해요. 오른손 타자면 2루수, 왼손 타자면 유격수가 들어가요. 타자가 잡아당겨 치는 쪽 수비수는 타구에 대비해 자리를 지켜야 하니까요. ' +
+      '커버를 안 들어가는 쪽은 2루 뒤로 가서 송구가 빠질 때를 대비(백업)해요. 팀마다 사인으로 바꾸기도 하니 경기 전에 서로 정해두는 게 가장 중요해요.',
+  },
+  {
+    id: '2b-backup',
+    kind: 'choice',
+    setup: 'steal',
+    title: '주자 1루, 도루 (좌타자)',
+    position: '2B',
+    situation: { outs: 0, runners: ON_FIRST, batter: 'L' },
+    brief: '무사, 주자 1루. 타석에는 왼손 타자가 있어요. 투수가 공을 던지는 순간 주자가 뛰면 바로 움직여야 해요.',
+    fielders: HOLD_1B,
+    fielderMoves: { SS: P(-0.6, 38.3) },
+    otherCovers: true,
+    prompt: '주자가 뛰었다! 어디로?',
+    options: [
+      {
+        label: '2루 뒤 백업',
+        moveTo: P(3, 44),
+        grade: 'best',
+        headline: '완벽한 백업',
+        result: '1아웃 주자 없음',
+        feedback: '왼손 타자라 유격수가 커버를 들어갔고, 2루수는 뒤에서 송구가 빠질 때를 대비했어요.',
+      },
+      {
+        label: '2루 커버',
+        moveTo: P(0.6, 38.3),
+        grade: 'ok',
+        headline: '커버가 둘이에요',
+        result: '1아웃 주자 없음',
+        feedback: '아웃은 잡았지만 유격수와 둘 다 2루에 들어갔어요. 송구가 빠졌다면 막을 사람이 없어서 주자가 3루까지 갔을 거예요.',
+      },
+      {
+        label: '제자리',
+        moveTo: P(11, 36),
+        grade: 'bad',
+        headline: '백업이 없었어요',
+        result: '1아웃 주자 없음',
+        feedback: '이번엔 송구가 잘 와서 아웃이 됐지만, 빠졌다면 백업이 없어서 주자가 3루까지 갔을 거예요.',
+      },
+    ],
+    explanation:
+      '왼손 타자일 때는 유격수가 2루 커버를 들어가요. 그러면 2루수는 할 일이 없는 게 아니라, 2루 뒤로 가서 포수 송구가 빠질 때를 대비해야 해요(백업). ' +
+      '야구에서는 공이 가는 곳마다 그 뒤를 받쳐주는 사람이 있어야 실책 하나가 실점으로 이어지지 않아요.',
+  },
+  {
+    id: '2b-advance',
+    kind: 'throw',
+    title: '무사 2루, 2루수 땅볼',
+    position: '2B',
+    situation: { outs: 0, runners: { first: false, second: true, third: false }, batter: 'R' },
+    brief: '무사, 주자 2루. 보통 수비 위치예요. 2루수 쪽 땅볼이면 2루 주자는 공이 자기 뒤로 가니까 3루로 뛰어요.',
+    batted: { type: 'grounder', catchPoint: P(10, 33), travelTime: 1.45 },
+    covers: { first: '1B', second: 'SS', third: '3B', home: 'C' },
+    runnerActs: { second: 'advance' },
+    explanation:
+      '2루 주자는 뒤에 1루 주자가 없어서 밀려 뛰는 게 아니에요. 그래서 3루에서 잡으려면 베이스를 밟는 게 아니라 주자를 직접 태그해야 해요. ' +
+      '2루수 자리에서 3루까지는 먼 데다 몸 반대 방향이라, 송구가 조금만 빗나가도 주자가 홈까지 들어올 수 있어요. 확실한 1루 아웃을 챙기고 주자 3루를 받아들이는 게 정석이에요.',
+  },
+  {
+    id: '2b-relay',
+    kind: 'choice',
+    setup: 'gap',
+    side: 'right',
+    title: '주자 없음, 우중간 장타',
+    position: '2B',
+    situation: { outs: 0, runners: NO_RUNNERS, batter: 'L' },
+    brief: '무사, 주자 없음. 타구가 우중간을 가르고 펜스 쪽으로 굴러가요.',
+    fielderMoves: { SS: P(-0.6, 38.3) },
+    prompt: '어디로 움직일까?',
+    options: [
+      {
+        label: '외야 쪽으로 나가 중계',
+        moveTo: P(13, 58),
+        grade: 'best',
+        takes: true,
+        headline: '빠른 중계로 2루타에서 막았어요',
+        result: '무사 2루',
+        feedback: '우익수와 2루를 잇는 직선 위에서 공을 받아줬어요. 공이 빨리 내야로 돌아와서 타자 주자가 2루에서 멈췄어요.',
+      },
+      {
+        label: '2루 커버',
+        moveTo: P(0.6, 38.3),
+        grade: 'bad',
+        headline: '중계가 없어서 3루타가 됐어요',
+        result: '무사 3루',
+        feedback: '2루 커버는 유격수가 들어가요. 2루수까지 2루로 가면 외야에서 오는 긴 송구를 이어줄 사람이 없어요.',
+      },
+      {
+        label: '1루 커버',
+        moveTo: P(19.2, 19.8),
+        grade: 'bad',
+        headline: '중계가 없어서 3루타가 됐어요',
+        result: '무사 3루',
+        feedback: '타자 주자는 이미 1루를 지났어요. 1루를 지킬 필요가 없고, 중계를 나가야 해요.',
+      },
+    ],
+    explanation:
+      '외야로 빠진 장타는 외야수가 혼자 내야까지 던지기엔 멀어요. 그래서 내야수가 중간까지 나가 공을 이어주는데, 이걸 중계(릴레이)라고 해요. ' +
+      '우중간과 우익선상은 2루수, 좌중간과 좌익선상은 유격수가 중계를 나가고, 나머지 한 명은 2루를 커버해요.',
+  },
+
+  // ---------------- 유격수 ----------------
+  {
+    id: 'ss-dp',
+    kind: 'throw',
+    title: '1사 1루, 유격수 정면 땅볼',
+    position: 'SS',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '1아웃, 주자 1루. 병살 대형으로 조금 앞당겨 서 있어요. 땅볼이 오면 2루수가 2루 커버를 들어와요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'grounder', catchPoint: P(-8.2, 31.2), travelTime: 1.45 },
+    covers: { first: '1B', second: '2B', third: '3B', home: 'C' },
+    explanation:
+      '1루 주자는 타자가 공을 치면 무조건 2루로 뛰어야 해요. 그래서 2루는 태그 없이 베이스만 밟아도 아웃(포스아웃)이에요. ' +
+      '2루에서 아웃을 잡고 바로 1루로 이어 던지면 한 번에 아웃 2개, 병살로 이닝이 끝나요. ' +
+      '판단이 늦어서 병살이 어려워도 2루에서 앞 주자를 잡는 게 1루보다 나아요. 주자를 득점권(2루)에 남기지 않으니까요. ' +
+      '3루와 홈에는 뛰어오는 주자가 없어서 던져도 아웃을 잡을 수 없어요.',
+  },
+  {
+    id: 'ss-2out',
+    kind: 'throw',
+    title: '2사 2루, 유격수 땅볼',
+    position: 'SS',
+    situation: { outs: 2, runners: { first: false, second: true, third: false }, batter: 'R' },
+    brief: '2아웃, 주자 2루. 보통 수비 위치예요. 2아웃이라 주자는 공이 맞는 순간 무조건 뛰어요.',
+    batted: { type: 'grounder', catchPoint: P(-10, 32.5), travelTime: 1.5 },
+    covers: { first: '1B', second: '2B', third: '3B', home: 'C' },
+    explanation:
+      '2아웃이면 아웃 하나만 잡으면 이닝이 끝나요. 2루 주자는 뒤에 1루 주자가 없어서 밀려 뛰는 게 아니라, 3루에서 잡으려면 주자를 직접 태그해야 해서 위험해요. ' +
+      '반면 타자 주자는 무조건 1루로 뛰어야 하니까 1루는 베이스만 밟으면 아웃(포스아웃)이에요. 가장 확실한 1루로 던지는 게 정답이에요.',
+  },
+  {
+    id: 'ss-liner',
+    kind: 'throw',
+    title: '1사 1루, 유격수 직선타',
+    position: 'SS',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '1아웃, 주자 1루. 투구와 동시에 1루 주자가 2루로 뛰었어요(히트 앤드 런). 2루수는 2루 커버를 들어가요. 유격수 정면으로 강한 타구가 날아와요.',
+    fielders: HOLD_1B,
+    fielderMoves: { '2B': P(0.6, 38.3) },
+    batted: { type: 'liner', catchPoint: P(-10, 34.5), travelTime: 0.45 },
+    covers: { first: '1B', second: '2B', third: '3B', home: 'C' },
+    hitAndRun: true,
+    explanation:
+      '땅에 닿기 전에 잡은 타구(직선타)는 잡는 순간 타자가 아웃이에요. 이때 주자는 원래 있던 베이스로 돌아가야(귀루) 하고, 돌아오기 전에 공이 그 베이스에 먼저 가면 주자도 아웃이에요. ' +
+      '1루 주자가 2루 쪽으로 멀리 나가 있으니 1루로 던지면 한 번에 아웃 2개! 2루에는 돌아오는 주자가 없어서 던져도 소용없어요.',
+  },
+  {
+    id: 'ss-steal',
+    kind: 'choice',
+    setup: 'steal',
+    title: '주자 1루, 도루 (좌타자)',
+    position: 'SS',
+    situation: { outs: 0, runners: ON_FIRST, batter: 'L' },
+    brief: '무사, 주자 1루. 타석에는 왼손 타자가 있어요. 투수가 공을 던지는 순간 주자가 뛰면 바로 움직여야 해요.',
+    fielders: HOLD_1B,
+    fielderMoves: { '2B': P(3, 44) },
+    prompt: '주자가 뛰었다! 어디로?',
+    options: [
+      {
+        label: '2루 커버',
+        moveTo: P(-0.6, 38.3),
+        grade: 'best',
+        takes: true,
+        headline: '도루 저지!',
+        result: '1아웃 주자 없음',
+        feedback: '왼손 타자일 때는 유격수가 커버를 들어가요. 포수 송구를 받아 태그했어요.',
+      },
+      {
+        label: '2루 뒤 백업',
+        moveTo: P(-3, 44),
+        grade: 'bad',
+        headline: '2루가 비었어요',
+        result: '무사 3루',
+        feedback: '왼손 타자일 때 커버는 유격수 몫이에요. 2루수도 백업으로 가서 아무도 2루에 없었고, 송구가 외야로 빠졌어요.',
+      },
+      {
+        label: '제자리',
+        moveTo: P(-11, 35.5),
+        grade: 'bad',
+        headline: '2루가 비었어요',
+        result: '무사 3루',
+        feedback: '아무도 2루에 들어가지 않아서 포수 송구가 외야로 빠졌고, 주자는 3루까지 갔어요.',
+      },
+    ],
+    explanation:
+      '도루 때 2루 커버는 보통 타자에 따라 정해요. 오른손 타자면 2루수, 왼손 타자면 유격수가 들어가요. 왼손 타자는 1·2루 사이로 잡아당기는 타구가 많아서 2루수가 자리를 지켜야 하니까요. ' +
+      '커버를 안 들어가는 쪽은 2루 뒤로 가서 송구가 빠질 때를 대비(백업)해요. 팀마다 사인으로 바꾸기도 하니 경기 전에 서로 정해두는 게 가장 중요해요.',
+  },
+  {
+    id: 'ss-relay',
+    kind: 'choice',
+    setup: 'gap',
+    side: 'left',
+    title: '주자 없음, 좌중간 장타',
+    position: 'SS',
+    situation: { outs: 0, runners: NO_RUNNERS, batter: 'R' },
+    brief: '무사, 주자 없음. 타구가 좌중간을 가르고 펜스 쪽으로 굴러가요.',
+    fielderMoves: { '2B': P(0.6, 38.3) },
+    prompt: '어디로 움직일까?',
+    options: [
+      {
+        label: '외야 쪽으로 나가 중계',
+        moveTo: P(-13, 58),
+        grade: 'best',
+        takes: true,
+        headline: '빠른 중계로 2루타에서 막았어요',
+        result: '무사 2루',
+        feedback: '좌익수와 2루를 잇는 직선 위에서 공을 받아줬어요. 공이 빨리 내야로 돌아와서 타자 주자가 2루에서 멈췄어요.',
+      },
+      {
+        label: '2루 커버',
+        moveTo: P(-0.6, 38.3),
+        grade: 'bad',
+        headline: '중계가 없어서 3루타가 됐어요',
+        result: '무사 3루',
+        feedback: '2루 커버는 2루수가 들어가요. 유격수까지 2루로 가면 외야에서 오는 긴 송구를 이어줄 사람이 없어요.',
+      },
+      {
+        label: '3루 커버',
+        moveTo: P(-19, 20),
+        grade: 'bad',
+        headline: '중계가 없어서 3루타가 됐어요',
+        result: '무사 3루',
+        feedback: '3루는 3루수가 지켜요. 유격수가 중계를 안 나가면 좌익수의 긴 송구가 내야까지 오는 데 너무 오래 걸려요.',
+      },
+    ],
+    explanation:
+      '외야로 빠진 장타는 외야수가 혼자 내야까지 던지기엔 멀어요. 그래서 내야수가 중간까지 나가 공을 이어주는데, 이걸 중계(릴레이)라고 해요. ' +
+      '좌중간과 좌익선상은 유격수, 우중간과 우익선상은 2루수가 중계를 나가고, 나머지 한 명은 2루를 커버해요.',
+  },
+
+  // ---------------- 3루수 ----------------
+  {
+    id: '3b-bunt-charge',
+    kind: 'choice',
+    setup: 'bunt',
+    title: '무사 1루, 번트 자세',
+    position: '3B',
+    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
+    brief: '무사, 주자 1루. 타자가 투구 전부터 번트 자세를 잡았어요. 3루수는 어떻게 대비해야 할까요?',
+    fielders: HOLD_1B,
+    fielderMoves: { '1B': P(7, 9), '2B': P(19, 19.8), SS: P(-0.6, 38.3) },
+    prompt: '투구 때 어디로 움직일까?',
+    options: [
+      {
+        label: '앞으로 대시',
+        moveTo: P(-12, 11.5),
+        grade: 'best',
+        takes: true,
+        headline: '번트를 빨리 잡아 1루 아웃',
+        result: '1아웃 2루',
+        feedback: '앞으로 나와 있었기 때문에 3루 쪽 번트를 바로 잡아서 여유 있게 1루로 던졌어요.',
+      },
+      {
+        label: '제자리',
+        moveTo: P(-21.5, 24),
+        grade: 'bad',
+        headline: '번트 안타가 됐어요',
+        result: '무사 1, 2루',
+        feedback: '3루수가 뒤에 있어서 투수가 마운드에서 뛰어와 처리해야 했고, 송구가 늦었어요.',
+      },
+      {
+        label: '3루 베이스 커버',
+        moveTo: P(-19, 20),
+        grade: 'bad',
+        headline: '번트 안타가 됐어요',
+        result: '무사 1, 2루',
+        feedback: '3루에는 주자가 없어서 지킬 필요가 없어요. 투수가 혼자 번트를 처리하느라 송구가 늦었어요.',
+      },
+    ],
+    explanation:
+      '번트가 예상되면 1루수와 3루수는 투구와 동시에 앞으로 대시해서 굴러오는 공을 빨리 잡아요. 그 사이 2루수는 1루, 유격수는 2루를 커버해요. ' +
+      '번트 수비는 1초도 안 되는 차이로 아웃과 세이프가 갈려서, 미리 정해둔 대로 움직이는 게 전부예요.',
+  },
+  {
+    id: '3b-tiebreak',
+    kind: 'throw',
+    title: '승부치기 무사 1, 2루 번트',
+    position: '3B',
+    situation: { outs: 0, runners: { first: true, second: true, third: false }, batter: 'R' },
+    brief: '승부치기: 무사 1, 2루. 타자가 3루 쪽으로 번트를 댔어요. 3루수는 대시했고, 유격수가 3루, 2루수가 1루 커버를 들어가요.',
+    fielders: { '3B': P(-19.5, 21) },
+    fielderMoves: { '1B': P(8, 12) },
+    batted: { type: 'bunt', catchPoint: P(-11, 10.5), travelTime: 2.0 },
+    covers: { first: '2B', third: 'SS', home: 'C' },
+    explanation:
+      '1, 2루에서는 두 주자 모두 밀려서 뛰기 때문에 3루도 베이스만 밟으면 아웃(포스아웃)이에요. 번트를 빨리 잡으면 3루로 던져 득점권의 앞 주자를 지우는 게 최선이에요. ' +
+      '망설이면 3루도 1루도 다 놓칠 수 있어요. 2루는 유격수가 3루로 가서 비어 있으니 던질 수 없어요. 승부치기는 매번 이 상황으로 시작하니 꼭 몸에 익혀두세요.',
+  },
+  {
+    id: '3b-force',
+    kind: 'throw',
+    title: '무사 1, 2루, 3루수 땅볼',
+    position: '3B',
+    situation: { outs: 0, runners: { first: true, second: true, third: false }, batter: 'R' },
+    brief: '무사, 주자 1, 2루. 병살 대형이에요. 3루 베이스 근처로 땅볼이 와요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'grounder', catchPoint: P(-20, 22), travelTime: 1.2 },
+    covers: { first: '1B', second: '2B', home: 'C' },
+    selfBases: ['third'],
+    explanation:
+      '1, 2루라 3루도 포스 상황이에요. 3루 베이스가 바로 옆이니 직접 밟고 1루로 던지면 병살이에요. ' +
+      '2루를 거치는 병살(5-4-3)도 가능하지만, 3루를 밟으면 득점권에서 가장 홈에 가까운 주자를 지울 수 있어서 더 좋아요.',
+  },
+  {
+    id: '3b-infield-in',
+    kind: 'throw',
+    title: '1사 3루, 전진 수비 땅볼',
+    position: '3B',
+    situation: { outs: 1, runners: { first: false, second: false, third: true }, batter: 'R' },
+    brief: '1아웃, 주자 3루. 3루 주자의 득점을 막으려고 내야가 앞으로 나와 있어요(전진 수비). 공이 맞으면 3루 주자가 홈으로 뛰어요.',
+    fielders: INFIELD_IN,
+    batted: { type: 'grounder', catchPoint: P(-14, 15.5), travelTime: 0.9 },
+    covers: { first: '1B', second: '2B', home: 'C' },
+    runnerActs: { third: 'advance' },
+    explanation:
+      '전진 수비는 3루 주자의 득점을 막으려고 앞으로 나와 있는 거예요. 땅볼이 오면 홈으로! 3루 주자는 밀려 뛰는 게 아니라서 포수가 태그해야 하지만, 거리가 짧아 충분히 잡을 수 있어요. ' +
+      '판단이 늦었다면 1루에서 아웃을 챙기는 게 나아요. 1점은 주지만 아웃 카운트는 늘어나요.',
+  },
+  {
+    id: '3b-2out',
+    kind: 'throw',
+    title: '2사 만루, 3루수 땅볼',
+    position: '3B',
+    situation: { outs: 2, runners: { first: true, second: true, third: true }, batter: 'R' },
+    brief: '2아웃, 만루. 3루 베이스 근처로 땅볼이 와요.',
+    batted: { type: 'grounder', catchPoint: P(-20.2, 21.8), travelTime: 1.2 },
+    covers: { first: '1B', second: '2B', home: 'C' },
+    selfBases: ['third'],
+    explanation:
+      '만루에서는 모든 주자가 밀려서 뛰기 때문에 어느 베이스든 밟기만 하면 아웃(포스아웃)이에요. 2아웃이니 아웃 하나면 이닝이 끝나요. ' +
+      '그렇다면 가장 가깝고 확실한 곳, 바로 옆의 3루를 직접 밟는 게 정답이에요. 멀리 던질수록 송구 실책이 날 위험이 커져요.',
+  },
+];
+
+export function scenariosFor(position: PositionId) {
+  return SCENARIOS.filter((s) => s.position === position);
+}

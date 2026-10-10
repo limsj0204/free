@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { buildField } from './field';
 import { Game } from './game';
-import { SS_DOUBLE_PLAY } from './scenario';
 import { UI } from './ui';
 
 const canvas = document.getElementById('view') as HTMLCanvasElement;
@@ -20,7 +19,7 @@ window.addEventListener('resize', resize);
 resize();
 
 buildField(scene);
-const game = new Game(scene, camera, canvas, new UI(), SS_DOUBLE_PLAY);
+const game = new Game(scene, camera, canvas, new UI());
 
 const timer = new THREE.Timer();
 renderer.setAnimationLoop((time) => {

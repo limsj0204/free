@@ -18,9 +18,17 @@ export const PITCH = {
 
 export const RUN = {
   speed: 7.0, // 주자 달리기 속도
+  fielderSpeed: 7.0, // 수비수가 베이스 커버나 위치 이동할 때 속도
+  carrySpeed: 6.5, // 공을 들고 베이스를 직접 밟으러 갈 때 속도
   batterStartDelay: 0.35, // 타격 후 타자가 뛰기 시작하기까지
-  runnerStartDelay: 0.15, // 타격 후 1루 주자가 스타트하기까지
-  leadOff: 3.0, // 1루 주자 리드 거리
+  buntBatterStartDelay: 0.4, // 번트 후 타자가 뛰기 시작하기까지
+  runnerStartDelay: 0.15, // 타격 후 밀려서 뛰는 주자가 스타트하기까지
+  buntRunnerStartDelay: 0.3, // 번트가 땅에 닿는 걸 보고 주자가 스타트하기까지
+  advanceStartDelay: 0.5, // 안 밀려도 뛰는 주자가 타구를 보고 스타트하기까지
+  returnReaction: 0.35, // 직선타가 잡힌 걸 보고 귀루를 시작하기까지
+  leadOff: 3.0, // 주자 리드 거리
+  hitAndRunExtra: 4.0, // 히트 앤드 런으로 투구 때 미리 뛰어나간 거리
+  reaction: 0.15, // 위치 판단 후 첫발을 떼기까지
 };
 
 export const THROW = {
@@ -28,11 +36,19 @@ export const THROW = {
   tossSpeed: 16, // 가까운 거리 토스 속도
   tossMaxDistance: 8, // 이 거리 이하면 토스로 처리
   transferTime: 0.3, // 결정 후 공을 놓기까지 (글러브에서 빼고 던지는 동작)
-  pivotTime: 0.45, // 2루수가 받아서 1루로 다시 던지기까지
+  pivotTime: 0.45, // 베이스에서 받아서 다시 던지기까지
+  tagTime: 0.15, // 태그 플레이에서 공을 받고 태그하기까지
+  catcherSpeed: 30, // 포수 2루 송구 속도
+  catcherPopTime: 0.75, // 포수가 공을 받고 던지기까지
+  outfieldSpeed: 25, // 외야수 송구 속도
 };
 
-export const GROUNDER = {
-  travelTime: 1.45, // 타구가 유격수에게 도착하기까지
+// 판단 점수: 아웃이 최우선이고, 실점과 주자 위치, 위험한 플레이를 차례로 감점한다.
+export const VALUE = {
+  out: 10,
+  run: 8,
+  tagPlay: 3, // 태그가 필요한 아웃은 실패 위험이 커서 감점
+  perMeterThrown: 0.02, // 송구 거리가 길수록 실책 위험이 커서 감점
 };
 
 // 결정 순간의 슬로모션 배율. 1이면 실제 속도.

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DIFFICULTIES, GROUNDER, PITCH, RUN, type DifficultyId } from './config';
+import { DIFFICULTIES, PITCH, type DifficultyId } from './config';
 import { BASES, BASE_LABEL, P, type BaseId } from './coords';
 import {
   TEAM_DEFENSE,
@@ -13,52 +13,68 @@ import {
   poseThrow,
   type Mannequin,
 } from './players';
+import { addResult, getDifficulty, setDifficulty } from './progress';
 import {
-  decisionDeadline,
+  THROW_CHOICES,
   evaluate,
-  grade,
-  planRunners,
+  gradeThrow,
+  isCarry,
   type Choice,
   type FielderId,
   type Outcome,
   type RunnerId,
-  type RunnerPlan,
   type Scenario,
 } from './scenario';
-import type { UI } from './ui';
+import { SCENARIOS, fieldersOf } from './scenarios';
+import {
+  CONTACT_POINT,
+  buildChoiceTimeline,
+  buildThrowTimeline,
+  movePosition,
+  pathPosition,
+  releasePoint,
+  type Timeline,
+} from './timeline';
+import type { DecisionDef, UI } from './ui';
 
-type Phase = 'briefing' | 'live' | 'decision' | 'play' | 'result';
+type Phase = 'menu' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 'replay';
 
 const EYE_HEIGHT = 1.62;
-const PRE_PITCH = 1.6; // 투구 동작 전 대기 (게임 시간)
-const CONTACT_POINT = P(0.1, 0.6, 0.85);
-const RELEASE_POINT = P(-0.4, 17.0, 1.9);
-const PICK_ANGLE = 0.3; // 시선으로 베이스를 고를 때 허용 각도 (rad)
+const PICK_ANGLE = 0.3; // 시선으로 고를 때 허용 각도 (rad)
+const REPLAY_SPEED = 0.6;
+const FIELDER_IDS: FielderId[] = ['P', 'C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'];
+const RUNNER_IDS: RunnerId[] = ['batter', 'r1', 'r2', 'r3'];
+const RUNNER_BASE: Record<Exclude<RunnerId, 'batter'>, 'first' | 'second' | 'third'> = { r1: 'first', r2: 'second', r3: 'third' };
+
+// 주소 끝에 ?view=tv를 붙이면 처음부터 중계 시점으로 본다 (구장과 움직임 확인용)
+const tvView = new URLSearchParams(location.search).get('view') === 'tv';
 
 export class Game {
-  private phase: Phase = 'briefing';
-  private t = 0; // 타격 시점을 0으로 하는 게임 시간
+  private phase: Phase = 'menu';
+  private scn: Scenario = SCENARIOS[0];
+  private tl!: Timeline;
+  private t = 0;
   private timeScale = 1;
-  private difficulty: DifficultyId = 'normal';
+  private difficulty: DifficultyId = getDifficulty();
 
   private pitchKmh = 120;
   private pitchFlight = 0.4;
-  private runners: RunnerPlan[] = [];
-  private deadline = 0;
   private decisionRealStart = 0;
   private reactionReal = 0;
+  private decisionDelay = 0;
   private outcome: Outcome | null = null;
-  private playEnd = 0;
   private shownCalls = new Set<number>();
+  private calls: THREE.Sprite[] = [];
+  private defs: DecisionDef[] = [];
 
   private fielders = new Map<FielderId, Mannequin>();
   private runnerModels = new Map<RunnerId, Mannequin>();
-  private batterBat: THREE.Group;
+  private bat: THREE.Group;
   private ball: THREE.Mesh;
   private ballShadow: THREE.Mesh;
   private glove: THREE.Group;
   private pocket: THREE.Object3D;
-  private calls: THREE.Sprite[] = [];
+  private marker: THREE.Group;
 
   private yaw = 0;
   private pitch = 0;
@@ -69,30 +85,25 @@ export class Game {
     private camera: THREE.PerspectiveCamera,
     private canvas: HTMLCanvasElement,
     private ui: UI,
-    private scn: Scenario,
   ) {
-    for (const id of Object.keys(scn.fielders) as FielderId[]) {
+    for (const id of FIELDER_IDS) {
       const m = createMannequin(TEAM_DEFENSE);
-      m.root.visible = id !== scn.player;
       this.fielders.set(id, m);
       scene.add(m.root);
     }
-    for (const id of ['batter', 'r1'] as RunnerId[]) {
+    for (const id of RUNNER_IDS) {
       const m = createMannequin(TEAM_OFFENSE);
       this.runnerModels.set(id, m);
       scene.add(m.root);
     }
 
     // 타자의 배트
-    this.batterBat = new THREE.Group();
-    const bat = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.035, 0.018, 0.85, 8),
-      new THREE.MeshLambertMaterial({ color: 0xd8b07a }),
-    );
+    this.bat = new THREE.Group();
+    const bat = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.018, 0.85, 8), new THREE.MeshLambertMaterial({ color: 0xd8b07a }));
     bat.position.y = 0.42;
-    this.batterBat.add(bat);
-    this.batterBat.position.set(-0.15, 0.55, 0.15);
-    this.runnerModels.get('batter')!.body.add(this.batterBat);
+    this.bat.add(bat);
+    this.bat.position.set(-0.15, 0.55, 0.15);
+    this.runnerModels.get('batter')!.body.add(this.bat);
 
     this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
     scene.add(this.ball);
@@ -116,10 +127,27 @@ export class Game {
     this.glove.rotation.set(0.2, 0.3, 0.25);
     camera.add(this.glove);
     scene.add(camera);
-    this.glove.visible = !tvView;
+
+    // 리플레이에서 내 선수를 알아보기 쉽게 발밑에 원과 이름표를 붙인다
+    this.marker = new THREE.Group();
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.9, 1.25, 32),
+      new THREE.MeshBasicMaterial({ color: 0xf2c94c, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.03;
+    ring.renderOrder = 2;
+    this.marker.add(ring);
+    const tag = nameSprite('나', '#f2c94c');
+    tag.position.y = 3.2;
+    tag.scale.set(5, 1.25, 1);
+    this.marker.add(tag);
+    this.marker.visible = false;
+    scene.add(this.marker);
 
     this.bindInput();
-    this.reset();
+    this.prepare(this.scn);
+    this.openMenu();
   }
 
   // ---------- 입력 ----------
@@ -133,7 +161,11 @@ export class Game {
       if (document.pointerLockElement === this.canvas || this.dragging) look(e.movementX, e.movementY);
     });
     this.canvas.addEventListener('mousedown', (e) => {
-      if (this.phase === 'briefing' || this.phase === 'result') return;
+      if (this.phase === 'replay') {
+        this.endReplay();
+        return;
+      }
+      if (!this.playing) return;
       if (document.pointerLockElement === this.canvas) {
         if (this.phase === 'decision' && e.button === 0) this.pickByGaze();
         return;
@@ -144,29 +176,44 @@ export class Game {
     document.addEventListener('mouseup', () => (this.dragging = false));
 
     document.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
       if (this.phase === 'decision') {
-        const map: Record<string, Choice> = { Digit1: 'first', Digit2: 'second', Digit3: 'third', Digit4: 'home', Space: 'hold' };
-        const c = map[e.code];
-        if (c) {
+        const def = this.defs.find((d) => d.code === e.code);
+        if (def) {
           e.preventDefault();
-          this.decide(c);
+          this.choose(def.value);
         }
-      } else if (this.phase === 'result' && e.code === 'KeyR') {
-        this.restart();
-      } else if (this.phase === 'briefing' && (e.code === 'Enter' || e.code === 'Space')) {
+      } else if (this.phase === 'result') {
+        if (e.code === 'KeyR') this.restart();
+        else if (e.code === 'KeyV') this.replay();
+        else if (e.code === 'KeyN') this.next();
+        else if (e.code === 'Escape' || e.code === 'KeyM') this.openMenu();
+      } else if (this.phase === 'briefing') {
+        if (e.code === 'Enter' || e.code === 'Space') {
+          e.preventDefault();
+          this.start();
+        } else if (e.code === 'Escape') this.openMenu();
+      } else if (this.phase === 'replay' && (e.code === 'Escape' || e.code === 'Space')) {
         e.preventDefault();
-        this.difficulty = this.ui.selectedDifficulty;
-        this.start();
+        this.endReplay();
       }
     });
 
-    this.ui.onChoose = (c) => this.phase === 'decision' && this.decide(c);
-    this.ui.onStart = (d) => {
+    this.ui.onChoose = (v) => this.phase === 'decision' && this.choose(v);
+    this.ui.onPickScenario = (id) => this.openBriefing(SCENARIOS.find((s) => s.id === id)!);
+    this.ui.onDifficulty = (d) => {
       this.difficulty = d;
-      this.start();
+      setDifficulty(d);
     };
+    this.ui.onStart = () => this.start();
     this.ui.onRestart = () => this.restart();
-    this.ui.onBriefing = () => this.reset();
+    this.ui.onReplay = () => this.replay();
+    this.ui.onNext = () => this.next();
+    this.ui.onMenu = () => this.openMenu();
+  }
+
+  private get playing() {
+    return this.phase === 'live' || this.phase === 'decision' || this.phase === 'play';
   }
 
   // 임베드된 화면 등에서는 포인터 잠금이 막힐 수 있다. 그때는 드래그로 시점을 돌린다.
@@ -178,46 +225,85 @@ export class Game {
     }
   }
 
+  private unlockPointer() {
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+
   private pickByGaze() {
     const fwd = new THREE.Vector3();
     this.camera.getWorldDirection(fwd);
-    let best: BaseId | null = null;
+    let best: DecisionDef | null = null;
     let bestAngle = PICK_ANGLE;
-    for (const id of Object.keys(BASES) as BaseId[]) {
-      const dir = BASES[id].clone().setY(0.5).sub(this.camera.position).normalize();
+    for (const d of this.defs) {
+      if (!d.pos) continue;
+      const dir = d.pos.clone().setY(0.5).sub(this.camera.position).normalize();
       const a = dir.angleTo(fwd);
       if (a < bestAngle) {
         bestAngle = a;
-        best = id;
+        best = d;
       }
     }
-    if (best) this.decide(best);
+    if (best) this.choose(best.value);
   }
 
   // ---------- 흐름 ----------
 
-  reset() {
-    this.phase = 'briefing';
+  private prepare(scn: Scenario) {
+    this.scn = scn;
     this.outcome = null;
     this.timeScale = 1;
-    this.shownCalls.clear();
-    for (const s of this.calls) this.scene.remove(s);
-    this.calls = [];
-
+    this.clearCalls();
     this.pitchKmh = Math.round(PITCH.minKmh + Math.random() * (PITCH.maxKmh - PITCH.minKmh));
-    this.pitchFlight = RELEASE_POINT.distanceTo(CONTACT_POINT) / (this.pitchKmh / 3.6);
-    this.runners = planRunners(this.scn);
-    this.deadline = decisionDeadline(this.scn);
-    this.t = -(PRE_PITCH + PITCH.windupTime + this.pitchFlight);
-
-    const start = this.scn.fielders[this.scn.player];
-    this.camera.position.copy(start).setY(EYE_HEIGHT);
-    this.lookAtPoint(P(0, 2, 1.2));
-    this.batterBat.visible = true;
-
-    this.ui.showBriefing(this.scn, this.difficulty);
-    this.ui.setHud(this.scn, this.pitchKmh);
+    this.pitchFlight = releasePoint().distanceTo(CONTACT_POINT) / (this.pitchKmh / 3.6);
+    this.tl = scn.kind === 'throw' ? buildThrowTimeline(scn, this.pitchFlight) : buildChoiceTimeline(scn, this.pitchFlight);
+    this.t = this.tl.start;
+    this.camera.position.copy(this.tl.playerStart).setY(EYE_HEIGHT);
+    this.lookAtPoint(scn.kind === 'choice' && scn.setup === 'pickoff' ? P(0, 18.44, 1.2) : P(0, 1.2, 1.2));
+    this.defs = this.decisionDefs();
+    this.ui.setHud(scn, this.pitchKmh);
     this.update(0);
+  }
+
+  private decisionDefs(): DecisionDef[] {
+    const scn = this.scn;
+    if (scn.kind === 'throw') {
+      const keys: Record<Choice, [string, string]> = {
+        first: ['1', 'Digit1'],
+        second: ['2', 'Digit2'],
+        third: ['3', 'Digit3'],
+        home: ['4', 'Digit4'],
+        hold: ['Space', 'Space'],
+      };
+      return THROW_CHOICES.map((c) => ({
+        value: c,
+        key: keys[c][0],
+        code: keys[c][1],
+        label: c === 'hold' ? '들고 있기' : isCarry(scn, c) ? `${BASE_LABEL[c]} 직접 밟기` : BASE_LABEL[c],
+        short: c === 'hold' ? '들고 있기' : BASE_LABEL[c],
+        pos: c === 'hold' ? null : BASES[c as BaseId],
+      }));
+    }
+    return scn.options.map((o, i) => ({
+      value: i,
+      key: String(i + 1),
+      code: `Digit${i + 1}`,
+      label: o.label,
+      short: o.label,
+      pos: o.moveTo,
+    }));
+  }
+
+  openMenu() {
+    if (this.phase !== 'briefing' && this.phase !== 'menu') this.prepare(this.scn);
+    this.phase = 'menu';
+    this.unlockPointer();
+    this.ui.showMenu(this.scn.position, this.difficulty);
+  }
+
+  private openBriefing(scn: Scenario) {
+    this.prepare(scn);
+    this.phase = 'briefing';
+    this.ui.showBriefing(scn);
   }
 
   private start() {
@@ -227,38 +313,80 @@ export class Game {
   }
 
   private restart() {
-    this.reset();
+    this.prepare(this.scn);
     this.start();
   }
 
-  private decide(choice: Choice, timedOut = false) {
-    const d = this.t - GROUNDER.travelTime;
+  private next() {
+    const i = SCENARIOS.indexOf(this.scn);
+    this.openBriefing(SCENARIOS[(i + 1) % SCENARIOS.length]);
+  }
+
+  private choose(value: Choice | number, timedOut = false) {
+    const d = Math.max(0, this.t - this.tl.decisionAt);
+    this.decisionDelay = d;
     this.reactionReal = (performance.now() - this.decisionRealStart) / 1000;
-    this.outcome = evaluate(this.scn, choice, d, timedOut);
+    const scn = this.scn;
+    if (scn.kind === 'throw') {
+      this.outcome = evaluate(scn, value as Choice, d, timedOut);
+      this.tl = buildThrowTimeline(scn, this.pitchFlight, this.outcome);
+    } else {
+      this.tl = buildChoiceTimeline(scn, this.pitchFlight, { index: timedOut ? null : (value as number), d });
+    }
     this.phase = 'play';
     this.ui.hideDecision();
-
-    const lastEvent = Math.max(0, ...this.outcome.events.map((e) => Math.max(e.ballTime, e.runnerTime)));
-    const lastSeg = Math.max(0, ...this.outcome.segments.map((s) => s.t1));
-    const lastRunner = Math.max(...this.runners.map((r) => r.arrival));
-    this.playEnd = Math.max(lastEvent, lastSeg, lastRunner) + 1.2;
   }
 
   private finish() {
     this.phase = 'result';
-    if (document.pointerLockElement) document.exitPointerLock();
-    const o = this.outcome!;
-    const g = grade(this.scn, o);
-    const alternatives = (['first', 'second', 'third', 'home', 'hold'] as Choice[]).map((c) => evaluate(this.scn, c, o.decisionDelay));
-    this.ui.showResult({
-      scenario: this.scn,
-      outcome: o,
-      grade: g.grade,
-      best: g.best,
-      alternatives,
-      reactionReal: this.reactionReal,
-      timeScale: DIFFICULTIES.find((x) => x.id === this.difficulty)!.timeScale,
-    });
+    this.unlockPointer();
+    this.showResult(true);
+  }
+
+  private showResult(record: boolean) {
+    const scn = this.scn;
+    const timeScale = DIFFICULTIES.find((x) => x.id === this.difficulty)!.timeScale;
+    if (scn.kind === 'throw') {
+      const o = this.outcome!;
+      const g = gradeThrow(scn, o);
+      if (record) addResult(scn.id, g.grade, o.decisionDelay);
+      this.ui.showThrowResult({
+        scenario: scn,
+        outcome: o,
+        grade: g.grade,
+        best: g.best,
+        alternatives: THROW_CHOICES.map((c) => evaluate(scn, c, o.decisionDelay)),
+        reactionReal: this.reactionReal,
+        timeScale,
+      });
+    } else {
+      const c = this.tl.choice!;
+      if (record) addResult(scn.id, c.grade, this.decisionDelay);
+      this.ui.showChoiceResult({ scenario: scn, result: c, decisionAt: this.tl.decisionAt, decisionDelay: this.decisionDelay, reactionReal: this.reactionReal, timeScale });
+    }
+  }
+
+  private replay() {
+    this.phase = 'replay';
+    this.clearCalls();
+    this.ui.hideOverlays();
+    this.ui.showReplayBanner(true);
+    this.t = Math.max(this.tl.start, this.tl.tWindup - 0.6);
+    if (this.scn.kind === 'choice' && (this.scn.setup === 'pickoff' || this.scn.setup === 'bunt')) {
+      this.t = this.tl.decisionAt - 0.3;
+    }
+  }
+
+  private endReplay() {
+    this.ui.showReplayBanner(false);
+    this.phase = 'result';
+    this.showResult(false);
+  }
+
+  private clearCalls() {
+    this.shownCalls.clear();
+    for (const s of this.calls) this.scene.remove(s);
+    this.calls = [];
   }
 
   // ---------- 매 프레임 ----------
@@ -266,29 +394,32 @@ export class Game {
   update(realDt: number) {
     const ds = DIFFICULTIES.find((x) => x.id === this.difficulty)!.timeScale;
 
-    if (this.phase === 'live' || this.phase === 'decision' || this.phase === 'play') {
+    if (this.playing) {
       // 결정 직후에는 슬로모션에서 실제 속도로 부드럽게 돌아온다
       const target = this.phase === 'decision' ? ds : 1;
       this.timeScale += (target - this.timeScale) * Math.min(1, realDt * (this.phase === 'decision' ? 12 : 3));
       this.t += realDt * this.timeScale;
+    } else if (this.phase === 'replay') {
+      this.t += realDt * REPLAY_SPEED;
+      if (this.t >= this.tl.end) this.endReplay();
     }
 
-    if (this.phase === 'live' && this.t >= GROUNDER.travelTime) {
-      this.t = GROUNDER.travelTime;
+    if (this.phase === 'live' && this.t >= this.tl.decisionAt) {
+      this.t = this.tl.decisionAt;
       this.phase = 'decision';
       this.decisionRealStart = performance.now();
-      this.ui.showDecision();
+      this.ui.showDecision(this.scn.kind === 'throw' ? '어디로 던질까?' : this.scn.prompt, this.defs);
     }
     if (this.phase === 'decision') {
-      const d = this.t - GROUNDER.travelTime;
-      this.ui.setDecisionTimer(1 - d / this.deadline);
-      if (d >= this.deadline) this.decide('hold', true);
+      const d = this.t - this.tl.decisionAt;
+      this.ui.setDecisionTimer(1 - d / this.tl.window);
+      if (d >= this.tl.window) this.choose('hold', true);
     }
-    if (this.phase === 'play' && this.t >= this.playEnd) this.finish();
+    if (this.phase === 'play' && this.t >= this.tl.end) this.finish();
 
     this.animate(realDt);
     this.updateCamera();
-    this.ui.updateBaseTags(this.camera, this.phase === 'decision');
+    this.ui.updateTags(this.camera, this.phase === 'decision' ? this.defs : null);
   }
 
   private lookAtPoint(p: THREE.Vector3) {
@@ -297,161 +428,181 @@ export class Game {
     this.pitch = Math.atan2(d.y, Math.hypot(d.x, d.z));
   }
 
+  private get overhead() {
+    return tvView || this.phase === 'replay' || this.phase === 'menu';
+  }
+
+  private playerPos(t: number) {
+    return movePosition(this.tl.playerStart, this.tl.player, t);
+  }
+
   private updateCamera() {
-    if (tvView) {
-      // 디버그용 중계 시점: 홈 뒤 높은 곳에서 내야 전체를 본다
-      this.camera.position.copy(P(0, -12, 14));
-      this.camera.lookAt(P(0, 32, 0));
+    this.glove.visible = !this.overhead;
+    if (this.overhead) {
+      const wide = this.scn.kind === 'choice' && (this.scn.setup === 'gap' || this.scn.setup === 'cutoff');
+      this.camera.position.copy(wide ? P(0, -22, 42) : P(0, -12, 20));
+      this.camera.lookAt(wide ? P(0, 50) : P(0, 26));
       return;
     }
-    const t = this.t;
-    const start = this.scn.fielders[this.scn.player];
-    const u = THREE.MathUtils.clamp(t / GROUNDER.travelTime, 0, 1);
-    const pos = start.clone().lerp(this.scn.catchPoint, easeInOut(u));
-    // 포구 순간 살짝 낮게
-    const dip = t > GROUNDER.travelTime - 0.4 && (this.phase === 'live' || this.phase === 'decision') ? 0.25 : 0;
+    const pos = this.playerPos(this.t);
+    const catchT = this.scn.kind === 'throw' ? this.tl.decisionAt : -Infinity;
+    const dip = this.t > catchT - 0.4 && this.t < catchT + 0.6 ? 0.25 : 0;
     this.camera.position.set(pos.x, EYE_HEIGHT - dip, pos.z);
     this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
   }
 
   private animate(realDt: number) {
     const t = this.t;
+    const tl = this.tl;
     const scn = this.scn;
-    const tRelease = -this.pitchFlight;
-    const tWindup = tRelease - PITCH.windupTime;
+    const dt = realDt * (this.phase === 'replay' ? REPLAY_SPEED : this.timeScale);
+    const home = fieldersOf(scn);
+    const ballPos = this.ballPosition(t);
+    const tmp = new THREE.Vector3();
 
     // 수비수
-    for (const [id, m] of this.fielders) {
-      const home = scn.fielders[id];
-      if (id === 'C') {
-        m.root.position.copy(home);
-        faceTowards(m, MOUND_FACE);
-        poseCrouch(m);
-        continue;
-      }
-      if (id === 'P') {
-        m.root.position.copy(home);
-        faceTowards(m, BASES.home);
-        if (t >= tWindup && t < tRelease + 0.3) poseThrow(m, THREE.MathUtils.clamp((t - tWindup) / PITCH.windupTime, 0, 1));
-        else poseIdle(m, t > 0);
-        continue;
-      }
-      const cover = (Object.keys(scn.covers) as BaseId[]).find((b) => scn.covers[b] === id && b !== 'home');
-      const coversActive = cover && t > 0.2 && (cover === 'first' || cover === 'second');
-      if (coversActive) {
-        const bag = BASES[cover!].clone().add(cover === 'first' ? P(-0.35, 0) : P(0.35, -0.2)).setY(0);
-        const total = home.distanceTo(bag);
-        const moved = Math.min(total, (t - 0.2) * RUN.speed);
-        m.root.position.copy(home).lerp(bag, total > 0 ? moved / total : 1);
-        faceTowards(m, scn.catchPoint);
-        // 2루수의 피벗 송구 동작
-        const relay = this.outcome?.segments.find((s) => s.thrower === id);
-        if (relay && t > relay.t0 - 0.3 && t < relay.t0 + 0.15) {
-          faceTowards(m, BASES.first);
-          poseThrow(m, THREE.MathUtils.clamp((t - (relay.t0 - 0.3)) / 0.3, 0, 1));
-        } else if (moved < total) poseRun(m, realDt * this.timeScale, RUN.speed);
-        else poseIdle(m, true);
+    for (const id of FIELDER_IDS) {
+      const m = this.fielders.get(id)!;
+      const isPlayer = id === scn.position;
+      m.root.visible = !isPlayer || this.overhead;
+      let moving = false;
+      let dest: THREE.Vector3 | null = null;
+      if (isPlayer) {
+        const before = this.playerPos(t - 0.05).clone();
+        m.root.position.copy(this.playerPos(t));
+        this.marker.position.copy(m.root.position);
+        this.marker.visible = this.overhead && this.phase !== 'menu';
+        moving = before.distanceTo(m.root.position) > 0.01;
+        if (moving) dest = m.root.position.clone().add(m.root.position.clone().sub(before));
       } else {
-        m.root.position.copy(home);
-        faceTowards(m, t > 0 ? scn.catchPoint : BASES.home);
-        poseIdle(m, t > tWindup);
+        const path = tl.fielders[id];
+        if (path) {
+          const r = pathPosition(path, t, tmp);
+          m.root.position.copy(r.pos);
+          moving = r.moving;
+          if (moving) dest = path.waypoints[path.waypoints.length - 1];
+        } else m.root.position.copy(home[id]);
+      }
+
+      const throwSeg = tl.ball.find((s) => s.thrower === id && t > s.t0 - 0.3 && t < s.t0 + 0.15);
+      if (throwSeg) {
+        faceTowards(m, throwSeg.to);
+        poseThrow(m, THREE.MathUtils.clamp((t - (throwSeg.t0 - 0.3)) / 0.3, 0, 1));
+      } else if (id === 'P' && tl.pitch && t >= tl.tWindup && t < tl.tRelease + 0.3) {
+        faceTowards(m, BASES.home);
+        poseThrow(m, THREE.MathUtils.clamp((t - tl.tWindup) / PITCH.windupTime, 0, 1));
+      } else if (id === 'C' && !moving) {
+        faceTowards(m, P(0, 18.44));
+        poseCrouch(m);
+      } else if (moving && dest) {
+        faceTowards(m, dest);
+        poseRun(m, dt, 7);
+      } else {
+        faceTowards(m, t > 0 ? ballPos : BASES.home);
+        poseIdle(m, t > tl.tWindup);
       }
     }
 
     // 타자와 주자
-    for (const [id, m] of this.runnerModels) {
-      const plan = this.runners.find((r) => r.id === id);
-      if (!plan) {
-        m.root.visible = false;
+    for (const id of RUNNER_IDS) {
+      const m = this.runnerModels.get(id)!;
+      const path = tl.runners.get(id);
+      if (id !== 'batter' && !path) {
+        const base = RUNNER_BASE[id];
+        m.root.visible = scn.situation.runners[base];
+        if (m.root.visible) {
+          m.root.position.copy(BASES[base]);
+          faceTowards(m, BASES.home);
+          poseIdle(m, true);
+        }
         continue;
       }
-      const target = BASES[plan.to];
-      const total = plan.from.distanceTo(target);
-      const moved = THREE.MathUtils.clamp((t - plan.startTime) * RUN.speed, 0, total);
-      m.root.position.copy(plan.from).lerp(target, moved / total);
-      const out = this.outcome?.events.some((e) => e.runner === id && e.out && t >= e.ballTime);
-      if (id === 'batter' && t < plan.startTime) {
-        faceTowards(m, BASES.home.clone().add(P(0, 0.2)));
-        poseIdle(m, true);
-        // 스윙: 타격 직전 0.15초 동안 배트를 휘두른다
-        const swing = THREE.MathUtils.clamp((t + 0.15) / 0.25, 0, 1);
-        this.batterBat.rotation.set(-0.3, 0, 1.0 - swing * 2.6);
-        m.body.rotation.y = -swing * 1.2;
-      } else {
-        if (id === 'batter') this.batterBat.visible = false;
-        m.body.rotation.y = 0;
-        faceTowards(m, target);
-        if (moved > 0 && moved < total && !out) poseRun(m, realDt * this.timeScale, RUN.speed);
-        else poseIdle(m, moved === 0);
+      m.root.visible = true;
+      if (id === 'batter' && (!path || t < path.startTime)) {
+        this.poseBatter(m, t);
+        continue;
       }
+      if (id === 'batter') this.bat.visible = false;
+      m.body.rotation.y = 0;
+      const r = pathPosition(path!, t, tmp);
+      m.root.position.copy(r.pos);
+      if (r.moving) {
+        faceTowards(m, nextWaypoint(path!, r.pos));
+        poseRun(m, dt, 7);
+      } else poseIdle(m, false);
     }
 
-    this.animateBall(t, tRelease);
+    this.ball.position.copy(ballPos);
+    this.ballShadow.position.set(ballPos.x, 0.02, ballPos.z);
+    this.ballShadow.visible = ballPos.y < 8;
     this.showCalls(t);
   }
 
-  private animateBall(t: number, tRelease: number) {
-    const pos = new THREE.Vector3();
-    const o = this.outcome;
-    const catchT = GROUNDER.travelTime;
-    const gloveWorld = () =>
-      tvView ? this.scn.catchPoint.clone().setY(1.0) : this.pocket.getWorldPosition(new THREE.Vector3());
-
-    if (t < tRelease) {
-      pos.copy(RELEASE_POINT);
-    } else if (t < 0) {
-      pos.lerpVectors(RELEASE_POINT, CONTACT_POINT, (t - tRelease) / this.pitchFlight);
-    } else if (t < catchT) {
-      const u = t / catchT;
-      const end = this.scn.catchPoint.clone().setY(0.35);
-      pos.lerpVectors(CONTACT_POINT, end, 1 - Math.pow(1 - u, 1.35));
-      // 타격 높이에서 떨어진 뒤 점점 낮게 튀다가 마지막에 글러브 높이로
-      const bounce = Math.abs(Math.sin(u * Math.PI * 3.2)) * 1.1 * Math.pow(1 - u, 1.6);
-      const drop = Math.pow(1 - u, 8) * (CONTACT_POINT.y - 0.05);
-      const scoop = THREE.MathUtils.smoothstep(u, 0.85, 1) * 0.3;
-      pos.y = 0.05 + Math.max(bounce, drop) + scoop;
-    } else if (!o || o.segments.length === 0 || t < o.segments[0].t0) {
-      pos.copy(gloveWorld());
+  private poseBatter(m: Mannequin, t: number) {
+    const box = P(this.scn.situation.batter === 'R' ? -0.9 : 0.9, 0);
+    m.root.position.copy(box);
+    faceTowards(m, BASES.home.clone().add(P(0, 0.2)));
+    poseIdle(m, true);
+    this.bat.visible = true;
+    if (this.tl.batter === 'bunt') {
+      // 번트 자세: 배트를 몸 앞에 눕힌다
+      m.body.rotation.y = 0.9 * (this.scn.situation.batter === 'R' ? -1 : 1);
+      this.bat.rotation.set(0, 0, Math.PI / 2);
+    } else if (this.tl.batter === 'swing') {
+      const swing = THREE.MathUtils.clamp((t + 0.15) / 0.25, 0, 1);
+      this.bat.rotation.set(-0.3, 0, 1.0 - swing * 2.6);
+      m.body.rotation.y = -swing * 1.2;
     } else {
-      const seg = o.segments.find((s) => t >= s.t0 && t < s.t1);
-      if (seg) {
-        const u = (t - seg.t0) / (seg.t1 - seg.t0);
-        pos.lerpVectors(seg.from, seg.to, u);
-        pos.y += Math.sin(u * Math.PI) * seg.arc;
-      } else {
-        // 다음 송구를 기다리거나 마지막으로 받은 곳
-        const done = o.segments.filter((s) => t >= s.t1);
-        pos.copy(done[done.length - 1].to);
-      }
+      this.bat.rotation.set(-0.3, 0, 1.0);
+      m.body.rotation.y = 0;
     }
-    this.ball.position.copy(pos);
-    this.ballShadow.position.set(pos.x, 0.02, pos.z);
-    this.ballShadow.visible = pos.y < 6;
+  }
+
+  private ballPosition(t: number): THREE.Vector3 {
+    const tl = this.tl;
+    const pos = new THREE.Vector3();
+    if (tl.gloveHold && t >= tl.gloveHold[0] && t < tl.gloveHold[1]) {
+      if (this.overhead) return this.playerPos(t).clone().setY(1.1);
+      return this.pocket.getWorldPosition(pos);
+    }
+    const active = tl.ball.find((s) => t >= s.t0 && t < s.t1);
+    if (active) {
+      const u = (t - active.t0) / (active.t1 - active.t0);
+      pos.lerpVectors(active.from, active.to, u);
+      if (active.bounces) pos.y += Math.abs(Math.sin(u * Math.PI * active.bounces)) * active.arc * Math.pow(1 - u, 1.5);
+      else pos.y += Math.sin(u * Math.PI) * active.arc;
+      return pos;
+    }
+    const done = tl.ball.filter((s) => t >= s.t1);
+    if (done.length === 0) return pos.copy(tl.ballStart);
+    return pos.copy(done.reduce((a, b) => (b.t1 > a.t1 ? b : a)).to);
   }
 
   private showCalls(t: number) {
-    const o = this.outcome;
-    if (!o) return;
-    o.events.forEach((e, i) => {
-      const when = e.out ? e.ballTime : e.runnerTime;
-      if (t < when || this.shownCalls.has(i)) return;
+    this.tl.calls.forEach((c, i) => {
+      if (t < c.t || this.shownCalls.has(i)) return;
       this.shownCalls.add(i);
-      const sprite = nameSprite(e.out ? '아웃!' : '세이프', e.out ? '#ff5a4f' : '#5ad1ff');
-      sprite.position.copy(BASES[e.base]).setY(3);
+      const sprite = nameSprite(c.text, c.good ? '#ff5a4f' : '#5ad1ff');
+      sprite.position.copy(c.pos).setY(3);
       sprite.scale.set(3.2, 0.8, 1);
       this.scene.add(sprite);
       this.calls.push(sprite);
-      this.ui.toast(`${BASE_LABEL[e.base]} ${e.out ? '아웃' : '세이프'}`, e.out);
+      if (this.phase !== 'replay') this.ui.toast(c.text, c.good);
     });
   }
 }
 
-const MOUND_FACE = P(0, 18.44);
-
-// 주소 끝에 ?view=tv를 붙이면 중계 시점으로 본다 (구장과 움직임 확인용)
-const tvView = new URLSearchParams(location.search).get('view') === 'tv';
-
-function easeInOut(u: number) {
-  return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+function nextWaypoint(path: { waypoints: THREE.Vector3[] }, pos: THREE.Vector3) {
+  // 현재 위치에서 가장 가까운 다음 지점을 향한다
+  const wp = path.waypoints;
+  for (let i = 0; i < wp.length - 1; i++) {
+    const a = wp[i];
+    const b = wp[i + 1];
+    const ab = b.clone().sub(a);
+    const len2 = ab.lengthSq();
+    if (len2 === 0) continue;
+    const u = pos.clone().sub(a).dot(ab) / len2;
+    if (u < 0.999) return b;
+  }
+  return wp[wp.length - 1];
 }
-
