@@ -216,6 +216,7 @@ export class UI {
           </div>`
         : `<div class="controls">
             <span><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>1루 · 2루 · 3루로 송구 (위치 판단은 선택지 순서대로)</span>
+            <span><b class="ctl-label">직접 밟기</b></span><span>베이스가 가까우면 같은 키로 직접 밟아요 (선택지에 '직접 밟기'로 표시)</span>
             <span><kbd>Space</kbd></span><span>홈으로 송구</span>
             <span><kbd>W</kbd></span><span>던지지 않고 들고 있기</span>
             <span><kbd>좌클릭</kbd></span><span>바라보는 베이스로 송구 · 바라보는 선택지 고르기</span>
