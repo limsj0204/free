@@ -12,6 +12,7 @@ interface Saved {
   records: { [id: string]: Record };
   difficulty?: DifficultyId;
   includeGenerated?: boolean;
+  hideBall?: boolean;
 }
 
 const KEY = 'infield-iq-progress-v1';
@@ -66,6 +67,15 @@ export function getIncludeGenerated(): boolean {
 
 export function setIncludeGenerated(on: boolean) {
   saved.includeGenerated = on;
+  persist();
+}
+
+export function getHideBall(): boolean {
+  return saved.hideBall ?? false;
+}
+
+export function setHideBall(on: boolean) {
+  saved.hideBall = on;
   persist();
 }
 

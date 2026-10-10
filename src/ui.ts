@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { DIFFICULTIES, RUN, type DifficultyId } from './config';
-import { BASE_LABEL } from './coords';
+import { BASE_LABEL, P } from './coords';
 import { josa } from './explain';
 import { generatedFor } from './generated';
-import { getIncludeGenerated, getRecord, setIncludeGenerated } from './progress';
+import { getHideBall, getIncludeGenerated, getRecord, setHideBall, setIncludeGenerated } from './progress';
 import {
   FIELDER_NAME,
   POSITIONS,
@@ -82,6 +82,24 @@ function throwLabel(scn: ThrowScenario, c: Choice) {
   return isCarry(scn, c) ? `${BASE_LABEL[c]} 직접 밟기` : `${BASE_LABEL[c]} 송구`;
 }
 
+// 타구 숨기기 설정이 켜져 있으면 타격 전까지 타구를 가린다. 투구 전에 판단하는 상황은 원래 보이는 정보라 가리지 않는다.
+export function ballHidden(scn: Scenario) {
+  if (!getHideBall()) return false;
+  return !(scn.kind === 'choice' && (scn.setup === 'pickoff' || scn.setup === 'bunt'));
+}
+
+// 수비 위치를 짧게 설명한다 (타구를 숨겼을 때 브리핑에 대신 보여준다)
+function defenseLabel(scn: Scenario) {
+  const f = scn.fielders ?? {};
+  const near = (id: keyof typeof f, x: number, z: number) => !!f[id] && f[id]!.distanceTo(P(x, z)) < 0.6;
+  const parts: string[] = [];
+  if (near('SS', -9, 34)) parts.push('병살 대형');
+  else if (near('3B', -14.5, 18.5) || near('SS', -7, 26.5)) parts.push('전진 수비');
+  else parts.push('보통 수비');
+  if (near('1B', 20.2, 18.4)) parts.push('1루수는 주자 견제 위치');
+  return parts.join(' · ');
+}
+
 export class UI {
   onChoose: (v: Choice | number) => void = () => {};
   onPickScenario: (id: string) => void = () => {};
@@ -113,7 +131,7 @@ export class UI {
   private tab: PositionId = 'SS';
 
   setHud(scn: Scenario, kmh: number) {
-    $('hud-title').textContent = scn.event;
+    $('hud-title').textContent = ballHidden(scn) ? '타구 대기' : scn.event;
     document.querySelectorAll<HTMLElement>('.hud-outs i').forEach((el) => {
       el.classList.toggle('on', Number(el.dataset.out) < scn.situation.outs);
     });
@@ -180,6 +198,11 @@ export class UI {
           </label>
           ${items}
         </div>
+        <h2>타구 미리 보기</h2>
+        <label class="gen-toggle" for="hide-ball">
+          <input type="checkbox" id="hide-ball" ${getHideBall() ? 'checked' : ''} />
+          <span>타구 숨기기 <small>브리핑에서는 카운트와 주자, 수비 위치만 보여주고 타구는 공이 맞는 순간 공개해요. 어떤 공이 와도 대처할 수 있게 미리 정리하는 연습이에요.</small></span>
+        </label>
         <h2>난이도 (판단 순간의 슬로모션 속도)</h2>
         <div class="difficulties">
           ${DIFFICULTIES.map(
@@ -196,6 +219,7 @@ export class UI {
       }),
     );
     $<HTMLInputElement>('gen-toggle').addEventListener('change', (e) => setIncludeGenerated((e.target as HTMLInputElement).checked));
+    $<HTMLInputElement>('hide-ball').addEventListener('change', (e) => setHideBall((e.target as HTMLInputElement).checked));
     $('random-pos').addEventListener('click', () => this.onRandom(this.tab));
     $('random-all').addEventListener('click', () => this.onRandom('all'));
     this.menu.querySelectorAll<HTMLButtonElement>('[data-scenario]').forEach((b) =>
@@ -214,8 +238,10 @@ export class UI {
 
   showBriefing(scn: Scenario) {
     this.hideAll();
-    this.help.textContent =
-      scn.kind === 'throw'
+    const hidden = ballHidden(scn);
+    this.help.textContent = hidden
+      ? '마우스: 시점 이동 · 클릭: 바라보는 곳 선택 · A/S/D, Space, W: 선택지 · Esc: 마우스 풀기'
+      : scn.kind === 'throw'
         ? '마우스: 시점 이동 · 클릭: 바라보는 베이스로 송구 · A/S/D: 1루/2루/3루 · Space: 홈 · W: 들고 있기 · Esc: 마우스 풀기'
         : '마우스: 시점 이동 · 클릭: 바라보는 위치로 이동 · A/S/D: 선택지 순서대로 · Esc: 마우스 풀기';
     this.hud.classList.remove('hidden');
@@ -236,7 +262,8 @@ export class UI {
     const eyebrow = [
       this.randomLabel,
       this.randomLabel === '전체 랜덤' ? `내 포지션: ${FIELDER_NAME[scn.position]}` : null,
-      scn.kind === 'throw' ? '송구 판단' : '위치 판단',
+      // 타구를 숨기면 공이 나에게 오는지도 알 수 없어야 한다
+      hidden ? '타구 숨김' : scn.kind === 'throw' ? '송구 판단' : '위치 판단',
     ]
       .filter(Boolean)
       .join(' · ');
@@ -259,14 +286,16 @@ export class UI {
             </div>
           </section>
           <section class="brief-box">
-            <div class="brief-label">${noBall ? '플레이' : '타격'}</div>
-            <b class="brief-main">${scn.event}</b>
-            <span class="brief-sub">${eventSub} · ${sit.batter === 'R' ? '우타자' : '좌타자'}</span>
+            <div class="brief-label">${hidden ? '타격' : noBall ? '플레이' : '타격'}</div>
+            <b class="brief-main ${hidden ? 'hidden-ball' : ''}">${hidden ? '?' : scn.event}</b>
+            <span class="brief-sub">${hidden ? '공이 맞는 순간 공개돼요' : eventSub} · ${sit.batter === 'R' ? '우타자' : '좌타자'}</span>
           </section>
         </div>
-        ${scn.brief ? `<p>${scn.brief}</p>` : ''}
+        ${hidden ? `<p>수비 위치: ${defenseLabel(scn)}</p>` : scn.brief ? `<p>${scn.brief}</p>` : ''}
         <p class="note">${
-          scn.kind === 'throw'
+          hidden
+            ? '타격 순간 타구가 공개되고 선택지가 떠요. 공이 나에게 오면 <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 1루·2루·3루, <kbd>Space</kbd>로 홈, <kbd>W</kbd>로 들고 있기. 다른 수비수에게 가면 <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 갈 곳을 골라요. 미리 고르면 그 순간 바로 실행돼요.'
+            : scn.kind === 'throw'
             ? '타격 순간부터 선택지가 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 1루·2루·3루, <kbd>Space</kbd>로 홈, <kbd>W</kbd>로 들고 있기. 공을 잡기 전에 미리 눌러두면 잡자마자 던지고, 안 눌렀으면 잡는 순간 화면이 느려져요.'
             : '선택지가 미리 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 고르거나 갈 곳을 바라보고 클릭하세요. 판단할 순간까지 안 골랐으면 그때 화면이 느려져요.'
         }</p>
@@ -330,6 +359,11 @@ export class UI {
       return el;
     });
     this.decision.classList.remove('hidden');
+  }
+
+  // 공이 맞는 순간 상황판에 타구를 공개한다
+  revealHud(scn: Scenario) {
+    $('hud-title').textContent = scn.event;
   }
 
   setDecisionTitle(title: string) {

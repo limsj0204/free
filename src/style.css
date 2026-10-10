@@ -874,3 +874,8 @@ button:focus-visible {
   color: #1b2440;
   border-color: rgba(27, 36, 64, 0.45);
 }
+
+.brief-main.hidden-ball {
+  font-size: 32px;
+  color: var(--muted);
+}

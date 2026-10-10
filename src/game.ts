@@ -465,6 +465,7 @@ export class Game {
     if (this.phase === 'live' && !this.panelShown && this.t >= showAt) {
       this.panelShown = true;
       this.decisionRealStart = performance.now();
+      this.ui.revealHud(scn);
       this.ui.showDecision(scn.kind === 'throw' ? '공을 잡으면 어디로?' : scn.prompt, this.defs, scn.kind === 'throw' ? runnerCalls(scn) : []);
       this.ui.setDecisionTimer(1);
     }
