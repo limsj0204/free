@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { DIFFICULTIES, RUN, type DifficultyId } from './config';
+import { ACTION, DIFFICULTIES, RUN, type DifficultyId } from './config';
 import { BASE_LABEL, P } from './coords';
 import { josa } from './explain';
 import { generatedFor } from './generated';
-import { getHideBall, getIncludeGenerated, getRecord, setHideBall, setIncludeGenerated } from './progress';
+import { getHideBall, getIncludeGenerated, getMode, getRecord, setHideBall, setIncludeGenerated } from './progress';
 import {
   FIELDER_NAME,
   POSITIONS,
@@ -62,6 +62,7 @@ const VERDICT_LABEL: Record<ThrowVerdict, (g: Grade) => string> = {
   fallback: () => '정답은 아니지만, 늦은 시점에선 맞는 선택',
   other: (g) => (g === 'ok' ? '아웃은 잡았지만 정답이 아니에요' : '다시 생각해 봐요'),
   timeout: () => '시간 안에 결정하지 못했어요',
+  miss: () => '포구 실패',
 };
 
 const GRADE_SHORT: Record<Grade, string> = { best: '최선', ok: '아쉬움', bad: '오답' };
@@ -80,6 +81,11 @@ function situationText(scn: Scenario) {
 function throwLabel(scn: ThrowScenario, c: Choice) {
   if (c === 'hold') return '들고 있기';
   return isCarry(scn, c) ? `${BASE_LABEL[c]} 직접 밟기` : `${BASE_LABEL[c]} 송구`;
+}
+
+// 액션 모드 기록은 판단 모드 기록과 따로 저장한다
+export function recordId(id: string) {
+  return getMode() === 'action' ? `a:${id}` : id;
 }
 
 // 타구 숨기기 설정이 켜져 있으면 타격 전까지 타구를 가린다. 투구 전에 판단하는 상황은 원래 보이는 정보라 가리지 않는다.
@@ -110,6 +116,7 @@ export class UI {
   onNext: () => void = () => {};
   onMenu: () => void = () => {};
   onRandom: (scope: PositionId | 'all') => void = () => {};
+  onMode: (m: 'judge' | 'action') => void = () => {};
   randomLabel: string | null = null; // 랜덤 연습 중이면 "유격수 랜덤" 같은 이름
 
   private menu = $('menu');
@@ -153,7 +160,8 @@ export class UI {
   }
 
   private renderMenu(difficulty: DifficultyId) {
-    const done = (id: string) => getRecord(id)?.best === 'best';
+    const done = (id: string) => getRecord(recordId(id))?.best === 'best';
+    const mode = getMode();
     const tabs = POSITIONS.map((p) => {
       const list = scenariosFor(p);
       const n = list.filter((s) => done(s.id)).length;
@@ -163,7 +171,7 @@ export class UI {
 
     const items = scenariosFor(this.tab)
       .map((s) => {
-        const rec = getRecord(s.id);
+        const rec = getRecord(recordId(s.id));
         const status = rec ? `<span class="status ${rec.best}">${GRADE_SHORT[rec.best]}</span>` : '<span class="status none">도전 전</span>';
         return `<button class="item" data-scenario="${s.id}" id="item-${s.id}">
           <span class="item-main">
@@ -186,6 +194,10 @@ export class UI {
         <div class="eyebrow">VR 야구 대비 · 내야 수비</div>
         <h1>내야 수비 판단 훈련</h1>
         <p class="note">포지션을 고르고 상황을 선택하세요. 공을 잡거나 상황이 벌어지는 순간 화면이 느려지지만, 주자는 계속 뛰어요. 모든 상황은 오른손 타자 기준이에요. 최선의 판단을 한 상황 ${cleared}/${total}</p>
+        <div class="modes">
+          <button class="${mode === 'judge' ? 'selected' : ''}" data-mode="judge" id="mode-judge"><b>판단 모드</b><span>키보드로 던질 곳·갈 곳을 고르는 연습</span></button>
+          <button class="${mode === 'action' ? 'selected' : ''}" data-mode="action" id="mode-action"><b>액션 모드</b><span>WASD로 직접 움직여 잡고, 조준 후 좌클릭으로 송구</span></button>
+        </div>
         <div class="tabs" role="tablist">${tabs}</div>
         <div class="items">
           <div class="random-row">
@@ -203,11 +215,13 @@ export class UI {
           <input type="checkbox" id="hide-ball" ${getHideBall() ? 'checked' : ''} />
           <span>타구 숨기기 <small>브리핑에서는 카운트와 주자, 수비 위치만 보여주고 타구는 공이 맞는 순간 공개해요. 어떤 공이 와도 대처할 수 있게 미리 정리하는 연습이에요.</small></span>
         </label>
-        <h2>난이도 (판단 순간의 슬로모션 속도)</h2>
+        <h2>${mode === 'action' ? '난이도 (플레이 전체 속도)' : '난이도 (판단 순간의 슬로모션 속도)'}</h2>
         <div class="difficulties">
           ${DIFFICULTIES.map(
             (d) =>
-              `<button data-diff="${d.id}" id="diff-${d.id}" class="${d.id === difficulty ? 'selected' : ''}"><b>${d.label}</b><span>${d.desc}</span></button>`,
+              `<button data-diff="${d.id}" id="diff-${d.id}" class="${d.id === difficulty ? 'selected' : ''}"><b>${d.label}</b><span>${
+                mode === 'action' ? `플레이 전체를 ${ACTION.speeds[d.id]}배 속도로` : d.desc
+              }</span></button>`,
           ).join('')}
         </div>
       </div>`;
@@ -220,6 +234,12 @@ export class UI {
     );
     $<HTMLInputElement>('gen-toggle').addEventListener('change', (e) => setIncludeGenerated((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('hide-ball').addEventListener('change', (e) => setHideBall((e.target as HTMLInputElement).checked));
+    this.menu.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.onMode(b.dataset.mode as 'judge' | 'action');
+        this.renderMenu(difficulty);
+      }),
+    );
     $('random-pos').addEventListener('click', () => this.onRandom(this.tab));
     $('random-all').addEventListener('click', () => this.onRandom('all'));
     this.menu.querySelectorAll<HTMLButtonElement>('[data-scenario]').forEach((b) =>
@@ -239,7 +259,10 @@ export class UI {
   showBriefing(scn: Scenario) {
     this.hideAll();
     const hidden = ballHidden(scn);
-    this.help.textContent = hidden
+    const action = getMode() === 'action';
+    this.help.textContent = action
+      ? 'WASD: 이동 · 마우스: 시점 (안 잠겼으면 우클릭 드래그) · 좌클릭: 조준한 베이스로 송구 · 공을 든 채 베이스를 밟으면 직접 아웃 · Esc: 마우스 풀기'
+      : hidden
       ? '마우스: 시점 이동 · 클릭: 바라보는 곳 선택 · A/S/D, Space, W: 선택지 · Esc: 마우스 풀기'
       : scn.kind === 'throw'
         ? '마우스: 시점 이동 · 클릭: 바라보는 베이스로 송구 · A/S/D: 1루/2루/3루 · Space: 홈 · W: 들고 있기 · Esc: 마우스 풀기'
@@ -293,7 +316,11 @@ export class UI {
         </div>
         ${hidden ? `<p>수비 위치: ${defenseLabel(scn)}</p>` : scn.brief ? `<p>${scn.brief}</p>` : ''}
         <p class="note">${
-          hidden
+          action
+            ? scn.kind === 'choice'
+              ? '액션 모드: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 움직여 갈 곳까지 직접 뛰어가세요. 공(송구)이 그곳에 가는 순간의 위치로 판정해요.'
+              : '액션 모드: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 움직여 공이 지나가는 길로 가면 자동으로 잡혀요. 잡은 뒤 던질 베이스를 조준하고 좌클릭하거나, 공을 든 채 베이스를 밟으세요.'
+            : hidden
             ? '타격 순간 타구가 공개되고 선택지가 떠요. 공이 나에게 오면 <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 1루·2루·3루, <kbd>Space</kbd>로 홈, <kbd>W</kbd>로 들고 있기. 다른 수비수에게 가면 <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 갈 곳을 골라요. 미리 고르면 그 순간 바로 실행돼요.'
             : scn.kind === 'throw'
             ? '타격 순간부터 선택지가 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 1루·2루·3루, <kbd>Space</kbd>로 홈, <kbd>W</kbd>로 들고 있기. 공을 잡기 전에 미리 눌러두면 잡자마자 던지고, 안 눌렀으면 잡는 순간 화면이 느려져요.'
@@ -334,12 +361,13 @@ export class UI {
 
   // ---------- 판단 ----------
 
-  showDecision(title: string, defs: DecisionDef[], calls: string[] = []) {
+  showDecision(title: string, defs: DecisionDef[], calls: string[] = [], buttons = true) {
     this.decisionTitle.textContent = title;
     // 동료의 콜: 안 밀리는 주자가 뛰는지 멈췄는지
     this.decisionCall.textContent = calls.join(' · ');
     this.decisionCall.classList.toggle('hidden', calls.length === 0);
     this.decisionButtons.innerHTML = '';
+    this.decisionButtons.classList.toggle('hidden', !buttons);
     this.buttons = defs.map((d) => {
       const b = document.createElement('button');
       b.innerHTML = `<kbd>${d.key}</kbd>${d.label}`;
@@ -351,6 +379,8 @@ export class UI {
     this.tags = defs.map((d) => {
       const el = document.createElement('div');
       el.className = 'tag hidden';
+      // 액션 모드(버튼 없음)에서는 표시를 눌러 고르지 않고 조준해서 던진다
+      if (!buttons) el.style.pointerEvents = 'none';
       el.addEventListener('mousedown', (e) => {
         e.stopPropagation();
         this.onChoose(d.value);
@@ -368,6 +398,11 @@ export class UI {
 
   setDecisionTitle(title: string) {
     this.decisionTitle.textContent = title;
+  }
+
+  // 액션 모드: 조준 중인 베이스를 표시한다
+  setAim(index: number) {
+    this.tags.forEach((t, i) => t.classList.toggle('pending', i === index));
   }
 
   // 공을 잡기 전에 미리 고른 선택을 표시한다
@@ -408,7 +443,7 @@ export class UI {
         arrow = Math.abs(v.x) >= Math.abs(v.y) ? (v.x < 0 ? '◀ ' : ' ▶') : v.y > 0 ? ' ▲' : ' ▼';
       }
       el.classList.toggle('edge', !onScreen);
-      const label = `<kbd>${d.key}</kbd>${d.short}`;
+      const label = d.key ? `<kbd>${d.key}</kbd>${d.short}` : d.short;
       el.innerHTML = arrow === '◀ ' ? arrow + label : label + arrow;
       const px = ((x + 1) / 2) * window.innerWidth;
       const py = ((1 - y) / 2) * window.innerHeight;
@@ -503,6 +538,8 @@ export class UI {
       notes.push(`정답은 <b>${answerLabel}</b>예요. 판단이 늦어서 그 시점에는 <b>${josa(throwLabel(scn, v.bestNow.choice), '이', '가')}</b> 가장 나은 선택이었어요.`);
     } else if (v.verdict === 'late') {
       notes.push(`<b>${josa(throwLabel(scn, o.choice), '은', '는')}</b> 정답이지만, 늦게 던져서 ${o.outsMade > 0 ? '노린 아웃을 다 잡지 못했어요' : '세이프가 됐어요'}.`);
+    } else if (v.verdict === 'miss') {
+      notes.push(`공이 지나가는 길목으로 미리 움직여야 잡을 수 있어요. 잡았다면 정답은 <b>${answerLabel}</b>예요.`);
     } else if (v.verdict !== 'ideal') {
       notes.push(`정답은 <b>${answerLabel}</b>예요.`);
     }
@@ -516,10 +553,14 @@ export class UI {
     this.openResult(`
       <span class="grade ${v.grade}">${VERDICT_LABEL[v.verdict](v.grade)}</span>
       <h1>${o.headline}</h1>
-      <div class="result-state">${o.timedOut ? '시간 안에 결정하지 못했어요 · ' : ''}${throwLabel(scn, o.choice)} → ${o.resultState}</div>
+      <div class="result-state">${v.verdict === 'miss' ? '공을 놓쳤어요' : `${o.timedOut ? '시간 안에 결정하지 못했어요 · ' : ''}${o.segments.some((g) => g.carry) && o.choice !== 'hold' ? `${BASE_LABEL[o.choice]} 직접 밟기` : throwLabel(scn, o.choice)}`} → ${o.resultState}</div>
       <div class="stat-row">
-        <div class="stat"><small>실제 경기 기준 판단 시간</small><b>${sec(o.decisionDelay)}</b></div>
-        <div class="stat"><small>화면에서 고민한 시간 (슬로모션 ${r.timeScale}배)</small><b>${sec(r.reactionReal)}</b></div>
+        ${
+          v.verdict === 'miss'
+            ? ''
+            : `<div class="stat"><small>${getMode() === 'action' ? '잡고 나서 던지기까지 (실제 경기 기준)' : '실제 경기 기준 판단 시간'}</small><b>${sec(o.decisionDelay)}</b></div>
+        <div class="stat"><small>${getMode() === 'action' ? `실제로 걸린 시간 (게임 속도 ${r.timeScale}배)` : `화면에서 고민한 시간 (슬로모션 ${r.timeScale}배)`}</small><b>${sec(r.reactionReal)}</b></div>`
+        }
       </div>
       <p class="note">${notes.join('<br/>')}</p>
       <h2>타이밍 비교 (타격 순간부터)</h2>

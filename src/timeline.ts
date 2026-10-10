@@ -78,6 +78,59 @@ export interface Timeline {
   window: number;
   end: number;
   choice?: ChoiceResult;
+  // 액션 모드: 타구가 잡는 지점에서 멈추지 않고 계속 굴러간다. 잡히면 그 시점부터 글러브에 있다.
+  actionHit?: ActionHit;
+}
+
+export interface ActionHit {
+  type: 'grounder' | 'roller' | 'liner' | 'bunt';
+  catchPoint: THREE.Vector3;
+  travelTime: number;
+  caughtAt: number | null;
+}
+
+// 액션 모드 타구 위치. 상황에 정해진 지점을 정해진 시간에 지나고, 그 뒤로는 서서히 느려지며 외야로 굴러간다.
+export function actionBallPos(hit: ActionHit, t: number, out = new THREE.Vector3()) {
+  const start = CONTACT_POINT;
+  const dir = hit.catchPoint.clone().sub(start).setY(0);
+  const D = dir.length();
+  dir.normalize();
+  const T = hit.travelTime;
+  const v = D / T;
+  const decel = v / (hit.type === 'liner' ? 4 : 2.5);
+  let s: number;
+  if (t <= T) s = v * t;
+  else {
+    const dt = Math.min(t - T, v / decel);
+    s = D + v * dt - 0.5 * decel * dt * dt;
+  }
+  out.set(start.x + dir.x * s, 0, start.z + dir.z * s);
+  if (hit.type === 'liner') {
+    // 가슴 높이로 날아와 잡는 지점을 지난 뒤 떨어진다
+    if (t <= T) out.y = THREE.MathUtils.lerp(start.y, 1.3, t / T) + Math.sin((t / T) * Math.PI) * 0.3;
+    else out.y = Math.max(0.05, 1.3 - 4 * (t - T) * (t - T));
+  } else {
+    const h = hit.type === 'grounder' ? 1.1 : 0.25;
+    const freq = (Math.PI * (hit.type === 'grounder' ? 3.2 : 4)) / T;
+    const bounce = Math.abs(Math.sin(t * freq)) * h * Math.exp(-t * 0.8);
+    const drop = Math.max(0, 1 - t / 0.15) * (start.y - 0.05);
+    out.y = 0.05 + Math.max(bounce, drop);
+  }
+  return out;
+}
+
+// 액션 모드 송구 상황: 스크립트로 정한 타구·플레이어 움직임 대신 실제 입력을 쓴다
+export function buildActionThrowTimeline(scn: ThrowScenario, pitchFlight: number, outcome?: Outcome, caughtAt: number | null = null): Timeline {
+  const tl = buildThrowTimeline(scn, pitchFlight, outcome);
+  tl.ball = tl.ball.filter((_, i) => i !== 1); // 정해진 타구 경로는 actionBallPos가 대신한다
+  tl.player = [];
+  tl.actionHit = { type: scn.batted.type, catchPoint: scn.batted.catchPoint, travelTime: scn.batted.travelTime, caughtAt };
+  if (caughtAt === null) tl.gloveHold = null;
+  else {
+    const firstThrow = tl.ball.find((b) => b.t0 >= caughtAt && b.thrower === scn.position);
+    tl.gloveHold = [caughtAt, firstThrow ? firstThrow.t0 : Infinity];
+  }
+  return tl;
 }
 
 export const PRE_PITCH = 1.6;
@@ -229,6 +282,7 @@ export function buildThrowTimeline(scn: ThrowScenario, pitchFlight: number, outc
 export interface ChoiceInput {
   index: number | null; // null이면 시간 초과
   d: number; // 결정까지 걸린 게임 시간
+  arrival?: number; // 액션 모드: 실제로 그 위치에 도착한 시간 (플레이어 움직임은 입력 기록을 쓴다)
 }
 
 export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, input?: ChoiceInput): Timeline {
@@ -264,6 +318,7 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
   // 선택한 위치로 이동. 반환값은 도착 시간 (선택 전이면 Infinity)
   const movePlayer = (earliest = -Infinity) => {
     if (!input || !opt) return Infinity;
+    if (input.arrival !== undefined) return input.arrival;
     const t0 = Math.max(tl.decisionAt + input.d + RUN.reaction, earliest);
     const t1 = t0 + playerStart.distanceTo(opt.moveTo) / RUN.fielderSpeed;
     tl.player.push({ from: playerStart, to: opt.moveTo, t0, t1 });
@@ -457,7 +512,7 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
         const throwT0 = fieldT + 0.4;
         const from = opt.moveTo.clone().setY(GLOVE);
         const t1 = throwT0 + from.distanceTo(firstTo) / THROW.speed;
-        tl.player.push({ from: opt.moveTo, to: buntAt, t0: Math.max(arrival, 1.4), t1: fieldT });
+        if (input.arrival === undefined) tl.player.push({ from: opt.moveTo, to: buntAt, t0: Math.max(arrival, 1.4), t1: fieldT });
         tl.gloveHold = [fieldT, throwT0];
         tl.ball.push({ from: buntAt.clone().setY(GLOVE), to: firstTo, t0: throwT0, t1, arc: 0.8, thrower: scn.position });
         batterPath.stopAt = t1;

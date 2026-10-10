@@ -60,3 +60,14 @@ export const DIFFICULTIES = [
 ] as const;
 
 export type DifficultyId = (typeof DIFFICULTIES)[number]['id'];
+
+// 액션 모드: WASD로 직접 움직여 공을 잡고, 조준한 베이스로 좌클릭해서 던진다
+export const ACTION = {
+  catchRadius: 1.2, // 공이 이 거리 안으로 지나가면 잡힌다
+  catchHeight: 1.5, // 땅볼은 이 높이 아래일 때만 잡힌다
+  linerCatchHeight: 2.4, // 직선타는 이 높이까지 잡힌다
+  stepRadius: 1.2, // 공을 든 채 베이스에 이만큼 다가가면 밟은 것으로 본다
+  choiceRadius: 3, // 위치 판단: 선택지 위치에서 이 거리 안이면 그곳에 간 것으로 본다
+  // 난이도는 플레이 전체 속도 (판단 순간에만 느려지지 않는다)
+  speeds: { easy: 0.5, normal: 0.7, real: 1 } as Record<DifficultyId, number>,
+};

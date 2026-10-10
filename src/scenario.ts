@@ -254,10 +254,19 @@ export function isCarry(scn: ThrowScenario, base: BaseId) {
 }
 
 // 결정까지 걸린 시간(게임 시간)이 d일 때 선택지별 결과를 계산한다.
-export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut = false): Outcome {
+// 액션 모드에서 플레이어가 실제로 한 동작. 없으면 상황에 정해진 위치·시간에 잡고 d초 뒤에 던진 것으로 본다.
+export interface ThrowExec {
+  catchPos: THREE.Vector3; // 실제로 잡은 위치
+  catchT: number;
+  releasePos?: THREE.Vector3; // 던진 위치
+  releaseT?: number; // 공이 손을 떠난 시간 (송구 준비 시간 포함)
+  stepT?: number; // 공을 든 채 베이스를 밟은 시간
+}
+
+export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut = false, exec?: ThrowExec): Outcome {
   const runners = planRunners(scn);
-  const catchT = scn.batted.travelTime;
-  const catchPos = scn.batted.catchPoint.clone().setY(GLOVE);
+  const catchT = exec?.catchT ?? scn.batted.travelTime;
+  const catchPos = (exec?.catchPos ?? scn.batted.catchPoint).clone().setY(GLOVE);
   const autoOuts = scn.batted.type === 'liner' ? 1 : 0;
   const events: PlayEvent[] = [];
   const segments: BallSegment[] = [];
@@ -284,23 +293,28 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
   };
 
   if (choice !== 'hold') {
-    const carry = isCarry(scn, choice);
+    // 액션 모드에서는 실제로 밟았을 때만 '직접 밟기'다
+    const carry = exec ? exec.stepT !== undefined : isCarry(scn, choice);
     const cover = scn.covers[choice];
     if (!carry && !cover) {
       noCover = true;
     } else {
       let arrive: number;
-      if (carry) {
+      if (carry && exec?.stepT !== undefined) {
+        arrive = exec.stepT;
+        segments.push({ from: at(choice), to: at(choice), t0: arrive, t1: arrive, arc: 0, carry: true });
+      } else if (carry) {
         const dist = catchPos.distanceTo(at(choice));
         const t0 = catchT + d;
         arrive = t0 + dist / RUN.carrySpeed;
         segments.push({ from: catchPos, to: at(choice), t0, t1: arrive, arc: 0, carry: true });
       } else {
-        const f = flight(catchPos, at(choice));
-        const t0 = catchT + d + THROW.transferTime;
+        const from = exec?.releasePos ? exec.releasePos.clone().setY(GLOVE) : catchPos;
+        const f = flight(from, at(choice));
+        const t0 = exec?.releaseT ?? catchT + d + THROW.transferTime;
         arrive = t0 + f.time;
         thrown += f.dist;
-        segments.push({ from: catchPos, to: at(choice), t0, t1: arrive, arc: f.arc, thrower: scn.position });
+        segments.push({ from, to: at(choice), t0, t1: arrive, arc: f.arc, thrower: scn.position });
       }
       const out = playAt(choice, arrive);
 
@@ -368,6 +382,40 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
   };
 }
 
+// 액션 모드에서 공을 못 잡았을 때: 공이 외야로 빠져 타자는 1루, 주자는 한 베이스씩 간다
+export function missOutcome(scn: ThrowScenario): Outcome {
+  const s = scn.situation;
+  const occupied = new Set<BaseId>(['first']);
+  let runs = 0;
+  let forced = true;
+  for (const base of ['first', 'second', 'third'] as const) {
+    if (!s.runners[base]) {
+      forced = false;
+      continue;
+    }
+    const act = scn.runnerActs?.[base];
+    const moves = forced || scn.batted.type === 'liner' || act === 'advance' || (act === undefined && s.outs === 2);
+    const to = moves ? nextBase(base) : base;
+    if (to === 'home') runs++;
+    else occupied.add(to);
+  }
+  const bases = (['first', 'second', 'third'] as const).filter((b) => occupied.has(b)).map((b) => BASE_LABEL[b]);
+  return {
+    choice: 'hold',
+    decisionDelay: 0,
+    timedOut: false,
+    events: [],
+    autoOuts: 0,
+    outsMade: 0,
+    runs,
+    value: -10 - runs * VALUE.run,
+    segments: [],
+    resultState: `${s.outs}아웃 ${bases.join(', ')}${runs ? ` (${runs}점 실점)` : ''}`,
+    headline: '포구 실패, 공이 빠졌어요',
+    noCover: false,
+  };
+}
+
 // 모든 주자가 베이스에 도착해서 더 이상 아웃을 잡을 수 없게 되는 결정 시간
 export function decisionDeadline(scn: ThrowScenario): number {
   const moving = planRunners(scn).filter((r) => r.kind !== 'hold');
@@ -389,6 +437,13 @@ export function latestDecision(scn: ThrowScenario, choice: Choice, minOuts: numb
   return lo;
 }
 
+// 다른 선택지를 비교할 때 쓰는 실행 정보: 밟은 경우도 그 시점에 던진 것으로 바꾼다
+export function altExec(exec?: ThrowExec): ThrowExec | undefined {
+  if (!exec) return undefined;
+  const releaseT = exec.releaseT ?? (exec.stepT !== undefined ? exec.stepT + THROW.transferTime : undefined);
+  return { catchPos: exec.catchPos, catchT: exec.catchT, releasePos: exec.releasePos ?? exec.catchPos, releaseT };
+}
+
 // 상황의 정답: 공을 잡자마자 결정했을 때의 최선. 판단 속도와 상관없이 상황마다 고정이다.
 export function throwAnswers(scn: ThrowScenario): { answers: Choice[]; ideal: Outcome } {
   const all = THROW_CHOICES.map((c) => evaluate(scn, c, 0));
@@ -399,7 +454,7 @@ export function throwAnswers(scn: ThrowScenario): { answers: Choice[]; ideal: Ou
 
 // ideal: 정답을 제때 고름 / late: 정답이지만 늦어서 아웃이 줄었음
 // fallback: 정답은 아니지만 늦은 시점에선 가장 나은 선택 / other: 그 밖 / timeout: 시간 초과
-export type ThrowVerdict = 'ideal' | 'late' | 'fallback' | 'other' | 'timeout';
+export type ThrowVerdict = 'ideal' | 'late' | 'fallback' | 'other' | 'timeout' | 'miss';
 
 export interface ThrowGrade {
   grade: Grade;
@@ -409,9 +464,12 @@ export interface ThrowGrade {
   bestNow: Outcome; // 내 판단 시간 기준으로 가장 나은 결과
 }
 
-export function gradeThrow(scn: ThrowScenario, outcome: Outcome): ThrowGrade {
+export function gradeThrow(scn: ThrowScenario, outcome: Outcome, exec?: ThrowExec, missed = false): ThrowGrade {
   const { answers, ideal } = throwAnswers(scn);
-  const bestNow = THROW_CHOICES.map((c) => evaluate(scn, c, outcome.decisionDelay)).reduce((a, b) => (b.value > a.value ? b : a));
+  if (missed) return { grade: 'bad', verdict: 'miss', answers, ideal, bestNow: ideal };
+  // 내 판단 시간 기준 최선: 액션 모드면 실제로 잡은 위치와 던진 시점에서 다른 곳으로 던졌다고 친다
+  const alt = altExec(exec);
+  const bestNow = THROW_CHOICES.map((c) => evaluate(scn, c, outcome.decisionDelay, false, alt)).reduce((a, b) => (b.value > a.value ? b : a));
   const gotOut = outcome.outsMade > 0;
   const base = { answers, ideal, bestNow };
   if (outcome.timedOut) return { ...base, grade: 'bad', verdict: 'timeout' };

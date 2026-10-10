@@ -13,6 +13,7 @@ interface Saved {
   difficulty?: DifficultyId;
   includeGenerated?: boolean;
   hideBall?: boolean;
+  mode?: 'judge' | 'action';
 }
 
 const KEY = 'infield-iq-progress-v1';
@@ -76,6 +77,15 @@ export function getHideBall(): boolean {
 
 export function setHideBall(on: boolean) {
   saved.hideBall = on;
+  persist();
+}
+
+export function getMode(): 'judge' | 'action' {
+  return saved.mode ?? 'judge';
+}
+
+export function setMode(m: 'judge' | 'action') {
+  saved.mode = m;
   persist();
 }
 
