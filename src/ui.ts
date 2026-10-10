@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { DIFFICULTIES, RUN, type DifficultyId } from './config';
+import { DIFFICULTIES, RUN, VALUE, type DifficultyId } from './config';
 import { BASE_LABEL } from './coords';
-import { getRecord } from './progress';
+import { generatedFor } from './generated';
+import { getIncludeGenerated, getRecord, setIncludeGenerated } from './progress';
 import {
   FIELDER_NAME,
   POSITIONS,
@@ -90,6 +91,7 @@ export class UI {
   private result = $('result');
   private decision = $('decision');
   private decisionTitle = $('decision-title');
+  private decisionCall = $('decision-call');
   private decisionButtons = $('decision-buttons');
   private decisionBar = $('decision-bar');
   private crosshair = $('crosshair');
@@ -163,6 +165,10 @@ export class UI {
             <button class="primary" id="random-pos">${FIELDER_NAME[this.tab]} 랜덤 연습</button>
             <button class="secondary" id="random-all">전체 포지션 랜덤</button>
           </div>
+          <label class="gen-toggle" for="gen-toggle">
+            <input type="checkbox" id="gen-toggle" ${getIncludeGenerated() ? 'checked' : ''} />
+            <span>랜덤 연습에 자동 생성 상황도 섞기 <small>(${FIELDER_NAME[this.tab]} ${generatedFor(this.tab).length}개 · 같은 타구라도 아웃 카운트, 주자, 주자 움직임이 다른 상황)</small></span>
+          </label>
           ${items}
         </div>
         <h2>난이도 (판단 순간의 슬로모션 속도)</h2>
@@ -180,6 +186,7 @@ export class UI {
         this.renderMenu(difficulty);
       }),
     );
+    $<HTMLInputElement>('gen-toggle').addEventListener('change', (e) => setIncludeGenerated((e.target as HTMLInputElement).checked));
     $('random-pos').addEventListener('click', () => this.onRandom(this.tab));
     $('random-all').addEventListener('click', () => this.onRandom('all'));
     this.menu.querySelectorAll<HTMLButtonElement>('[data-scenario]').forEach((b) =>
@@ -255,8 +262,11 @@ export class UI {
 
   // ---------- 판단 ----------
 
-  showDecision(title: string, defs: DecisionDef[]) {
+  showDecision(title: string, defs: DecisionDef[], calls: string[] = []) {
     this.decisionTitle.textContent = title;
+    // 동료의 콜: 안 밀리는 주자가 뛰는지 멈췄는지
+    this.decisionCall.textContent = calls.join(' · ');
+    this.decisionCall.classList.toggle('hidden', calls.length === 0);
     this.decisionButtons.innerHTML = '';
     for (const d of defs) {
       const b = document.createElement('button');
@@ -346,7 +356,7 @@ export class UI {
       <button class="secondary" id="result-menu-btn">목록</button>
       <button class="secondary" id="replay-btn"><kbd>V</kbd>리플레이</button>
       <button class="secondary" id="retry-btn"><kbd>R</kbd>다시 하기</button>
-      <button class="primary" id="next-btn"><kbd>N</kbd>${this.randomLabel ? '다음 랜덤 상황' : '다음 상황'}</button>
+      <button class="primary" id="next-btn"><kbd>N</kbd>다음 상황</button>
     </div>`;
   }
 
@@ -388,7 +398,7 @@ export class UI {
     const alts = r.alternatives
       .map((a) => {
         const chosen = a.choice === o.choice && !o.timedOut;
-        const isBest = a.value >= r.best.value - 1e-6 && a.outsMade > 0;
+        const isBest = a.value >= r.best.value - VALUE.bestTolerance && a.outsMade > 0;
         return `<div class="alt ${chosen ? 'chosen' : ''}">
           <span class="alt-name">${throwLabel(scn, a.choice)}${chosen ? ' (내 선택)' : ''}${isBest ? '<span class="badge">최선</span>' : ''}</span>
           <span class="alt-res">${a.headline} · ${a.resultState}</span>

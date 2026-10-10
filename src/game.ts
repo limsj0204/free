@@ -13,12 +13,14 @@ import {
   poseThrow,
   type Mannequin,
 } from './players';
-import { addResult, getDifficulty, getRecord, setDifficulty } from './progress';
+import { generatedFor, generatedScenarios } from './generated';
+import { addResult, getDifficulty, getIncludeGenerated, getRecord, setDifficulty } from './progress';
 import {
   THROW_CHOICES,
   evaluate,
   gradeThrow,
   isCarry,
+  runnerCalls,
   type Choice,
   type FielderId,
   FIELDER_NAME,
@@ -339,7 +341,8 @@ export class Game {
   }
 
   private setRandom(scope: PositionId | 'all' | null) {
-    this.randomPool = scope === null ? null : SCENARIOS.filter((s) => scope === 'all' || s.position === scope);
+    const gen = scope === null || !getIncludeGenerated() ? [] : scope === 'all' ? generatedScenarios() : generatedFor(scope);
+    this.randomPool = scope === null ? null : [...SCENARIOS.filter((s) => scope === 'all' || s.position === scope), ...gen];
     this.ui.randomLabel = scope === null ? null : scope === 'all' ? '전체 랜덤' : `${FIELDER_NAME[scope]} 랜덤`;
   }
 
@@ -442,7 +445,8 @@ export class Game {
       this.t = this.tl.decisionAt;
       this.phase = 'decision';
       this.decisionRealStart = performance.now();
-      this.ui.showDecision(this.scn.kind === 'throw' ? '어디로 던질까?' : this.scn.prompt, this.defs);
+      const scn = this.scn;
+      this.ui.showDecision(scn.kind === 'throw' ? '어디로 던질까?' : scn.prompt, this.defs, scn.kind === 'throw' ? runnerCalls(scn) : []);
     }
     if (this.phase === 'decision') {
       const d = this.t - this.tl.decisionAt;

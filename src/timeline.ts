@@ -168,7 +168,7 @@ export function buildThrowTimeline(scn: ThrowScenario, pitchFlight: number, outc
 
   const moves: Partial<Record<FielderId, Path>> = {};
   for (const [base, id] of Object.entries(scn.covers) as [BaseId, FielderId][]) {
-    if (id === scn.position || base === 'home') continue;
+    if (!id || id === scn.position || base === 'home') continue;
     moves[id] = walk(fielders[id], bagSpot(base), bunt ? tRelease : 0.2);
   }
   for (const [id, to] of Object.entries(scn.fielderMoves ?? {}) as [FielderId, THREE.Vector3][]) {

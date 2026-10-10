@@ -11,6 +11,7 @@ export interface Record {
 interface Saved {
   records: { [id: string]: Record };
   difficulty?: DifficultyId;
+  includeGenerated?: boolean;
 }
 
 const KEY = 'infield-iq-progress-v1';
@@ -56,6 +57,15 @@ export function getDifficulty(): DifficultyId {
 
 export function setDifficulty(d: DifficultyId) {
   saved.difficulty = d;
+  persist();
+}
+
+export function getIncludeGenerated(): boolean {
+  return saved.includeGenerated ?? true;
+}
+
+export function setIncludeGenerated(on: boolean) {
+  saved.includeGenerated = on;
   persist();
 }
 

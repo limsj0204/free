@@ -731,3 +731,31 @@ button:focus-visible {
   font-size: 15px;
   font-weight: 800;
 }
+
+.decision-call {
+  margin: -4px 0 10px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--safe);
+}
+
+.gen-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 2px 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.gen-toggle input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.gen-toggle small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}

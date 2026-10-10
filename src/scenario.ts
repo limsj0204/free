@@ -54,6 +54,7 @@ export interface ThrowScenario extends ScenarioBase {
   selfBases?: BaseId[]; // 던지지 않고 직접 밟으러 가는 베이스
   runnerActs?: Partial<Record<Base3, 'advance' | 'hold'>>; // 안 밀리는 주자가 뛸지 (땅볼일 때)
   hitAndRun?: boolean; // 투구 때 주자가 미리 스타트했는지
+  generated?: boolean; // 상황 생성기로 만든 상황 (랜덤 연습에만 나온다)
 }
 
 export interface ChoiceOption {
@@ -156,7 +157,9 @@ export function planRunners(scn: ThrowScenario): RunnerPlan[] {
       continue;
     }
 
-    const advance = forced || s.outs === 2 || scn.runnerActs?.[base] === 'advance';
+    // 안 밀리는 주자: 정해진 행동이 있으면 따르고, 없으면 2아웃일 때만 뛴다
+    const act = scn.runnerActs?.[base] ?? (s.outs === 2 ? 'advance' : 'hold');
+    const advance = forced || act === 'advance';
     if (advance) {
       const start = forced
         ? bunt
@@ -187,6 +190,19 @@ export function planRunners(scn: ThrowScenario): RunnerPlan[] {
     }
   }
   return plans;
+}
+
+const BASE_NUM: Record<BaseId, string> = { home: '홈', first: '1루', second: '2루', third: '3루' };
+
+// 공을 잡는 순간 동료가 외쳐주는 콜. 안 밀리는 주자가 뛰는지 멈췄는지 알려준다.
+export function runnerCalls(scn: ThrowScenario): string[] {
+  const calls: string[] = [];
+  for (const r of planRunners(scn)) {
+    if (r.id === 'batter' || r.kind === 'force' || r.kind === 'return') continue;
+    if (r.kind === 'advance') calls.push(`${BASE_NUM[r.origin]} 주자 ${r.target === 'home' ? '홈으로' : `${BASE_NUM[r.target]}로`} 뛴다!`);
+    else calls.push(`${BASE_NUM[r.origin]} 주자 멈춤`);
+  }
+  return calls;
 }
 
 export interface BallSegment {
@@ -377,7 +393,7 @@ export function gradeThrow(scn: ThrowScenario, outcome: Outcome): { grade: Grade
   const best = all.reduce((a, b) => (b.value > a.value ? b : a));
   const gotOut = outcome.outsMade > 0;
   if (outcome.timedOut) return { grade: 'bad', best };
-  if (outcome.value >= best.value - 1e-6 && (gotOut || best.outsMade === 0)) return { grade: gotOut ? 'best' : 'bad', best };
+  if (outcome.value >= best.value - VALUE.bestTolerance && (gotOut || best.outsMade === 0)) return { grade: gotOut ? 'best' : 'bad', best };
   if (gotOut) return { grade: 'ok', best };
   return { grade: 'bad', best };
 }
