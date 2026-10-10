@@ -1,0 +1,534 @@
+:root {
+  --panel: rgba(12, 16, 28, 0.86);
+  --panel-solid: #121828;
+  --line: rgba(255, 255, 255, 0.12);
+  --text: #f2f4f8;
+  --muted: #a8b0c2;
+  --accent: #f2c94c;
+  --out: #ff5a4f;
+  --safe: #5ad1ff;
+  --best: #4cd18a;
+  --ok: #f2c94c;
+  --bad: #ff6b5f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0f1c;
+  color: var(--text);
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
+}
+
+#view {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.hidden {
+  display: none !important;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0.05em 0.4em;
+  margin-right: 0.45em;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 0.8em;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* 상황판 */
+.hud {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  min-width: 260px;
+  background: #fff;
+  color: #1b2440;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  user-select: none;
+}
+
+.hud-title {
+  background: #1b2440;
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.hud-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px;
+}
+
+.hud-outs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.hud-outs i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #c5cad6;
+}
+
+.hud-outs i.on {
+  background: var(--out);
+  border-color: var(--out);
+}
+
+.hud-bases {
+  width: 52px;
+  height: 38px;
+}
+
+.hud-bases rect {
+  fill: #e6e9ef;
+  stroke: #c5cad6;
+  stroke-width: 1.5;
+}
+
+.hud-bases rect.on {
+  fill: var(--accent);
+  stroke: #c9a12c;
+}
+
+.hud-speed {
+  margin-left: auto;
+  font-size: 13px;
+  color: #59617a;
+}
+
+.hud-speed b {
+  font-size: 20px;
+  color: #1b2440;
+}
+
+/* 조준점 */
+.crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+/* 베이스 위 표시 */
+.tags {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tag {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 16px;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.tag.edge {
+  transform: translate(-50%, -50%);
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.tag:hover {
+  background: var(--accent);
+  color: #1b2440;
+}
+
+.tag kbd {
+  color: inherit;
+}
+
+/* 판정 알림 */
+.toasts {
+  position: fixed;
+  top: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 10px 26px;
+  border-radius: 8px;
+  font-size: 30px;
+  font-weight: 900;
+  background: var(--panel);
+  animation: pop 0.25s ease-out;
+}
+
+.toast.out {
+  color: var(--out);
+}
+
+.toast.safe {
+  color: var(--safe);
+}
+
+@keyframes pop {
+  from {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* 결정 패널 */
+.decision {
+  position: fixed;
+  left: 50%;
+  bottom: 52px;
+  transform: translateX(-50%);
+  width: min(720px, calc(100vw - 32px));
+  padding: 14px 16px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.decision-title {
+  font-size: 22px;
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.decision-timer {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.decision-timer div {
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  transform-origin: left;
+}
+
+.decision-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.decision-buttons button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.decision-buttons button:hover {
+  border-color: var(--accent);
+}
+
+.help {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+}
+
+/* 브리핑과 결과 화면 */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(5, 8, 16, 0.55);
+  overflow-y: auto;
+}
+
+.card {
+  width: min(640px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.card h1 {
+  margin: 0 0 4px;
+  font-size: 26px;
+}
+
+.card h2 {
+  margin: 20px 0 8px;
+  font-size: 15px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.card p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.situation {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+.chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.difficulties {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.difficulties button {
+  padding: 12px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  text-align: left;
+}
+
+.difficulties button b {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.difficulties button span {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.difficulties button.selected {
+  border-color: var(--accent);
+  background: rgba(242, 201, 76, 0.12);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.primary,
+.secondary {
+  flex: 1;
+  padding: 13px 16px;
+  border-radius: 10px;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.primary {
+  border: none;
+  background: var(--accent);
+  color: #1b2440;
+}
+
+.secondary {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+}
+
+.primary kbd {
+  color: #1b2440;
+  border-color: rgba(27, 36, 64, 0.4);
+}
+
+.grade {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.grade.best {
+  background: rgba(76, 209, 138, 0.16);
+  color: var(--best);
+}
+
+.grade.ok {
+  background: rgba(242, 201, 76, 0.16);
+  color: var(--ok);
+}
+
+.grade.bad {
+  background: rgba(255, 107, 95, 0.16);
+  color: var(--bad);
+}
+
+.result-state {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.stat-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.stat {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stat small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.stat b {
+  font-size: 20px;
+}
+
+.timing {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.timing td,
+.timing th {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.timing th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.timing .out {
+  color: var(--out);
+  font-weight: 800;
+}
+
+.timing .safe {
+  color: var(--safe);
+  font-weight: 800;
+}
+
+.alt {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.alt + .alt {
+  margin-top: 4px;
+}
+
+.alt.chosen {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.alt .alt-name {
+  font-weight: 700;
+}
+
+.alt .alt-res {
+  color: var(--muted);
+  text-align: right;
+}
+
+.alt .badge {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--best);
+}
+
+.note {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--muted);
+}
