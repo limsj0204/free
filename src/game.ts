@@ -67,6 +67,9 @@ export class Game {
   private pitchKmh = 120;
   private pitchFlight = 0.4;
   private decisionRealStart = 0;
+  private panelShown = false; // 타격 순간부터 선택지를 띄워둔다
+  private pending: Choice | number | null = null; // 공을 잡기 전에 미리 고른 선택
+  private pendingReal = 0;
   private reactionReal = 0;
   private decisionDelay = 0;
   private outcome: Outcome | null = null;
@@ -175,7 +178,7 @@ export class Game {
       }
       if (!this.playing) return;
       if (document.pointerLockElement === this.canvas) {
-        if (this.phase === 'decision' && e.button === 0) this.pickByGaze();
+        if (this.canChoose && e.button === 0) this.pickByGaze();
         return;
       }
       this.dragging = true;
@@ -185,12 +188,10 @@ export class Game {
 
     document.addEventListener('keydown', (e) => {
       if (e.repeat) return;
-      if (this.phase === 'decision') {
-        const def = this.defs.find((d) => d.code === e.code);
-        if (def) {
-          e.preventDefault();
-          this.choose(def.value);
-        }
+      const def = this.canChoose ? this.defs.find((d) => d.code === e.code) : undefined;
+      if (def) {
+        e.preventDefault();
+        this.input(def.value);
       } else if (this.phase === 'result') {
         if (e.code === 'KeyR') this.restart();
         else if (e.code === 'KeyV') this.replay();
@@ -207,7 +208,7 @@ export class Game {
       }
     });
 
-    this.ui.onChoose = (v) => this.phase === 'decision' && this.choose(v);
+    this.ui.onChoose = (v) => this.canChoose && this.input(v);
     this.ui.onPickScenario = (id) => {
       this.setRandom(null);
       this.openBriefing(SCENARIOS.find((s) => s.id === id)!);
@@ -225,6 +226,21 @@ export class Game {
     this.ui.onReplay = () => this.replay();
     this.ui.onNext = () => this.next();
     this.ui.onMenu = () => this.openMenu();
+  }
+
+  private get canChoose() {
+    return this.phase === 'decision' || (this.phase === 'live' && this.panelShown);
+  }
+
+  // 공을 잡기 전이면 미리 골라두고(잡는 순간 바로 실행), 잡은 뒤면 바로 결정한다
+  private input(value: Choice | number) {
+    if (this.phase === 'decision') {
+      this.choose(value);
+      return;
+    }
+    this.pending = value;
+    this.pendingReal = performance.now();
+    this.ui.markPending(this.defs.findIndex((d) => d.value === value));
   }
 
   private get playing() {
@@ -266,6 +282,8 @@ export class Game {
   private prepare(scn: Scenario) {
     this.scn = scn;
     this.outcome = null;
+    this.panelShown = false;
+    this.pending = null;
     this.timeScale = 1;
     this.clearCalls();
     this.pitchKmh = Math.round(PITCH.minKmh + Math.random() * (PITCH.maxKmh - PITCH.minKmh));
@@ -360,10 +378,10 @@ export class Game {
     return cands[cands.length - 1];
   }
 
-  private choose(value: Choice | number, timedOut = false) {
+  private choose(value: Choice | number, timedOut = false, decidedAtReal = performance.now()) {
     const d = Math.max(0, this.t - this.tl.decisionAt);
     this.decisionDelay = d;
-    this.reactionReal = (performance.now() - this.decisionRealStart) / 1000;
+    this.reactionReal = Math.max(0, (decidedAtReal - this.decisionRealStart) / 1000);
     const scn = this.scn;
     if (scn.kind === 'throw') {
       this.outcome = evaluate(scn, value as Choice, d, timedOut);
@@ -441,12 +459,25 @@ export class Game {
       if (this.t >= this.tl.end) this.endReplay();
     }
 
+    const scn = this.scn;
+    // 타격 순간(도루·투구 전 판단은 판단 시점)부터 선택지를 띄워서 미리 읽고 고를 수 있게 한다
+    const showAt = scn.kind === 'throw' ? 0 : Math.min(this.tl.decisionAt, 0);
+    if (this.phase === 'live' && !this.panelShown && this.t >= showAt) {
+      this.panelShown = true;
+      this.decisionRealStart = performance.now();
+      this.ui.showDecision(scn.kind === 'throw' ? '공을 잡으면 어디로?' : scn.prompt, this.defs, scn.kind === 'throw' ? runnerCalls(scn) : []);
+      this.ui.setDecisionTimer(1);
+    }
     if (this.phase === 'live' && this.t >= this.tl.decisionAt) {
       this.t = this.tl.decisionAt;
-      this.phase = 'decision';
-      this.decisionRealStart = performance.now();
-      const scn = this.scn;
-      this.ui.showDecision(scn.kind === 'throw' ? '어디로 던질까?' : scn.prompt, this.defs, scn.kind === 'throw' ? runnerCalls(scn) : []);
+      if (this.pending !== null) {
+        // 미리 골라뒀으면 잡자마자 던진다 (판단 시간 0초)
+        this.choose(this.pending, false, this.pendingReal);
+      } else {
+        this.phase = 'decision';
+        this.decisionRealStart = performance.now();
+        if (scn.kind === 'throw') this.ui.setDecisionTitle('어디로 던질까?');
+      }
     }
     if (this.phase === 'decision') {
       const d = this.t - this.tl.decisionAt;
@@ -457,7 +488,7 @@ export class Game {
 
     this.animate(realDt);
     this.updateCamera();
-    this.ui.updateTags(this.camera, this.phase === 'decision' ? this.defs : null);
+    this.ui.updateTags(this.camera, this.canChoose ? this.defs : null);
   }
 
   private lookAtPoint(p: THREE.Vector3) {

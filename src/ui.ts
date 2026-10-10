@@ -109,6 +109,7 @@ export class UI {
   private replayBanner = $('replay-banner');
   private tagRoot = $('tags');
   private tags: HTMLElement[] = [];
+  private buttons: HTMLButtonElement[] = [];
   private tab: PositionId = 'SS';
 
   setHud(scn: Scenario, kmh: number) {
@@ -266,8 +267,8 @@ export class UI {
         ${scn.brief ? `<p>${scn.brief}</p>` : ''}
         <p class="note">${
           scn.kind === 'throw'
-            ? '공을 잡으면 화면이 느려져요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 1루·2루·3루, <kbd>Space</kbd>로 홈, <kbd>W</kbd>로 들고 있기. 던질 베이스를 바라보고 클릭해도 돼요.'
-            : '판단할 순간이 오면 화면이 느려지고 선택지가 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 고르거나, 갈 곳을 바라보고 클릭하세요.'
+            ? '타격 순간부터 선택지가 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 1루·2루·3루, <kbd>Space</kbd>로 홈, <kbd>W</kbd>로 들고 있기. 공을 잡기 전에 미리 눌러두면 잡자마자 던지고, 안 눌렀으면 잡는 순간 화면이 느려져요.'
+            : '선택지가 미리 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 고르거나 갈 곳을 바라보고 클릭하세요. 판단할 순간까지 안 골랐으면 그때 화면이 느려져요.'
         }</p>
         <div class="actions">
           <button class="secondary" id="brief-menu-btn">목록</button>
@@ -310,12 +311,13 @@ export class UI {
     this.decisionCall.textContent = calls.join(' · ');
     this.decisionCall.classList.toggle('hidden', calls.length === 0);
     this.decisionButtons.innerHTML = '';
-    for (const d of defs) {
+    this.buttons = defs.map((d) => {
       const b = document.createElement('button');
       b.innerHTML = `<kbd>${d.key}</kbd>${d.label}`;
       b.addEventListener('click', () => this.onChoose(d.value));
       this.decisionButtons.appendChild(b);
-    }
+      return b;
+    });
     this.tagRoot.innerHTML = '';
     this.tags = defs.map((d) => {
       const el = document.createElement('div');
@@ -328,6 +330,16 @@ export class UI {
       return el;
     });
     this.decision.classList.remove('hidden');
+  }
+
+  setDecisionTitle(title: string) {
+    this.decisionTitle.textContent = title;
+  }
+
+  // 공을 잡기 전에 미리 고른 선택을 표시한다
+  markPending(index: number) {
+    this.buttons.forEach((b, i) => b.classList.toggle('pending', i === index));
+    this.tags.forEach((t, i) => t.classList.toggle('pending', i === index));
   }
 
   hideDecision() {

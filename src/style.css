@@ -860,3 +860,17 @@ button:focus-visible {
   font-size: 14px;
   color: var(--muted);
 }
+
+/* 공을 잡기 전에 미리 고른 선택 */
+.decision-buttons button.pending,
+.tag.pending {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1b2440;
+}
+
+.decision-buttons button.pending kbd,
+.tag.pending kbd {
+  color: #1b2440;
+  border-color: rgba(27, 36, 64, 0.45);
+}
