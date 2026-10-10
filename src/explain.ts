@@ -14,6 +14,10 @@ import {
 
 // 생성된 송구 상황의 해설을 규칙으로 만든다. 판정 엔진의 결과를 그대로 말로 옮긴다.
 
+// 모든 번트 상황 해설 앞에 붙이는 판단 기준
+export const BUNT_RULE =
+  '번트는 공 속도에 따라 판단이 달라져요. 강하게 굴러와서 빨리 잡으면 앞 주자(병살까지), 느리게 굴러와서 앞으로 많이 달려 나와 잡으면 1루로 던져요.';
+
 const NUM: Record<BaseId, string> = { home: '홈', first: '1루', second: '2루', third: '3루' };
 
 function bestAt(scn: ThrowScenario, d: number): Outcome {
@@ -40,7 +44,10 @@ export function explainThrow(scn: ThrowScenario): string {
   const runners = planRunners(scn).filter((r) => r.id !== 'batter');
   const bunt = scn.batted.type === 'bunt';
 
-  if (bunt) out.push('번트는 공격 팀이 아웃 하나를 내주고 주자를 보내려는 작전이에요. 앞 주자는 확실할 때만 노리고, 애매하면 1루에서 아웃 하나를 챙겨요.');
+  if (bunt) {
+    out.push(BUNT_RULE);
+    if (!runners.some((r) => r.kind === 'force')) out.push('단, 앞 주자가 밀려서 뛰는 게 아니면 태그가 필요해서 강한 번트라도 1루가 안전해요.');
+  }
 
   // 1. 주자 상황
   const forced = runners.filter((r) => r.kind === 'force');

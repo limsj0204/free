@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ACTION, DIFFICULTIES, RUN, VALUE, type DifficultyId } from './config';
 import { BASES, BASE_LABEL, P, type BaseId } from './coords';
-import { josa } from './explain';
+import { BUNT_RULE, josa } from './explain';
 import { generatedFor } from './generated';
 import { getHideBall, getIncludeGenerated, getMode, getRecord, setHideBall, setIncludeGenerated } from './progress';
 import {
@@ -611,7 +611,7 @@ export class UI {
       <h2>내 판단 시간(${sec(o.decisionDelay)}) 그대로 다른 곳에 던졌다면</h2>
       ${alts}
       <h2>해설</h2>
-      <p>${scn.explanation}</p>`);
+      <p>${scn.batted.type === 'bunt' && !scn.generated ? `${BUNT_RULE} ` : ''}${scn.explanation}</p>`);
   }
 
   showChoiceResult(r: ChoiceResultData) {

@@ -156,14 +156,14 @@ const BUNT_SIDE: Partial<Record<PositionId, { side: string; balls: Bunt[] }>> = 
     side: '3루 쪽',
     balls: [
       { key: 'hard', name: '강한 번트', catchPoint: P(-10.5, 13), travelTime: 1.2 },
-      { key: 'soft', name: '느린 번트', catchPoint: P(-5, 5.5), travelTime: 2.4 },
+      { key: 'soft', name: '느린 번트', catchPoint: P(-3.5, 5), travelTime: 2.9 },
     ],
   },
   '1B': {
     side: '1루 쪽',
     balls: [
       { key: 'hard', name: '강한 번트', catchPoint: P(10.5, 13), travelTime: 1.2 },
-      { key: 'soft', name: '느린 번트', catchPoint: P(5, 5.5), travelTime: 2.4 },
+      { key: 'soft', name: '느린 번트', catchPoint: P(5, 5.5), travelTime: 2.9 },
     ],
   },
 };
