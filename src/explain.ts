@@ -24,9 +24,15 @@ function bestAt(scn: ThrowScenario, d: number): Outcome {
   return THROW_CHOICES.map((c) => evaluate(scn, c, d)).reduce((a, b) => (b.value > a.value ? b : a));
 }
 
+// 그 베이스로 오는 주자가 밀려 뛰는 게 아니라서 태그해야 하는가
+function isTagBase(scn: ThrowScenario, c: Choice) {
+  return planRunners(scn).some((r) => r.kind === 'advance' && r.target === c);
+}
+
 export function choiceLabel(scn: ThrowScenario, c: Choice) {
   if (c === 'hold') return '들고 있기';
-  return isCarry(scn, c) ? `${BASE_LABEL[c]} 직접 밟기` : `${BASE_LABEL[c]} 송구`;
+  if (isCarry(scn, c)) return `${BASE_LABEL[c]} ${isTagBase(scn, c) ? '직접 태그' : '직접 밟기'}`;
+  return `${BASE_LABEL[c]} 송구`;
 }
 
 const join = (xs: string[]) => xs.join('·');
@@ -44,10 +50,7 @@ export function explainThrow(scn: ThrowScenario): string {
   const runners = planRunners(scn).filter((r) => r.id !== 'batter');
   const bunt = scn.batted.type === 'bunt';
 
-  if (bunt) {
-    out.push(BUNT_RULE);
-    if (!runners.some((r) => r.kind === 'force')) out.push('단, 앞 주자가 밀려서 뛰는 게 아니면 태그가 필요해서 강한 번트라도 1루가 안전해요.');
-  }
+  if (bunt) out.push(BUNT_RULE);
 
   // 1. 주자 상황
   const forced = runners.filter((r) => r.kind === 'force');
@@ -66,8 +69,12 @@ export function explainThrow(scn: ThrowScenario): string {
     out.push(`${join(held.map((r) => NUM[r.origin]))} 주자는 멈춰 있어서 그 앞 베이스로 던져도 잡을 주자가 없어요.`);
   }
 
+  const { answers, close, immediate } = throwAnswers(scn);
   const best = bestAt(scn, 0);
   const totalOuts = best.outsMade + best.autoOuts;
+  // 해설에서 이미 정답이라고 말한 선택지 (나머지 정답은 뒤에서 따로 알려준다)
+  const mentioned = new Set<Choice>([best.choice]);
+  const tagged = (o: Outcome) => o.events.some((e) => e.out && e.tag);
 
   // 2. 아웃 카운트
   if (scn.situation.outs === 2 && totalOuts >= 1) {
@@ -88,38 +95,48 @@ export function explainThrow(scn: ThrowScenario): string {
   } else if (best.choice === 'home') {
     out.push('실점을 막는 게 가장 중요해서 홈에서 승부해요.');
   } else if (best.choice !== 'first' && scn.situation.outs < 2) {
-    out.push(`${NUM[best.choice as BaseId]}에서 앞 주자를 잡으면 득점권에 주자를 덜 남겨서 1루 아웃보다 좋아요.`);
-  } else if (best.choice === 'first' && scn.situation.outs < 2) {
-    const tagOption = THROW_CHOICES.map((c) => evaluate(scn, c, 0)).some((o) => o.choice !== 'first' && o.events.some((e) => e.out && e.tag));
     out.push(
-      tagOption
-        ? '다른 베이스에서도 아웃을 노릴 수는 있지만 태그가 필요해서 위험해요. 확실한 1루 아웃을 챙기세요.'
-        : '확실하게 잡을 수 있는 1루로 던지세요.',
+      `${tagged(best) ? '태그가 필요하지만 시간 여유가 있어서, ' : ''}${NUM[best.choice as BaseId]}에서 앞 주자를 잡으면 득점권에 주자를 덜 남겨서 1루 아웃보다 좋아요.`,
     );
+  } else if (best.choice === 'first' && scn.situation.outs < 2) {
+    const tagAlt = immediate.find((o) => o.choice !== 'first' && tagged(o));
+    if (tagAlt && answers.includes(tagAlt.choice)) {
+      out.push(`${NUM[tagAlt.choice as BaseId]}에서 태그로 앞 주자를 잡을 시간도 있어서 둘 다 정답이에요. 다만 태그는 실수할 여지가 있어서 확실한 1루 아웃이 조금 더 안전해요.`);
+      mentioned.add(tagAlt.choice);
+    } else if (tagAlt) out.push('다른 베이스에서도 아웃을 노릴 수는 있지만 태그가 필요해서 위험해요. 확실한 1루 아웃을 챙기세요.');
+    else out.push('확실하게 잡을 수 있는 1루로 던지세요.');
   }
-  const { close, immediate } = throwAnswers(scn);
   if (close) {
     out.push(
       `다만 ${josa(choiceLabel(scn, close.lead.choice), '은', '는')} 잡자마자 던져도 ${close.margin.toFixed(2)}초 차이로 아슬아슬해서, 확실한 ${choiceLabel(scn, close.safe.choice)}도 정답이에요.`,
     );
+    mentioned.add(close.safe.choice);
   }
+  // 점수 차이가 거의 없어서 같이 정답인 선택지
+  const others = answers.filter((c) => !mentioned.has(c));
+  if (others.length) out.push(`${others.map((c) => choiceLabel(scn, c)).join(', ')}도 결과가 거의 같아서 정답이에요.`);
   if (bunt && best.choice === 'first') {
-    // 앞 주자를 왜 못 잡는지: 잡자마자 던져도 늦거나 아슬아슬하다
-    const lead = immediate.filter((o) => o.choice !== 'first' && o.events.length).map((o) => ({ o, m: playMargin(o)! }));
-    const late = lead.find((x) => x.m < 0);
+    // 앞 주자를 왜 못 잡는지: 잡자마자 던져도 늦는다
+    const late = immediate.filter((o) => o.choice !== 'first' && o.events.length).map((o) => ({ o, m: playMargin(o)! })).find((x) => x.m < 0);
     if (late) out.push(`${josa(NUM[late.o.choice as BaseId], '은', '는')} 잡자마자 던져도 주자보다 ${(-late.m).toFixed(2)}초 늦어요.`);
   }
   if (best.choice !== 'hold' && isCarry(scn, best.choice)) {
-    out.push('베이스가 가까우니 던지지 않고 직접 밟는 게 가장 빠르고 확실해요.');
+    out.push(
+      isTagBase(scn, best.choice)
+        ? '베이스가 가까우니 던지지 않고 들고 가서 직접 태그하는 게 가장 빨라요.'
+        : '베이스가 가까우니 던지지 않고 직접 밟는 게 가장 빠르고 확실해요.',
+    );
   }
   if (best.runs > 0 && !endsInning) out.push('1점은 주지만, 아웃을 늘리는 게 더 나아요.');
 
-  // 4. 늦었을 때의 차선
+  // 4. 늦었을 때: 다른 정답이면 '더 안전하다', 정답이 아니면 '차선'
   if (best.outsMade > 0) {
     const w = latestDecision(scn, best.choice, best.outsMade);
     if (w !== null) {
       const late = bestAt(scn, w + 0.05);
-      if (late.choice !== best.choice && late.outsMade > 0) out.push(`판단이 늦었다면 ${josa(choiceLabel(scn, late.choice), '이', '가')} 차선이에요.`);
+      const lateLabel = josa(choiceLabel(scn, late.choice), '이', '가');
+      if (late.choice !== best.choice && late.outsMade > 0)
+        out.push(answers.includes(late.choice) ? `판단이 늦었다면 ${lateLabel} 더 안전해요.` : `판단이 늦었다면 ${lateLabel} 차선이에요.`);
       else if (late.choice === best.choice && late.outsMade < best.outsMade && late.outsMade > 0)
         out.push('판단이 늦어서 병살이 안 되더라도 같은 곳으로 던져 아웃 하나는 챙기세요.');
     }

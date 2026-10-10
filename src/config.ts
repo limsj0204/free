@@ -49,7 +49,7 @@ export const THROW = {
 export const VALUE = {
   out: 10,
   run: 8,
-  tagPlay: 3, // 태그가 필요한 아웃은 실패 위험이 커서 감점
+  tagPlay: 1.5, // 태그가 필요한 아웃은 실패 위험이 커서 감점 (결과가 같으면 포스가 낫고, 앞 주자를 지워 얻는 게 크면 태그도 감수)
   perMeterThrown: 0.02, // 송구 거리가 길수록 실책 위험이 커서 감점
   bestTolerance: 0.3, // 최선과 이 정도 차이(송구 거리 약 15m)면 똑같이 최선으로 인정
   closeMargin: 0.2, // 정답 플레이가 잡자마자 던져도 이 시간 차이보다 아슬아슬하면, 확실한 아웃 쪽도 정답으로 인정
