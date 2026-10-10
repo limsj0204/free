@@ -146,8 +146,9 @@ export function explainThrow(scn: ThrowScenario): string {
   }
   if (best.runs > 0 && !endsInning) out.push('1점은 주지만, 아웃을 늘리는 게 더 나아요.');
 
-  // 4. 늦었을 때: 함께 인정되는 선택이면 '더 안전하다', 아니면 '차선'
-  if (best.outsMade > 0) {
+  // 4. 늦었을 때: 함께 인정되는 선택이면 '더 안전하다', 아니면 '차선'.
+  // 2아웃이면 아웃 하나로 끝나서, 늦었을 때 엉뚱한 곳이 계산상 차선으로 나오는 경우가 있어 말하지 않는다.
+  if (best.outsMade > 0 && scn.situation.outs < 2) {
     const w = latestDecision(scn, best.choice, best.outsMade);
     if (w !== null) {
       const late = bestAt(scn, w + 0.05);
