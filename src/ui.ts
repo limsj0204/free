@@ -207,7 +207,7 @@ export class UI {
     this.hideAll();
     this.help.textContent =
       scn.kind === 'throw'
-        ? '마우스: 시점 이동 · 클릭: 바라보는 베이스로 송구 · A/S/D/F: 1루/2루/3루/홈 · Space: 들고 있기 · Esc: 마우스 풀기'
+        ? '마우스: 시점 이동 · 클릭: 바라보는 베이스로 송구 · A/S/D: 1루/2루/3루 · Space: 홈 · W: 들고 있기 · Esc: 마우스 풀기'
         : '마우스: 시점 이동 · 클릭: 바라보는 위치로 이동 · A/S/D: 선택지 순서대로 · Esc: 마우스 풀기';
     this.hud.classList.remove('hidden');
     const sit = scn.situation;
@@ -258,8 +258,8 @@ export class UI {
         ${scn.brief ? `<p>${scn.brief}</p>` : ''}
         <p class="note">${
           scn.kind === 'throw'
-            ? '공을 잡으면 화면이 느려져요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> 키로 1루·2루·3루·홈, <kbd>Space</kbd>로 들고 있기. 던질 베이스를 바라보고 클릭해도 돼요.'
-            : '판단할 순간이 오면 화면이 느려지고 선택지가 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> 키로 고르거나, 갈 곳을 바라보고 클릭하세요.'
+            ? '공을 잡으면 화면이 느려져요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 1루·2루·3루, <kbd>Space</kbd>로 홈, <kbd>W</kbd>로 들고 있기. 던질 베이스를 바라보고 클릭해도 돼요.'
+            : '판단할 순간이 오면 화면이 느려지고 선택지가 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 고르거나, 갈 곳을 바라보고 클릭하세요.'
         }</p>
         <div class="actions">
           <button class="secondary" id="brief-menu-btn">목록</button>

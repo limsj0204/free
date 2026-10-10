@@ -46,7 +46,8 @@ type Phase = 'menu' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 're
 const EYE_HEIGHT = 1.62;
 const PICK_ANGLE = 0.3; // 시선으로 고를 때 허용 각도 (rad)
 const REPLAY_SPEED = 0.6;
-// 판단 키: 왼손을 올려두는 기본 줄. 물리 키(code) 기준이라 한글 입력 상태에서도 동작한다.
+// 판단 키: 왼손 기본 줄(A S D)과 엄지(Space). 들고 있기는 실수로 누르지 않게 W에 둔다.
+// 물리 키(code) 기준이라 한글 입력 상태에서도 동작한다.
 const DECISION_KEYS = ['A', 'S', 'D', 'F'];
 const FIELDER_IDS: FielderId[] = ['P', 'C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'];
 const RUNNER_IDS: RunnerId[] = ['batter', 'r1', 'r2', 'r3'];
@@ -285,8 +286,8 @@ export class Game {
         first: [DECISION_KEYS[0], `Key${DECISION_KEYS[0]}`],
         second: [DECISION_KEYS[1], `Key${DECISION_KEYS[1]}`],
         third: [DECISION_KEYS[2], `Key${DECISION_KEYS[2]}`],
-        home: [DECISION_KEYS[3], `Key${DECISION_KEYS[3]}`],
-        hold: ['Space', 'Space'],
+        home: ['Space', 'Space'],
+        hold: ['W', 'KeyW'],
       };
       return THROW_CHOICES.map((c) => ({
         value: c,
