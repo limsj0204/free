@@ -624,10 +624,10 @@ export class Game {
       act.aimed = this.aimedIndex();
       this.ui.setAim(act.aimed);
       const plans = planRunners(scn);
-      // 공을 든 채 뛰는 주자에게 다가가면 태그
+      // 공을 든 채 포스가 아닌 주자에게 다가가면 태그. 포스 주자는 베이스를 밟는 쪽이 낫다(병살로 이어짐).
       for (const r of plans) {
         const path = this.tl.runners.get(r.id);
-        if (r.kind === 'hold' || !path || t >= r.arrival || t < path.startTime) continue;
+        if (r.kind !== 'advance' || !path || t >= r.arrival || t < path.startTime) continue;
         const rp = pathPosition(path, t, new THREE.Vector3()).pos;
         if (Math.hypot(act.pos.x - rp.x, act.pos.z - rp.z) < ACTION.catchRadius) {
           this.resolveActionThrow(r.target, { tagT: t, tagRunner: r.id, releasePos: act.pos.clone() });
