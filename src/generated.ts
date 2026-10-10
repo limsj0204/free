@@ -28,9 +28,8 @@ const BALLS: Record<PositionId, Ball[]> = {
   // 투수는 공을 던진 직후라 타구가 아주 빨리 온다
   P: [
     { key: 'front', name: '투수 정면 강습 땅볼', type: 'grounder', catchPoint: P(0.3, 16.3), travelTime: 0.6 },
-    // 좌우는 마운드에서 홈을 바라보는 투수 기준 (3루 쪽이 오른쪽)
-    { key: 'side3', name: '투수 오른쪽(3루 쪽) 땅볼', type: 'grounder', catchPoint: P(-3, 15.5), travelTime: 0.85 },
-    { key: 'side1', name: '투수 왼쪽(1루 쪽) 땅볼', type: 'grounder', catchPoint: P(3, 15.5), travelTime: 0.85 },
+    { key: 'side3', name: '투수 앞 3루 쪽 땅볼', type: 'grounder', catchPoint: P(-3, 15.5), travelTime: 0.85 },
+    { key: 'side1', name: '투수 앞 1루 쪽 땅볼', type: 'grounder', catchPoint: P(3, 15.5), travelTime: 0.85 },
   ],
   SS: [
     { key: 'front', name: '정면 땅볼', type: 'grounder', catchPoint: P(-8.5, 31.5), travelTime: 1.45 },
