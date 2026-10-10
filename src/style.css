@@ -1047,3 +1047,54 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* 첫 화면 오른쪽 아래 방송국 배너 */
+.menu-main {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+.channel-links {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.channel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: filter 0.15s;
+}
+
+.channel b {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.channel:hover,
+.channel:focus-visible {
+  filter: brightness(1.12);
+  outline: none;
+}
+
+.channel.soop {
+  background: #1f5bff;
+}
+
+.channel.youtube {
+  background: #e62117;
+}
