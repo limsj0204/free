@@ -113,6 +113,15 @@ export interface ActionHit {
 }
 
 // 액션 모드 타구 위치. 상황에 정해진 지점을 정해진 시간에 지나고, 그 뒤로는 서서히 느려지며 외야로 굴러간다.
+// 땅볼이 튀는 모양: 한 번 튀는 데 약 0.45초. 빨리 오는 타구(투수 앞 강습 등)는 적게, 낮게 튄다.
+// 높이는 실제 물리(g·t²/8)보다 조금 과장해서 화면에서 잘 보이게 한다.
+export function grounderHops(travelTime: number) {
+  const bounces = Math.max(2, Math.round(travelTime / 0.45));
+  const hop = travelTime / bounces;
+  const arc = THREE.MathUtils.clamp((3.9 * 9.8 * hop * hop) / 8, 0.25, 1.1);
+  return { bounces, arc };
+}
+
 export function actionBallPos(hit: ActionHit, t: number, out = new THREE.Vector3()) {
   const start = CONTACT_POINT;
   const dir = hit.catchPoint.clone().sub(start).setY(0);
@@ -133,8 +142,9 @@ export function actionBallPos(hit: ActionHit, t: number, out = new THREE.Vector3
     if (t <= T) out.y = THREE.MathUtils.lerp(start.y, 1.3, t / T) + Math.sin((t / T) * Math.PI) * 0.3;
     else out.y = Math.max(0.05, 1.3 - 4 * (t - T) * (t - T));
   } else {
-    const h = hit.type === 'grounder' ? 1.1 : 0.25;
-    const freq = (Math.PI * (hit.type === 'grounder' ? 3.2 : 4)) / T;
+    const hops = grounderHops(T);
+    const h = hit.type === 'grounder' ? hops.arc : 0.25;
+    const freq = (Math.PI * (hit.type === 'grounder' ? hops.bounces + 0.2 : 4)) / T;
     const bounce = Math.abs(Math.sin(t * freq)) * h * Math.exp(-t * 0.8);
     const drop = Math.max(0, 1 - t / 0.15) * (start.y - 0.05);
     out.y = 0.05 + Math.max(bounce, drop);
@@ -229,7 +239,7 @@ export function buildThrowTimeline(scn: ThrowScenario, pitchFlight: number, outc
   const bunt = type === 'bunt';
 
   const ball: BallSeg[] = [{ from: releasePoint(), to: CONTACT_POINT, t0: tRelease, t1: 0, arc: 0.15 }];
-  if (type === 'grounder') ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(0.35), t0: 0, t1: travelTime, arc: 1.1, bounces: 3 });
+  if (type === 'grounder') ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(0.35), t0: 0, t1: travelTime, ...grounderHops(travelTime) });
   else if (type === 'bunt') ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(0.15), t0: 0, t1: travelTime, arc: 0.25, bounces: 4 });
   else if (type === 'roller') ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(0.15), t0: 0, t1: travelTime, arc: 0.35, bounces: 6 });
   else ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(1.3), t0: 0, t1: travelTime, arc: 0.4 });
@@ -637,8 +647,7 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
         to: c.catchPoint.clone().setY(bunt ? 0.15 : 0.35),
         t0: 0,
         t1: c.travelTime,
-        arc: bunt ? 0.25 : 1.1,
-        bounces: bunt ? 4 : 3,
+        ...(bunt ? { arc: 0.25, bounces: 4 } : grounderHops(c.travelTime)),
       });
       // 공을 잡는 수비수는 타구 도착에 맞춰 그 자리로 간다
       const fStart = fielders[c.fielder];
