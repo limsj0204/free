@@ -25,10 +25,11 @@ export function choiceLabel(scn: ThrowScenario, c: Choice) {
 
 const join = (xs: string[]) => xs.join('·');
 
-// 받침 유무에 맞는 조사를 붙인다 ('홈은', '2루는')
-function josa(word: string, withFinal: string, withoutFinal: string) {
+// 받침 유무에 맞는 조사를 붙인다 ('홈은', '2루는'). '으로'는 ㄹ 받침 뒤에서 '로'가 된다.
+export function josa(word: string, withFinal: string, withoutFinal: string) {
   const code = word.charCodeAt(word.length - 1) - 0xac00;
-  const hasFinal = code >= 0 && code <= 11171 && code % 28 !== 0;
+  const final = code >= 0 && code <= 11171 ? code % 28 : 0;
+  const hasFinal = final !== 0 && !(withFinal === '으로' && final === 8);
   return word + (hasFinal ? withFinal : withoutFinal);
 }
 

@@ -389,12 +389,37 @@ export function latestDecision(scn: ThrowScenario, choice: Choice, minOuts: numb
   return lo;
 }
 
-export function gradeThrow(scn: ThrowScenario, outcome: Outcome): { grade: Grade; best: Outcome } {
-  const all = THROW_CHOICES.map((c) => evaluate(scn, c, outcome.decisionDelay));
-  const best = all.reduce((a, b) => (b.value > a.value ? b : a));
+// 상황의 정답: 공을 잡자마자 결정했을 때의 최선. 판단 속도와 상관없이 상황마다 고정이다.
+export function throwAnswers(scn: ThrowScenario): { answers: Choice[]; ideal: Outcome } {
+  const all = THROW_CHOICES.map((c) => evaluate(scn, c, 0));
+  const ideal = all.reduce((a, b) => (b.value > a.value ? b : a));
+  const answers = all.filter((o) => o.outsMade > 0 && o.value >= ideal.value - VALUE.bestTolerance).map((o) => o.choice);
+  return { answers, ideal };
+}
+
+// ideal: 정답을 제때 고름 / late: 정답이지만 늦어서 아웃이 줄었음
+// fallback: 정답은 아니지만 늦은 시점에선 가장 나은 선택 / other: 그 밖 / timeout: 시간 초과
+export type ThrowVerdict = 'ideal' | 'late' | 'fallback' | 'other' | 'timeout';
+
+export interface ThrowGrade {
+  grade: Grade;
+  verdict: ThrowVerdict;
+  answers: Choice[];
+  ideal: Outcome; // 정답을 바로 골랐을 때의 결과
+  bestNow: Outcome; // 내 판단 시간 기준으로 가장 나은 결과
+}
+
+export function gradeThrow(scn: ThrowScenario, outcome: Outcome): ThrowGrade {
+  const { answers, ideal } = throwAnswers(scn);
+  const bestNow = THROW_CHOICES.map((c) => evaluate(scn, c, outcome.decisionDelay)).reduce((a, b) => (b.value > a.value ? b : a));
   const gotOut = outcome.outsMade > 0;
-  if (outcome.timedOut) return { grade: 'bad', best };
-  if (outcome.value >= best.value - VALUE.bestTolerance && (gotOut || best.outsMade === 0)) return { grade: gotOut ? 'best' : 'bad', best };
-  if (gotOut) return { grade: 'ok', best };
-  return { grade: 'bad', best };
+  const base = { answers, ideal, bestNow };
+  if (outcome.timedOut) return { ...base, grade: 'bad', verdict: 'timeout' };
+  if (answers.includes(outcome.choice)) {
+    const planned = evaluate(scn, outcome.choice, 0).outsMade;
+    if (outcome.outsMade >= planned) return { ...base, grade: 'best', verdict: 'ideal' };
+    return { ...base, grade: gotOut ? 'ok' : 'bad', verdict: 'late' };
+  }
+  if (gotOut && outcome.value >= bestNow.value - VALUE.bestTolerance) return { ...base, grade: 'ok', verdict: 'fallback' };
+  return { ...base, grade: gotOut ? 'ok' : 'bad', verdict: 'other' };
 }

@@ -1,14 +1,13 @@
 import * as THREE from 'three';
-import { DIFFICULTIES, RUN, VALUE, type DifficultyId } from './config';
+import { DIFFICULTIES, RUN, type DifficultyId } from './config';
 import { BASE_LABEL } from './coords';
+import { josa } from './explain';
 import { generatedFor } from './generated';
 import { getIncludeGenerated, getRecord, setIncludeGenerated } from './progress';
 import {
   FIELDER_NAME,
   POSITIONS,
   RUNNER_NAME,
-  THROW_CHOICES,
-  evaluate,
   isCarry,
   latestDecision,
   type Choice,
@@ -17,7 +16,9 @@ import {
   type Outcome,
   type PositionId,
   type Scenario,
+  type ThrowGrade,
   type ThrowScenario,
+  type ThrowVerdict,
 } from './scenario';
 import { SCENARIOS, fieldersOf, scenariosFor } from './scenarios';
 import type { ChoiceResult } from './timeline';
@@ -34,8 +35,7 @@ export interface DecisionDef {
 export interface ThrowResultData {
   scenario: ThrowScenario;
   outcome: Outcome;
-  grade: Grade;
-  best: Outcome;
+  verdict: ThrowGrade;
   alternatives: Outcome[];
   reactionReal: number;
   timeScale: number;
@@ -54,6 +54,14 @@ const GRADE_LABEL: Record<Grade, string> = {
   best: '최선의 판단',
   ok: '나쁘지 않지만 더 좋은 선택이 있었어요',
   bad: '다시 생각해 봐요',
+};
+
+const VERDICT_LABEL: Record<ThrowVerdict, (g: Grade) => string> = {
+  ideal: () => '최선의 판단',
+  late: (g) => (g === 'ok' ? '판단은 맞았지만 늦었어요' : '판단은 맞았지만 너무 늦었어요'),
+  fallback: () => '정답은 아니지만, 늦은 시점에선 맞는 선택',
+  other: (g) => (g === 'ok' ? '아웃은 잡았지만 정답이 아니에요' : '다시 생각해 봐요'),
+  timeout: () => '시간 안에 결정하지 못했어요',
 };
 
 const GRADE_SHORT: Record<Grade, string> = { best: '최선', ok: '아쉬움', bad: '오답' };
@@ -429,30 +437,38 @@ export class UI {
           .join('')
       : `<tr><td colspan="5">${o.autoOuts ? '직선타로 타자는 잡자마자 아웃. ' : ''}송구로 노린 아웃이 없었어요.</td></tr>`;
 
+    const v = r.verdict;
+    const answerLabel = v.answers.map((c) => throwLabel(scn, c)).join(' 또는 ');
     const alts = r.alternatives
       .map((a) => {
         const chosen = a.choice === o.choice && !o.timedOut;
-        const isBest = a.value >= r.best.value - VALUE.bestTolerance && a.outsMade > 0;
+        const isAnswer = v.answers.includes(a.choice);
         return `<div class="alt ${chosen ? 'chosen' : ''}">
-          <span class="alt-name">${throwLabel(scn, a.choice)}${chosen ? ' (내 선택)' : ''}${isBest ? '<span class="badge">최선</span>' : ''}</span>
+          <span class="alt-name">${throwLabel(scn, a.choice)}${chosen ? ' (내 선택)' : ''}${isAnswer ? '<span class="badge">정답</span>' : ''}</span>
           <span class="alt-res">${a.headline} · ${a.resultState}</span>
         </div>`;
       })
       .join('');
 
     // 판단 시간 안내 (실제 경기 속도 기준)
-    const atZero = THROW_CHOICES.map((c) => evaluate(scn, c, 0));
-    const ideal = atZero.reduce((a, b) => (b.value > a.value ? b : a));
+    const ideal = v.ideal;
     const notes: string[] = [];
+    if (v.verdict === 'fallback') {
+      notes.push(`정답은 <b>${answerLabel}</b>예요. 판단이 늦어서 그 시점에는 <b>${josa(throwLabel(scn, v.bestNow.choice), '이', '가')}</b> 가장 나은 선택이었어요.`);
+    } else if (v.verdict === 'late') {
+      notes.push(`<b>${josa(throwLabel(scn, o.choice), '은', '는')}</b> 정답이지만, 늦게 던져서 ${o.outsMade > 0 ? '노린 아웃을 다 잡지 못했어요' : '세이프가 됐어요'}.`);
+    } else if (v.verdict !== 'ideal') {
+      notes.push(`정답은 <b>${answerLabel}</b>예요.`);
+    }
     if (ideal.outsMade > 0) {
       const w = latestDecision(scn, ideal.choice, ideal.outsMade);
-      if (w !== null) notes.push(`가장 좋은 선택은 <b>${throwLabel(scn, ideal.choice)}</b>이고, 공을 잡고 <b>${sec(w)}</b> 안에 결정해야 가능해요.`);
+      if (w !== null) notes.push(`<b>${josa(throwLabel(scn, ideal.choice), '으로', '로')}</b> ${ideal.outsMade + ideal.autoOuts >= 2 ? '병살을' : '아웃을'} 잡으려면 공을 잡고 <b>${sec(w)}</b> 안에 결정해야 해요.`);
     }
     const anyOut = Math.max(0, ...(['first', 'second', 'third', 'home'] as Choice[]).map((c) => latestDecision(scn, c, 1) ?? 0));
     if (anyOut > 0) notes.push(`<b>${sec(anyOut)}</b>가 지나면 어디로 던져도 아웃을 잡을 수 없어요.`);
 
     this.openResult(`
-      <span class="grade ${r.grade}">${GRADE_LABEL[r.grade]}</span>
+      <span class="grade ${v.grade}">${VERDICT_LABEL[v.verdict](v.grade)}</span>
       <h1>${o.headline}</h1>
       <div class="result-state">${o.timedOut ? '시간 안에 결정하지 못했어요 · ' : ''}${throwLabel(scn, o.choice)} → ${o.resultState}</div>
       <div class="stat-row">
@@ -465,7 +481,7 @@ export class UI {
         <tr><th>베이스</th><th>주자</th><th>공 도착</th><th>주자 도착</th><th>판정</th></tr>
         ${timingRows}
       </table></div>
-      <h2>같은 판단 시간에 다른 선택을 했다면</h2>
+      <h2>내 판단 시간(${sec(o.decisionDelay)}) 그대로 다른 곳에 던졌다면</h2>
       ${alts}
       <h2>해설</h2>
       <p>${scn.explanation}</p>`);

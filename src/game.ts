@@ -391,8 +391,7 @@ export class Game {
       this.ui.showThrowResult({
         scenario: scn,
         outcome: o,
-        grade: g.grade,
-        best: g.best,
+        verdict: g,
         alternatives: THROW_CHOICES.map((c) => evaluate(scn, c, o.decisionDelay)),
         reactionReal: this.reactionReal,
         timeScale,
