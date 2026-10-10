@@ -56,7 +56,6 @@ export interface ThrowScenario extends ScenarioBase {
   selfBases?: BaseId[]; // 던지지 않고 직접 밟으러 가는 베이스
   runnerActs?: Partial<Record<Base3, 'advance' | 'hold'>>; // 안 밀리는 주자가 뛸지 (땅볼일 때)
   hitAndRun?: boolean; // 투구 때 주자가 미리 스타트했는지
-  runnerJump?: boolean; // 번트: 밀려 뛰는 주자의 스타트가 빠르다
   generated?: boolean; // 상황 생성기로 만든 상황 (랜덤 연습에만 나온다)
 }
 
@@ -166,7 +165,7 @@ export function planRunners(scn: ThrowScenario): RunnerPlan[] {
     if (advance) {
       const start = forced
         ? bunt
-          ? RUN.buntRunnerStartDelay - (scn.runnerJump ? RUN.buntJump : 0)
+          ? RUN.buntRunnerStartDelay
           : RUN.runnerStartDelay
         : s.outs === 2
           ? RUN.runnerStartDelay
@@ -200,7 +199,6 @@ const BASE_NUM: Record<BaseId, string> = { home: '홈', first: '1루', second: '
 // 공을 잡는 순간 동료가 외쳐주는 콜. 안 밀리는 주자가 뛰는지 멈췄는지 알려준다.
 export function runnerCalls(scn: ThrowScenario): string[] {
   const calls: string[] = [];
-  if (scn.runnerJump) calls.push('주자 스타트 빨라요!');
   for (const r of planRunners(scn)) {
     if (r.id === 'batter' || r.kind === 'force' || r.kind === 'return') continue;
     if (r.kind === 'advance') calls.push(`${BASE_NUM[r.origin]} 주자 ${r.target === 'home' ? '홈으로' : `${BASE_NUM[r.target]}로`} 뛴다!`);

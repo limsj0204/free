@@ -31,7 +31,6 @@ export const RUN = {
   reaction: 0.15, // 위치 판단 후 첫발을 떼기까지
   coverStart: 0.2, // 타격 후 커버 들어가는 수비수가 움직이기 시작하기까지
   buntCoverStart: -0.5, // 번트 수비는 투구와 함께 움직인다 (타격 0.5초 전)
-  buntJump: 0.5, // 스타트가 빠른 주자는 번트 때 이만큼 일찍 뛴다
 };
 
 export const THROW = {

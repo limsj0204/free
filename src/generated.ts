@@ -142,7 +142,7 @@ function build(): ThrowScenario[] {
 }
 
 // ---------- 번트 ----------
-// 번트 세기(빨리 잡느냐) × 주자 배치 × 아웃 × 주자 스타트를 바꿔서, 앞 주자를 잡을 수 있는 번트와 1루밖에 안 되는 번트가 섞여 나오게 한다.
+// 번트 세기(빨리 잡느냐) × 주자 배치 × 아웃을 바꿔서, 앞 주자를 잡을 수 있는 번트와 1루밖에 안 되는 번트가 섞여 나오게 한다.
 
 interface Bunt {
   key: string;
@@ -156,7 +156,6 @@ const BUNT_SIDE: Partial<Record<PositionId, { side: string; balls: Bunt[] }>> = 
     side: '3루 쪽',
     balls: [
       { key: 'hard', name: '강한 번트', catchPoint: P(-10.5, 13), travelTime: 1.2 },
-      { key: 'mid', name: '번트', catchPoint: P(-8, 9.5), travelTime: 1.8 },
       { key: 'soft', name: '느린 번트', catchPoint: P(-5, 5.5), travelTime: 2.4 },
     ],
   },
@@ -164,7 +163,6 @@ const BUNT_SIDE: Partial<Record<PositionId, { side: string; balls: Bunt[] }>> = 
     side: '1루 쪽',
     balls: [
       { key: 'hard', name: '강한 번트', catchPoint: P(10.5, 13), travelTime: 1.2 },
-      { key: 'mid', name: '번트', catchPoint: P(8, 9.5), travelTime: 1.8 },
       { key: 'soft', name: '느린 번트', catchPoint: P(5, 5.5), travelTime: 2.4 },
     ],
   },
@@ -201,32 +199,29 @@ function buildBunts(): ThrowScenario[] {
       for (const set of BUNT_SETS) {
         const forcedRunner = set.includes('first');
         for (let outs = 0; outs < 2; outs++) {
-          for (const jump of forcedRunner ? [false, true] : [false]) {
-            const name = `${def.side} ${ball.name}`;
-            const scn: ThrowScenario = {
-              id: `gen-${position}-bunt-${ball.key}-${set.map((b) => SHORT[b]).join('')}-${outs}${jump ? '-j' : ''}`,
-              kind: 'throw',
-              generated: true,
-              title: `${outsText(outs)} ${runnersText(set)}, ${name}`,
-              event: name,
-              position,
-              situation: {
-                outs,
-                runners: { first: set.includes('first'), second: set.includes('second'), third: false },
-                batter: 'R',
-              },
-              brief: '번트 수비 대형이에요. 1루수와 3루수가 앞으로 나와 있다가 투구와 함께 대시해요. 공을 잡을 때 주자 스타트가 어땠는지 콜을 확인하세요.',
-              explanation: '',
-              ...buntDefense(position, set),
-              batted: { type: 'bunt', catchPoint: ball.catchPoint, travelTime: ball.travelTime },
-              // 2루 주자만 있으면 번트 때 3루로 뛴다 (밀려 뛰는 게 아니라 태그 플레이)
-              runnerActs: set.includes('second') && !forcedRunner ? { second: 'advance' } : undefined,
-              runnerJump: jump || undefined,
-            };
-            if (!THROW_CHOICES.some((c) => evaluate(scn, c, 0).outsMade > 0)) continue;
-            scn.explanation = explainThrow(scn);
-            list.push(scn);
-          }
+          const name = `${def.side} ${ball.name}`;
+          const scn: ThrowScenario = {
+            id: `gen-${position}-bunt-${ball.key}-${set.map((b) => SHORT[b]).join('')}-${outs}`,
+            kind: 'throw',
+            generated: true,
+            title: `${outsText(outs)} ${runnersText(set)}, ${name}`,
+            event: name,
+            position,
+            situation: {
+              outs,
+              runners: { first: set.includes('first'), second: set.includes('second'), third: false },
+              batter: 'R',
+            },
+            brief: '번트 수비 대형이에요. 1루수와 3루수가 앞으로 나와 있다가 투구와 함께 대시해요.',
+            explanation: '',
+            ...buntDefense(position, set),
+            batted: { type: 'bunt', catchPoint: ball.catchPoint, travelTime: ball.travelTime },
+            // 2루 주자만 있으면 번트 때 3루로 뛴다 (밀려 뛰는 게 아니라 태그 플레이)
+            runnerActs: set.includes('second') && !forcedRunner ? { second: 'advance' } : undefined,
+          };
+          if (!THROW_CHOICES.some((c) => evaluate(scn, c, 0).outsMade > 0)) continue;
+          scn.explanation = explainThrow(scn);
+          list.push(scn);
         }
       }
     }

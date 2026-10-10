@@ -102,9 +102,6 @@ export function explainThrow(scn: ThrowScenario): string {
     const late = lead.find((x) => x.m < 0);
     if (late) out.push(`${josa(NUM[late.o.choice as BaseId], '은', '는')} 잡자마자 던져도 주자보다 ${(-late.m).toFixed(2)}초 늦어요.`);
   }
-  if (bunt && scn.runnerJump) {
-    out.push(best.choice === 'first' ? '주자 스타트가 빨라서 앞 주자를 잡기 어려워요.' : '주자 스타트가 빨랐지만 공을 빨리 잡아서 앞 주자도 잡을 수 있어요.');
-  }
   if (best.choice !== 'hold' && isCarry(scn, best.choice)) {
     out.push('베이스가 가까우니 던지지 않고 직접 밟는 게 가장 빠르고 확실해요.');
   }
