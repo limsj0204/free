@@ -759,3 +759,104 @@ button:focus-visible {
   font-size: 12px;
   margin-top: 2px;
 }
+
+/* 브리핑: 카운트·주자 / 타격 두 칸 */
+.brief-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 6px 0 16px;
+}
+
+@media (max-width: 480px) {
+  .brief-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.brief-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+}
+
+.brief-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.brief-sit {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brief-bases {
+  width: 64px;
+  height: 47px;
+  flex-shrink: 0;
+}
+
+.brief-bases rect {
+  fill: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1.5;
+}
+
+.brief-bases rect.on {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.brief-sit-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brief-sit-text b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 24px;
+}
+
+.brief-sit-text > span {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.brief-outs {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.brief-outs i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.brief-outs i.on {
+  background: var(--out);
+  border-color: var(--out);
+}
+
+.brief-main {
+  font-size: 24px;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.brief-sub {
+  font-size: 14px;
+  color: var(--muted);
+}

@@ -104,7 +104,7 @@ export class UI {
   private tab: PositionId = 'SS';
 
   setHud(scn: Scenario, kmh: number) {
-    $('hud-title').textContent = `${FIELDER_NAME[scn.position]} · ${scn.title}`;
+    $('hud-title').textContent = scn.event;
     document.querySelectorAll<HTMLElement>('.hud-outs i').forEach((el) => {
       el.classList.toggle('on', Number(el.dataset.out) < scn.situation.outs);
     });
@@ -210,18 +210,52 @@ export class UI {
         ? '마우스: 시점 이동 · 클릭: 바라보는 베이스로 송구 · A/S/D/F: 1루/2루/3루/홈 · Space: 들고 있기 · Esc: 마우스 풀기'
         : '마우스: 시점 이동 · 클릭: 바라보는 위치로 이동 · A/S/D: 선택지 순서대로 · Esc: 마우스 풀기';
     this.hud.classList.remove('hidden');
+    const sit = scn.situation;
+    const outsLabel = sit.outs === 0 ? '무사' : `${sit.outs}아웃`;
+    const bases = (['first', 'second', 'third'] as const).filter((b) => sit.runners[b]);
+    const runnersLabel = bases.length === 3 ? '만루' : bases.length ? `주자 ${bases.map((b) => BASE_LABEL[b].replace('루', '')).join(', ')}루` : '주자 없음';
+    const noBall = scn.kind === 'choice' && (scn.setup === 'steal' || scn.setup === 'pickoff' || scn.setup === 'bunt');
+    const eventSub =
+      scn.kind === 'throw'
+        ? '내가 잡는 공'
+        : scn.setup === 'pickoff' || scn.setup === 'bunt'
+          ? '투구 전 판단'
+          : scn.setup === 'steal'
+            ? '투구와 동시에 판단'
+            : '다른 수비수가 잡는 공';
+    // 전체 랜덤일 때만 포지션이 매번 바뀌니 알려준다
+    const eyebrow = [
+      this.randomLabel,
+      this.randomLabel === '전체 랜덤' ? `내 포지션: ${FIELDER_NAME[scn.position]}` : null,
+      scn.kind === 'throw' ? '송구 판단' : '위치 판단',
+    ]
+      .filter(Boolean)
+      .join(' · ');
     this.briefing.innerHTML = `
       <div class="card">
-        <div class="eyebrow">${this.randomLabel ? `${this.randomLabel} · ` : ''}${FIELDER_NAME[scn.position]} · ${scn.kind === 'throw' ? '송구 판단' : '위치 판단'}</div>
-        <h1>${scn.title}</h1>
-        <div class="situation">
-          ${situationText(scn)
-            .split(' · ')
-            .map((t) => `<span class="chip">${t}</span>`)
-            .join('')}
-          <span class="chip">내 포지션: ${FIELDER_NAME[scn.position]}</span>
+        <div class="eyebrow">${eyebrow}</div>
+        <div class="brief-grid">
+          <section class="brief-box">
+            <div class="brief-label">카운트 · 주자</div>
+            <div class="brief-sit">
+              <svg class="brief-bases" viewBox="0 0 60 44" aria-hidden="true">
+                <rect class="${sit.runners.second ? 'on' : ''}" x="23" y="2" width="14" height="14" transform="rotate(45 30 9)" />
+                <rect class="${sit.runners.first ? 'on' : ''}" x="39" y="18" width="14" height="14" transform="rotate(45 46 25)" />
+                <rect class="${sit.runners.third ? 'on' : ''}" x="7" y="18" width="14" height="14" transform="rotate(45 14 25)" />
+              </svg>
+              <div class="brief-sit-text">
+                <b>${outsLabel}<span class="brief-outs">${[0, 1].map((i) => `<i class="${i < sit.outs ? 'on' : ''}"></i>`).join('')}</span></b>
+                <span>${runnersLabel}</span>
+              </div>
+            </div>
+          </section>
+          <section class="brief-box">
+            <div class="brief-label">${noBall ? '플레이' : '타격'}</div>
+            <b class="brief-main">${scn.event}</b>
+            <span class="brief-sub">${eventSub} · ${sit.batter === 'R' ? '우타자' : '좌타자'}</span>
+          </section>
         </div>
-        <p>${scn.brief}</p>
+        ${scn.brief ? `<p>${scn.brief}</p>` : ''}
         <p class="note">${
           scn.kind === 'throw'
             ? '공을 잡으면 화면이 느려져요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> 키로 1루·2루·3루·홈, <kbd>Space</kbd>로 들고 있기. 던질 베이스를 바라보고 클릭해도 돼요.'

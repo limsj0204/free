@@ -24,24 +24,24 @@ interface Ball {
 
 const BALLS: Record<PositionId, Ball[]> = {
   SS: [
-    { key: 'front', name: '유격수 정면 땅볼', type: 'grounder', catchPoint: P(-8.5, 31.5), travelTime: 1.45 },
-    { key: 'hole', name: '유격수 3루 쪽 깊은 땅볼', type: 'grounder', catchPoint: P(-15, 28), travelTime: 1.5 },
-    { key: 'middle', name: '유격수 2루 쪽 땅볼', type: 'grounder', catchPoint: P(-2.5, 36), travelTime: 1.45, selfBases: ['second'] },
+    { key: 'front', name: '정면 땅볼', type: 'grounder', catchPoint: P(-8.5, 31.5), travelTime: 1.45 },
+    { key: 'hole', name: '3루 쪽 깊은 땅볼', type: 'grounder', catchPoint: P(-15, 28), travelTime: 1.5 },
+    { key: 'middle', name: '2루 쪽 땅볼', type: 'grounder', catchPoint: P(-2.5, 36), travelTime: 1.45, selfBases: ['second'] },
   ],
   '2B': [
-    { key: 'front', name: '2루수 정면 땅볼', type: 'grounder', catchPoint: P(8.5, 31.5), travelTime: 1.45 },
-    { key: 'right', name: '2루수 1루 쪽 땅볼', type: 'grounder', catchPoint: P(14.5, 29), travelTime: 1.5 },
+    { key: 'front', name: '정면 땅볼', type: 'grounder', catchPoint: P(8.5, 31.5), travelTime: 1.45 },
+    { key: 'right', name: '1루 쪽 땅볼', type: 'grounder', catchPoint: P(14.5, 29), travelTime: 1.5 },
     { key: 'middle', name: '2루 베이스 근처 땅볼', type: 'grounder', catchPoint: P(2.8, 36.5), travelTime: 1.45, selfBases: ['second'] },
   ],
   '3B': [
-    { key: 'front', name: '3루수 정면 땅볼', type: 'grounder', catchPoint: P(-20, 25.5), travelTime: 1.25, selfBases: ['third'] },
+    { key: 'front', name: '정면 땅볼', type: 'grounder', catchPoint: P(-20, 25.5), travelTime: 1.25, selfBases: ['third'] },
     { key: 'line', name: '3루 베이스 근처 땅볼', type: 'grounder', catchPoint: P(-20, 22), travelTime: 1.2, selfBases: ['third'] },
     { key: 'slow', name: '3루 쪽 느린 땅볼', type: 'roller', catchPoint: P(-13, 14), travelTime: 2.1, selfBases: ['third'] },
   ],
   '1B': [
-    { key: 'front', name: '1루수 정면 땅볼', type: 'grounder', catchPoint: P(20, 27), travelTime: 1.4, selfBases: ['first'] },
+    { key: 'front', name: '정면 땅볼', type: 'grounder', catchPoint: P(20, 27), travelTime: 1.4, selfBases: ['first'] },
     { key: 'line', name: '1루 베이스 근처 땅볼', type: 'grounder', catchPoint: P(19.8, 22), travelTime: 1.3, selfBases: ['first'] },
-    { key: 'deep', name: '1루수 2루 쪽 땅볼', type: 'grounder', catchPoint: P(14, 30), travelTime: 1.5 },
+    { key: 'deep', name: '2루 쪽 땅볼', type: 'grounder', catchPoint: P(14, 30), travelTime: 1.5 },
   ],
 };
 
@@ -115,11 +115,12 @@ function build(): ThrowScenario[] {
               generated: true,
               // 주자가 뛸지는 공을 잡는 순간 콜로만 알려주므로 제목에 넣지 않는다
               title: `${outsText(outs)} ${runnersText(set)}, ${ball.name}`,
+              event: ball.name,
               position,
               situation,
               brief:
-                `${outs === 0 ? '무사' : `${outs}아웃`}, 주자 ${runnersText(set)}. ${dp ? '병살 대형이에요. ' : ''}` +
-                `${ball.name}가 와요. ${Object.keys(acts).length ? '안 밀리는 주자가 뛸지 멈출지는 공이 맞은 뒤에 봐야 해요. 공을 잡는 순간 동료의 콜을 확인하세요.' : ''}`,
+                `${dp ? '병살 대형이에요. ' : ''}` +
+                `${Object.keys(acts).length ? '안 밀리는 주자가 뛸지 멈출지는 공이 맞은 뒤에 봐야 해요. 공을 잡는 순간 동료의 콜을 확인하세요.' : ''}`,
               explanation: '',
               fielders: fieldersFor(position, set, outs),
               batted: { type: ball.type, catchPoint: ball.catchPoint, travelTime: ball.travelTime },

@@ -38,6 +38,7 @@ export interface Situation {
 interface ScenarioBase {
   id: string;
   title: string;
+  event: string; // 브리핑의 '타격' 칸에 보이는 짧은 설명 (예: 정면 땅볼, 1루 주자 도루)
   position: PositionId; // 1인칭으로 플레이하는 포지션
   situation: Situation;
   brief: string; // 투구 전 상황 설명
