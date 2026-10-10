@@ -204,40 +204,66 @@ export class UI {
     const total = SCENARIOS.length;
     const cleared = SCENARIOS.filter((s) => done(s.id)).length;
 
+    // 조작법: 지금 고른 모드 기준으로 보여준다
+    const controls =
+      mode === 'action'
+        ? `<div class="controls">
+            <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>이동. 공이 지나가는 길로 가면 자동으로 잡혀요</span>
+            <span><kbd>마우스</kbd></span><span>시점 돌리기 (화면을 클릭하면 마우스가 잠겨요)</span>
+            <span><kbd>좌클릭</kbd></span><span>조준한 베이스로 송구</span>
+            <span><b class="ctl-label">밟기·태그</b></span><span>공을 든 채 포스 베이스를 밟거나, 뛰는 주자에게 다가가 직접 아웃</span>
+            <span><b class="ctl-label">위치 판단</b></span><span>갈 곳까지 직접 뛰어가기</span>
+          </div>`
+        : `<div class="controls">
+            <span><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>1루 · 2루 · 3루로 송구 (위치 판단은 선택지 순서대로)</span>
+            <span><kbd>Space</kbd></span><span>홈으로 송구</span>
+            <span><kbd>W</kbd></span><span>던지지 않고 들고 있기</span>
+            <span><kbd>좌클릭</kbd></span><span>바라보는 베이스로 송구 · 바라보는 선택지 고르기</span>
+            <span><kbd>마우스</kbd></span><span>시점 돌리기 (화면을 클릭하면 마우스가 잠겨요)</span>
+          </div>
+          <p class="controls-note">선택지는 타격 순간부터 떠 있어서 공을 잡기 전에 미리 고를 수 있어요.</p>`;
+
     this.menu.innerHTML = `
       <div class="card menu-card">
-        <div class="eyebrow">VR 야구 대비 · 내야 수비</div>
-        <h1>내야 수비 판단 훈련</h1>
-        <p class="note">포지션을 고르고 상황을 선택하세요. 공을 잡거나 상황이 벌어지는 순간 화면이 느려지지만, 주자는 계속 뛰어요. 모든 상황은 오른손 타자 기준이에요. 최선의 판단을 한 상황 ${cleared}/${total}</p>
-        <div class="modes">
-          <button class="${mode === 'judge' ? 'selected' : ''}" data-mode="judge" id="mode-judge"><b>판단 모드</b><span>키보드로 던질 곳·갈 곳을 고르는 연습</span></button>
-          <button class="${mode === 'action' ? 'selected' : ''}" data-mode="action" id="mode-action"><b>액션 모드</b><span>WASD로 직접 움직여 잡고, 조준 후 좌클릭으로 송구</span></button>
-        </div>
-        <div class="tabs" role="tablist">${tabs}</div>
-        <div class="items">
-          <div class="random-row">
-            <button class="primary" id="random-pos">${FIELDER_NAME[this.tab]} 랜덤 연습</button>
-            <button class="secondary" id="random-all">전체 포지션 랜덤</button>
+        <div class="menu-grid">
+          <div class="menu-side">
+            <div class="eyebrow">VR 야구 대비 · 내야 수비</div>
+            <h1>내야 수비 판단 훈련</h1>
+            <p class="note">포지션과 상황을 고르세요. 모든 상황은 오른손 타자 기준이에요. 최선의 판단을 한 상황 <b>${cleared}/${total}</b></p>
+            <div class="modes">
+              <button class="${mode === 'judge' ? 'selected' : ''}" data-mode="judge" id="mode-judge"><b>판단 모드</b><span>키보드·클릭으로 던질 곳, 갈 곳 고르기</span></button>
+              <button class="${mode === 'action' ? 'selected' : ''}" data-mode="action" id="mode-action"><b>액션 모드</b><span>WASD로 직접 움직여 잡고, 좌클릭으로 송구</span></button>
+            </div>
+            <h2>${mode === 'action' ? '난이도 (플레이 전체 속도)' : '난이도 (판단 순간의 슬로모션)'}</h2>
+            <div class="difficulties">
+              ${DIFFICULTIES.map(
+                (d) =>
+                  `<button data-diff="${d.id}" id="diff-${d.id}" class="${d.id === difficulty ? 'selected' : ''}"><b>${d.label}</b><span>${
+                    mode === 'action' ? `전체 ${ACTION.speeds[d.id]}배 속도` : `${d.timeScale}배${d.timeScale === 1 ? ' (실제 속도)' : ''}`
+                  }</span></button>`,
+              ).join('')}
+            </div>
+            <label class="gen-toggle" for="hide-ball">
+              <input type="checkbox" id="hide-ball" ${getHideBall() ? 'checked' : ''} />
+              <span>타구 숨기기 <small>브리핑에서 타구를 가리고, 공이 맞는 순간 공개해요</small></span>
+            </label>
+            <h2>조작법</h2>
+            ${controls}
           </div>
-          <label class="gen-toggle" for="gen-toggle">
-            <input type="checkbox" id="gen-toggle" ${getIncludeGenerated() ? 'checked' : ''} />
-            <span>랜덤 연습에 자동 생성 상황도 섞기 <small>(${FIELDER_NAME[this.tab]} ${generatedFor(this.tab).length}개 · 같은 타구라도 아웃 카운트, 주자, 주자 움직임이 다른 상황)</small></span>
-          </label>
-          ${items}
-        </div>
-        <h2>타구 미리 보기</h2>
-        <label class="gen-toggle" for="hide-ball">
-          <input type="checkbox" id="hide-ball" ${getHideBall() ? 'checked' : ''} />
-          <span>타구 숨기기 <small>브리핑에서는 카운트와 주자, 수비 위치만 보여주고 타구는 공이 맞는 순간 공개해요. 어떤 공이 와도 대처할 수 있게 미리 정리하는 연습이에요.</small></span>
-        </label>
-        <h2>${mode === 'action' ? '난이도 (플레이 전체 속도)' : '난이도 (판단 순간의 슬로모션 속도)'}</h2>
-        <div class="difficulties">
-          ${DIFFICULTIES.map(
-            (d) =>
-              `<button data-diff="${d.id}" id="diff-${d.id}" class="${d.id === difficulty ? 'selected' : ''}"><b>${d.label}</b><span>${
-                mode === 'action' ? `플레이 전체를 ${ACTION.speeds[d.id]}배 속도로` : d.desc
-              }</span></button>`,
-          ).join('')}
+          <div class="menu-main">
+            <div class="tabs" role="tablist">${tabs}</div>
+            <div class="items">
+              <div class="random-row">
+                <button class="primary" id="random-pos">${FIELDER_NAME[this.tab]} 랜덤 연습</button>
+                <button class="secondary" id="random-all">전체 포지션 랜덤</button>
+              </div>
+              <label class="gen-toggle" for="gen-toggle">
+                <input type="checkbox" id="gen-toggle" ${getIncludeGenerated() ? 'checked' : ''} />
+                <span>랜덤 연습에 자동 생성 상황도 섞기 <small>(${FIELDER_NAME[this.tab]} ${generatedFor(this.tab).length}개 · 같은 타구라도 아웃 카운트, 주자, 주자 움직임이 다른 상황)</small></span>
+              </label>
+              ${items}
+            </div>
+          </div>
         </div>
       </div>`;
 
