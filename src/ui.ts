@@ -203,8 +203,8 @@ export class UI {
         <p>${scn.brief}</p>
         <p class="note">${
           scn.kind === 'throw'
-            ? '공을 잡으면 화면이 느려져요. 숫자키 <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd>로 1루·2루·3루·홈, <kbd>Space</kbd>로 들고 있기. 던질 베이스를 바라보고 클릭해도 돼요.'
-            : '판단할 순간이 오면 화면이 느려지고 선택지가 떠요. 숫자키로 고르거나, 갈 곳을 바라보고 클릭하세요.'
+            ? '공을 잡으면 화면이 느려져요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> 키로 1루·2루·3루·홈, <kbd>Space</kbd>로 들고 있기. 던질 베이스를 바라보고 클릭해도 돼요.'
+            : '판단할 순간이 오면 화면이 느려지고 선택지가 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> 키로 고르거나, 갈 곳을 바라보고 클릭하세요.'
         }</p>
         <div class="actions">
           <button class="secondary" id="brief-menu-btn">목록</button>

@@ -42,6 +42,8 @@ type Phase = 'menu' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 're
 const EYE_HEIGHT = 1.62;
 const PICK_ANGLE = 0.3; // 시선으로 고를 때 허용 각도 (rad)
 const REPLAY_SPEED = 0.6;
+// 판단 키: 왼손을 올려두는 기본 줄. 물리 키(code) 기준이라 한글 입력 상태에서도 동작한다.
+const DECISION_KEYS = ['A', 'S', 'D', 'F'];
 const FIELDER_IDS: FielderId[] = ['P', 'C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'];
 const RUNNER_IDS: RunnerId[] = ['batter', 'r1', 'r2', 'r3'];
 const RUNNER_BASE: Record<Exclude<RunnerId, 'batter'>, 'first' | 'second' | 'third'> = { r1: 'first', r2: 'second', r3: 'third' };
@@ -268,10 +270,10 @@ export class Game {
     const scn = this.scn;
     if (scn.kind === 'throw') {
       const keys: Record<Choice, [string, string]> = {
-        first: ['1', 'Digit1'],
-        second: ['2', 'Digit2'],
-        third: ['3', 'Digit3'],
-        home: ['4', 'Digit4'],
+        first: [DECISION_KEYS[0], `Key${DECISION_KEYS[0]}`],
+        second: [DECISION_KEYS[1], `Key${DECISION_KEYS[1]}`],
+        third: [DECISION_KEYS[2], `Key${DECISION_KEYS[2]}`],
+        home: [DECISION_KEYS[3], `Key${DECISION_KEYS[3]}`],
         hold: ['Space', 'Space'],
       };
       return THROW_CHOICES.map((c) => ({
@@ -285,8 +287,8 @@ export class Game {
     }
     return scn.options.map((o, i) => ({
       value: i,
-      key: String(i + 1),
-      code: `Digit${i + 1}`,
+      key: DECISION_KEYS[i],
+      code: `Key${DECISION_KEYS[i]}`,
       label: o.label,
       short: o.label,
       pos: o.moveTo,
