@@ -139,7 +139,7 @@ export class Game {
         return;
       }
       this.dragging = true;
-      this.canvas.requestPointerLock?.()?.catch?.(() => {});
+      this.lockPointer();
     });
     document.addEventListener('mouseup', () => (this.dragging = false));
 
@@ -167,6 +167,15 @@ export class Game {
     };
     this.ui.onRestart = () => this.restart();
     this.ui.onBriefing = () => this.reset();
+  }
+
+  // 임베드된 화면 등에서는 포인터 잠금이 막힐 수 있다. 그때는 드래그로 시점을 돌린다.
+  private lockPointer() {
+    try {
+      this.canvas.requestPointerLock?.()?.catch?.(() => {});
+    } catch {
+      /* 드래그로 대체 */
+    }
   }
 
   private pickByGaze() {
@@ -214,7 +223,7 @@ export class Game {
   private start() {
     this.ui.hideOverlays();
     this.phase = 'live';
-    this.canvas.requestPointerLock?.()?.catch?.(() => {});
+    this.lockPointer();
   }
 
   private restart() {
@@ -237,7 +246,7 @@ export class Game {
 
   private finish() {
     this.phase = 'result';
-    document.exitPointerLock?.();
+    if (document.pointerLockElement) document.exitPointerLock();
     const o = this.outcome!;
     const g = grade(this.scn, o);
     const alternatives = (['first', 'second', 'third', 'home', 'hold'] as Choice[]).map((c) => evaluate(this.scn, c, o.decisionDelay));

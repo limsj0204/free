@@ -12,6 +12,7 @@ npm run build    # 타입 검사 후 dist/에 정적 파일로 빌드
 ```
 
 `dist/`는 정적 파일이라 아무 웹 호스팅에나 올리면 됩니다.
+`node scripts/build-artifact.mjs <출력 파일>`을 실행하면 CSS와 JS를 인라인한 한 장짜리 HTML을 만들어요 (claude.ai 아티팩트 게시용).
 
 ## 조작
 
