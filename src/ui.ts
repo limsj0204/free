@@ -236,7 +236,7 @@ export class UI {
         <div class="menu-grid">
           <div class="menu-side">
             <div class="eyebrow">VR 야구 대비 · 내야 수비</div>
-            <h1>내야 수비 판단 훈련</h1>
+            <h1>내야 수비 시뮬레이터</h1>
             <p class="note">포지션과 상황을 고르세요. 모든 상황은 오른손 타자 기준이에요. 최선의 판단을 한 상황 <b>${cleared}/${total}</b></p>
             <div class="modes">
               <button class="${mode === 'judge' ? 'selected' : ''}" data-mode="judge" id="mode-judge"><b>판단 모드</b><span>키보드·클릭으로 던질 곳, 갈 곳 고르기</span></button>
@@ -543,10 +543,14 @@ export class UI {
     $('result-menu-btn').addEventListener('click', () => this.onMenu());
   }
 
-  private openResult(html: string) {
+  // 결과 화면: 왼쪽에 판정과 타이밍, 오른쪽에 해설과 버튼 (넓은 화면에서 스크롤 없이 보이게)
+  private openResult(main: string, side: string) {
     this.hideAll();
     this.hud.classList.remove('hidden');
-    this.result.innerHTML = `<div class="card">${html}${this.resultActions()}</div>`;
+    this.result.innerHTML = `<div class="card result-card"><div class="result-grid">
+      <div class="result-main">${main}</div>
+      <div class="result-side">${side}${this.resultActions()}</div>
+    </div></div>`;
     this.bindResultActions();
     this.result.classList.remove('hidden');
   }
@@ -664,12 +668,12 @@ export class UI {
         <tr><th>베이스</th><th>주자</th><th>공 도착</th><th>주자 도착</th><th>판정</th></tr>
         ${timingRows}
       </table></div>
-      ${basis ? `<h2>판단 기준: 잡자마자 던졌다면</h2>${basis}` : ''}
-      ${followBlock ? `<h2>${throwLabel(scn, followChoice!)} 다음 어디로? (밟자마자 던졌다면)</h2>${followBlock}` : ''}
       <h2>내 판단 시간(${sec(o.decisionDelay)}) 그대로 다른 곳에 던졌다면</h2>
-      ${alts}
+      ${alts}`, `
       <h2>해설</h2>
-      <p>${scn.batted.type === 'bunt' && !scn.generated ? `${BUNT_RULE} ` : ''}${scn.explanation}</p>`);
+      <p class="explain">${scn.batted.type === 'bunt' && !scn.generated ? `${BUNT_RULE} ` : ''}${scn.explanation}</p>
+      ${basis ? `<h2>판단 기준: 잡자마자 던졌다면</h2>${basis}` : ''}
+      ${followBlock ? `<h2>${throwLabel(scn, followChoice!)} 다음 어디로? (밟자마자 던졌다면)</h2>${followBlock}` : ''}`);
   }
 
   showChoiceResult(r: ChoiceResultData) {
@@ -705,8 +709,8 @@ export class UI {
       </div>
       <p class="note">${c.feedback}${allowed !== null && allowed > 0 ? `<br/>제때 도착하려면 <b>${sec(allowed)}</b> 안에 움직이기 시작해야 해요.` : ''}${lastAllowed !== null && allowed !== null && lastAllowed > allowed ? ` 늦어도 <b>${sec(lastAllowed)}</b> 안에 출발하면 기다렸다 던져 줘서 아웃은 돼요.` : ''}</p>
       <h2>선택지별 설명</h2>
-      ${alts}
+      ${alts}`, `
       <h2>해설</h2>
-      <p>${scn.explanation}</p>`);
+      <p class="explain">${scn.explanation}</p>`);
   }
 }

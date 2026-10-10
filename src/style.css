@@ -996,3 +996,54 @@ button:focus-visible {
   border-color: var(--accent);
   background: rgba(242, 201, 76, 0.12);
 }
+
+/* 결과 화면: 넓은 화면에서는 두 칸 (왼쪽 판정·타이밍, 오른쪽 해설·버튼) */
+.result-card {
+  width: min(1240px, 100%);
+  padding: 20px 26px;
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 28px;
+  align-items: stretch;
+}
+
+.result-side {
+  display: flex;
+  flex-direction: column;
+}
+
+.result-side > h2:first-child {
+  margin-top: 0;
+}
+
+.result-side .actions {
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+.result-card .explain {
+  font-size: 16.5px;
+  line-height: 1.7;
+}
+
+.result-card .alt {
+  padding: 6px 10px;
+}
+
+.result-card h1 {
+  font-size: 24px;
+}
+
+.result-card .card h2,
+.result-card h2 {
+  margin: 14px 0 6px;
+}
+
+@media (max-width: 960px) {
+  .result-grid {
+    grid-template-columns: 1fr;
+  }
+}
