@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ACTION, DIFFICULTIES, RUN, type DifficultyId } from './config';
-import { BASE_LABEL, P } from './coords';
+import { BASE_LABEL, P, type BaseId } from './coords';
 import { josa } from './explain';
 import { generatedFor } from './generated';
 import { getHideBall, getIncludeGenerated, getMode, getRecord, setHideBall, setIncludeGenerated } from './progress';
@@ -9,6 +9,7 @@ import {
   POSITIONS,
   RUNNER_NAME,
   isCarry,
+  planRunners,
   latestDecision,
   type Choice,
   type ChoiceScenario,
@@ -80,7 +81,14 @@ function situationText(scn: Scenario) {
 
 function throwLabel(scn: ThrowScenario, c: Choice) {
   if (c === 'hold') return '들고 있기';
-  return isCarry(scn, c) ? `${BASE_LABEL[c]} 직접 밟기` : `${BASE_LABEL[c]} 송구`;
+  const tag = isTagBase(scn, c);
+  if (isCarry(scn, c)) return `${BASE_LABEL[c]} ${tag ? '주자 직접 태그' : '직접 밟기'}`;
+  return `${BASE_LABEL[c]} 송구${tag ? ' (태그 플레이)' : ''}`;
+}
+
+// 그 베이스로 오는 주자가 포스 상태가 아니라서 태그해야 하는가
+function isTagBase(scn: ThrowScenario, c: Choice) {
+  return planRunners(scn).some((r) => r.kind === 'advance' && r.target === c);
 }
 
 // 액션 모드 기록은 판단 모드 기록과 따로 저장한다
@@ -261,7 +269,7 @@ export class UI {
     const hidden = ballHidden(scn);
     const action = getMode() === 'action';
     this.help.textContent = action
-      ? 'WASD: 이동 · 마우스: 시점 (안 잠겼으면 우클릭 드래그) · 좌클릭: 조준한 베이스로 송구 · 공을 든 채 베이스를 밟으면 직접 아웃 · Esc: 마우스 풀기'
+      ? 'WASD: 이동 · 마우스: 시점 (안 잠겼으면 우클릭 드래그) · 좌클릭: 조준한 베이스로 송구 · 공을 든 채 포스 베이스를 밟거나 주자에게 다가가 태그 · Esc: 마우스 풀기'
       : hidden
       ? '마우스: 시점 이동 · 클릭: 바라보는 곳 선택 · A/S/D, Space, W: 선택지 · Esc: 마우스 풀기'
       : scn.kind === 'throw'
@@ -319,7 +327,7 @@ export class UI {
           action
             ? scn.kind === 'choice'
               ? '액션 모드: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 움직여 갈 곳까지 직접 뛰어가세요. 공(송구)이 그곳에 가는 순간의 위치로 판정해요.'
-              : '액션 모드: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 움직여 공이 지나가는 길로 가면 자동으로 잡혀요. 잡은 뒤 던질 베이스를 조준하고 좌클릭하거나, 공을 든 채 베이스를 밟으세요.'
+              : '액션 모드: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 움직여 공이 지나가는 길로 가면 자동으로 잡혀요. 잡은 뒤 던질 베이스를 조준하고 좌클릭하거나, 공을 든 채 직접 아웃을 잡으세요. 포스 상황이면 베이스를 밟고, 아니면 뛰는 주자에게 다가가 태그해야 해요.'
             : hidden
             ? '타격 순간 타구가 공개되고 선택지가 떠요. 공이 나에게 오면 <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 1루·2루·3루, <kbd>Space</kbd>로 홈, <kbd>W</kbd>로 들고 있기. 다른 수비수에게 가면 <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 갈 곳을 골라요. 미리 고르면 그 순간 바로 실행돼요.'
             : scn.kind === 'throw'
@@ -553,7 +561,7 @@ export class UI {
     this.openResult(`
       <span class="grade ${v.grade}">${VERDICT_LABEL[v.verdict](v.grade)}</span>
       <h1>${o.headline}</h1>
-      <div class="result-state">${v.verdict === 'miss' ? '공을 놓쳤어요' : `${o.timedOut ? '시간 안에 결정하지 못했어요 · ' : ''}${o.segments.some((g) => g.carry) && o.choice !== 'hold' ? `${BASE_LABEL[o.choice]} 직접 밟기` : throwLabel(scn, o.choice)}`} → ${o.resultState}</div>
+      <div class="result-state">${v.verdict === 'miss' ? '공을 놓쳤어요' : `${o.timedOut ? '시간 안에 결정하지 못했어요 · ' : ''}${o.events.some((e) => e.at) ? `${josa(BASE_LABEL[o.choice as BaseId], '으로', '로')} 뛰는 주자 직접 태그` : o.segments.some((g) => g.carry) && o.choice !== 'hold' ? `${BASE_LABEL[o.choice]} ${isTagBase(scn, o.choice) ? '주자 직접 태그' : '직접 밟기'}` : throwLabel(scn, o.choice)}`} → ${o.resultState}</div>
       <div class="stat-row">
         ${
           v.verdict === 'miss'

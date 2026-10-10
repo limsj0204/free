@@ -223,6 +223,8 @@ export interface PlayEvent {
   runnerTime: number;
   out: boolean;
   tag: boolean;
+  kind: 'force' | 'tag' | 'return'; // 포스아웃 / 태그아웃 / 직선타 귀루 실패
+  at?: THREE.Vector3; // 베이스가 아닌 곳에서 태그했을 때의 위치
 }
 
 export interface Outcome {
@@ -260,7 +262,9 @@ export interface ThrowExec {
   catchT: number;
   releasePos?: THREE.Vector3; // 던진 위치
   releaseT?: number; // 공이 손을 떠난 시간 (송구 준비 시간 포함)
-  stepT?: number; // 공을 든 채 베이스를 밟은 시간
+  stepT?: number; // 공을 든 채 베이스를 밟은 시간 (포스 상황에서만 아웃)
+  tagT?: number; // 공을 든 채 뛰는 주자를 직접 태그한 시간
+  tagRunner?: RunnerId; // 태그한 주자
 }
 
 export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut = false, exec?: ThrowExec): Outcome {
@@ -284,7 +288,7 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
     if (!r) return null;
     const tag = r.kind === 'advance';
     const out = arrive + (tag ? THROW.tagTime : 0) < r.arrival;
-    events.push({ base, runner: r.id, ballTime: arrive, runnerTime: r.arrival, out, tag });
+    events.push({ base, runner: r.id, ballTime: arrive, runnerTime: r.arrival, out, tag, kind: tag ? 'tag' : r.kind === 'return' ? 'return' : 'force' });
     if (out) {
       outRunners.add(r.id);
       if (tag) tagOuts++;
@@ -292,7 +296,18 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
     return out;
   };
 
-  if (choice !== 'hold') {
+  if (choice !== 'hold' && exec?.tagT !== undefined) {
+    // 액션 모드: 플레이어가 주자를 직접 태그했다
+    const r = runners.find((x) => x.id === exec.tagRunner);
+    if (r) {
+      const out = exec.tagT < r.arrival;
+      events.push({ base: choice, runner: r.id, ballTime: exec.tagT, runnerTime: r.arrival, out, tag: true, kind: 'tag', at: exec.releasePos?.clone().setY(0) });
+      if (out) {
+        outRunners.add(r.id);
+        tagOuts++;
+      }
+    }
+  } else if (choice !== 'hold') {
     // 액션 모드에서는 실제로 밟았을 때만 '직접 밟기'다
     const carry = exec ? exec.stepT !== undefined : isCarry(scn, choice);
     const cover = scn.covers[choice];
@@ -360,7 +375,10 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
   let headline: string;
   if (timedOut) headline = '판단이 늦었어요';
   else if (totalOuts >= 2) headline = '병살 성공!';
-  else if (outRunners.size === 1) headline = `${BASE_LABEL[events.find((e) => e.out)!.base]} 아웃`;
+  else if (outRunners.size === 1) {
+    const e = events.find((x) => x.out)!;
+    headline = `${BASE_LABEL[e.base]} ${e.kind === 'tag' ? '태그아웃' : e.kind === 'return' ? '아웃 (귀루 실패)' : '포스아웃'}`;
+  }
   else if (choice === 'hold') headline = '공을 들고 있었어요';
   else if (noCover) headline = `${BASE_LABEL[choice]}에 받을 사람이 없어요`;
   else if (events.length === 0) headline = `${BASE_LABEL[choice]}엔 승부할 주자가 없어요`;
@@ -437,10 +455,10 @@ export function latestDecision(scn: ThrowScenario, choice: Choice, minOuts: numb
   return lo;
 }
 
-// 다른 선택지를 비교할 때 쓰는 실행 정보: 밟은 경우도 그 시점에 던진 것으로 바꾼다
+// 다른 선택지를 비교할 때 쓰는 실행 정보: 밟거나 태그한 경우도 그 시점에 던진 것으로 바꾼다
 export function altExec(exec?: ThrowExec): ThrowExec | undefined {
   if (!exec) return undefined;
-  const releaseT = exec.releaseT ?? (exec.stepT !== undefined ? exec.stepT + THROW.transferTime : undefined);
+  const releaseT = exec.releaseT ?? ((exec.stepT ?? exec.tagT) !== undefined ? (exec.stepT ?? exec.tagT)! + THROW.transferTime : undefined);
   return { catchPos: exec.catchPos, catchT: exec.catchT, releasePos: exec.releasePos ?? exec.catchPos, releaseT };
 }
 

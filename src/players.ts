@@ -134,6 +134,36 @@ export function poseThrow(m: Mannequin, t: number) {
   m.rightLeg.rotation.set(0.3 * t, 0, -0.05);
 }
 
+// 태그: 몸을 숙이고 글러브(왼손)를 주자 쪽 낮은 곳으로 뻗는다
+export function poseTag(m: Mannequin) {
+  m.body.position.y = 0.72;
+  m.body.rotation.x = 0.75;
+  m.leftLeg.rotation.set(-0.8, 0, 0.35);
+  m.rightLeg.rotation.set(0.3, 0, -0.3);
+  m.leftArm.rotation.set(-1.9, 0, 0.1);
+  m.rightArm.rotation.set(-0.6, 0, -0.3);
+}
+
+// 포스아웃: 한 발은 베이스에 대고 다른 발과 글러브를 송구 쪽으로 쭉 뻗어 받는다
+export function poseStretch(m: Mannequin) {
+  m.body.position.y = 0.88;
+  m.body.rotation.x = 0.25;
+  m.leftLeg.rotation.set(-0.9, 0, 0.05);
+  m.rightLeg.rotation.set(0.35, 0, -0.05);
+  m.leftArm.rotation.set(-1.45, 0, 0.05);
+  m.rightArm.rotation.set(-0.3, 0, -0.2);
+}
+
+// 슬라이딩: 몸을 뒤로 눕히고 다리를 베이스 쪽으로 뻗는다
+export function poseSlide(m: Mannequin) {
+  m.body.position.y = 0.42;
+  m.body.rotation.x = -0.9;
+  m.leftLeg.rotation.set(-1.5, 0, 0.05);
+  m.rightLeg.rotation.set(-1.1, 0, -0.05);
+  m.leftArm.rotation.set(-2.6, 0, 0.3);
+  m.rightArm.rotation.set(-0.2, 0, -0.6);
+}
+
 export function faceTowards(m: Mannequin, target: THREE.Vector3) {
   const p = m.root.position;
   m.root.rotation.y = Math.atan2(target.x - p.x, target.z - p.z);

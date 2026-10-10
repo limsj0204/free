@@ -10,6 +10,9 @@ import {
   poseCrouch,
   poseIdle,
   poseRun,
+  poseSlide,
+  poseStretch,
+  poseTag,
   poseThrow,
   type Mannequin,
 } from './players';
@@ -21,6 +24,7 @@ import {
   evaluate,
   gradeThrow,
   missOutcome,
+  planRunners,
   type ThrowExec,
   isCarry,
   runnerCalls,
@@ -42,6 +46,7 @@ import {
   movePosition,
   pathPosition,
   releasePoint,
+  type BasePlay,
   type Timeline,
 } from './timeline';
 import { recordId, type DecisionDef, type UI } from './ui';
@@ -378,7 +383,7 @@ export class Game {
         value: c,
         key: action ? '' : keys[c][0],
         code: keys[c][1],
-        label: c === 'hold' ? '들고 있기' : !action && isCarry(scn, c) ? `${BASE_LABEL[c]} 직접 밟기` : BASE_LABEL[c],
+        label: c === 'hold' ? '들고 있기' : !action && isCarry(scn, c) ? `${BASE_LABEL[c]} ${planRunners(scn).some((r) => r.kind === 'advance' && r.target === c) ? '직접 태그' : '직접 밟기'}` : BASE_LABEL[c],
         short: c === 'hold' ? '들고 있기' : BASE_LABEL[c],
         pos: c === 'hold' ? null : BASES[c as BaseId],
       }));
@@ -608,7 +613,7 @@ export class Game {
         this.tl.gloveHold = [t, Infinity];
         this.phase = 'decision';
         this.decisionRealStart = performance.now();
-        this.ui.setDecisionTitle('베이스를 조준하고 좌클릭 (공을 든 채 밟아도 돼요)');
+        this.ui.setDecisionTitle('베이스를 조준하고 좌클릭 (포스면 밟기, 아니면 주자 태그)');
       } else if (t > hit.travelTime + 1.2) {
         this.actionMiss();
       }
@@ -618,9 +623,21 @@ export class Game {
       // 조준: 화면 가운데에 가장 가까운 베이스
       act.aimed = this.aimedIndex();
       this.ui.setAim(act.aimed);
-      // 공을 든 채 베이스를 밟으면 그 베이스에서 아웃을 노린다
+      const plans = planRunners(scn);
+      // 공을 든 채 뛰는 주자에게 다가가면 태그
+      for (const r of plans) {
+        const path = this.tl.runners.get(r.id);
+        if (r.kind === 'hold' || !path || t >= r.arrival || t < path.startTime) continue;
+        const rp = pathPosition(path, t, new THREE.Vector3()).pos;
+        if (Math.hypot(act.pos.x - rp.x, act.pos.z - rp.z) < ACTION.catchRadius) {
+          this.resolveActionThrow(r.target, { tagT: t, tagRunner: r.id, releasePos: act.pos.clone() });
+          return;
+        }
+      }
+      // 포스 상황(또는 직선타 귀루)인 베이스만 밟아서 아웃시킬 수 있다. 그 밖의 베이스는 주자를 태그해야 한다.
       for (const b of ['first', 'second', 'third', 'home'] as BaseId[]) {
-        if (Math.hypot(act.pos.x - BASES[b].x, act.pos.z - BASES[b].z) < ACTION.stepRadius) {
+        const forced = plans.some((r) => (r.kind === 'force' || r.kind === 'return') && r.target === b);
+        if (forced && Math.hypot(act.pos.x - BASES[b].x, act.pos.z - BASES[b].z) < ACTION.stepRadius) {
           this.resolveActionThrow(b, { stepT: t, releasePos: act.pos.clone() });
           return;
         }
@@ -783,7 +800,21 @@ export class Game {
     }
     const pos = this.playerPos(this.t);
     const catchT = this.scn.kind === 'throw' && this.mode !== 'action' ? this.tl.decisionAt : -Infinity;
-    const dip = this.t > catchT - 0.4 && this.t < catchT + 0.6 ? 0.25 : 0;
+    let dip = this.t > catchT - 0.4 && this.t < catchT + 0.6 ? 0.25 : 0;
+    // 내가 직접 태그하면 몸을 숙이고 글러브를 아래로, 포스면 글러브를 앞으로 뻗는다
+    const play = this.activePlay('player', this.t);
+    const w = play ? Math.sin(THREE.MathUtils.clamp((this.t - play.t + 0.3) / 0.75, 0, 1) * Math.PI) : 0;
+    if (play?.kind === 'tag') {
+      dip = Math.max(dip, 0.45 * w);
+      this.glove.position.set(-0.42 + 0.27 * w, -0.3 - 0.45 * w, -0.8 + 0.1 * w);
+      this.glove.rotation.set(0.2 + 0.9 * w, 0.3, 0.25);
+    } else if (play) {
+      this.glove.position.set(-0.42 + 0.12 * w, -0.3 + 0.08 * w, -0.8 - 0.25 * w);
+      this.glove.rotation.set(0.2, 0.3, 0.25);
+    } else {
+      this.glove.position.set(-0.42, -0.3, -0.8);
+      this.glove.rotation.set(0.2, 0.3, 0.25);
+    }
     this.camera.position.set(pos.x, EYE_HEIGHT - dip, pos.z);
     this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
   }
@@ -822,9 +853,20 @@ export class Game {
       }
 
       const throwSeg = tl.ball.find((s) => s.thrower === id && t > s.t0 - 0.3 && t < s.t0 + 0.15);
+      const play = this.activePlay(isPlayer ? 'player' : id, t);
       if (throwSeg) {
         faceTowards(m, throwSeg.to);
         poseThrow(m, THREE.MathUtils.clamp((t - (throwSeg.t0 - 0.3)) / 0.3, 0, 1));
+      } else if (play?.kind === 'tag') {
+        // 태그: 들어오는 주자 쪽으로 몸을 숙여 글러브를 댄다
+        const runner = this.runnerModels.get(play.runner)!.root.position;
+        faceTowards(m, runner.distanceTo(m.root.position) > 0.3 ? runner : ballPos);
+        poseTag(m);
+      } else if (play) {
+        // 포스아웃: 베이스를 밟고 송구 쪽으로 쭉 뻗는다
+        const seg = tl.ball.find((s) => s.t1 <= play.t + 0.05 && s.t1 > play.t - 1.5 && s.to.distanceTo(BASES[play.base].clone().setY(s.to.y)) < 0.5);
+        faceTowards(m, seg ? seg.from : ballPos);
+        poseStretch(m);
       } else if (id === 'P' && tl.pitch && t >= tl.tWindup && t < tl.tRelease + 0.3) {
         faceTowards(m, BASES.home);
         poseThrow(m, THREE.MathUtils.clamp((t - tl.tWindup) / PITCH.windupTime, 0, 1));
@@ -863,7 +905,12 @@ export class Game {
       m.body.rotation.y = 0;
       const r = pathPosition(path!, t, tmp);
       m.root.position.copy(r.pos);
-      if (r.moving) {
+      const slide = tl.plays.find((p) => p.kind === 'tag' && p.runner === id && t > p.t - 0.35 && t < p.t + (p.out ? 0.7 : 0.4));
+      if (slide && r.pos.distanceTo(BASES[slide.base]) < 3.5) {
+        // 태그 플레이: 주자가 베이스로 슬라이딩한다
+        faceTowards(m, BASES[slide.base]);
+        poseSlide(m);
+      } else if (r.moving) {
         faceTowards(m, nextWaypoint(path!, r.pos));
         poseRun(m, dt, 7);
       } else poseIdle(m, false);
@@ -873,6 +920,11 @@ export class Game {
     this.ballShadow.position.set(ballPos.x, 0.02, ballPos.z);
     this.ballShadow.visible = ballPos.y < 8;
     this.showCalls(t);
+  }
+
+  // t 시점에 베이스에서 공을 받거나 태그하고 있는 플레이
+  private activePlay(receiver: BasePlay['receiver'], t: number): BasePlay | undefined {
+    return this.tl.plays.find((p) => p.receiver === receiver && t > p.t - (p.kind === 'tag' ? 0.3 : 0.2) && t < p.t + 0.45);
   }
 
   private poseBatter(m: Mannequin, t: number) {
