@@ -72,7 +72,7 @@ export function explainThrow(scn: ThrowScenario): string {
   const { answers, close, immediate, follows } = throwAnswers(scn);
   const best = bestAt(scn, 0);
   const totalOuts = best.outsMade + best.autoOuts;
-  // 해설에서 이미 정답이라고 말한 선택지 (나머지 정답은 뒤에서 따로 알려준다)
+  // 해설에서 이미 좋은 판단이라고 말한 선택지 (나머지는 뒤에서 따로 알려준다)
   const mentioned = new Set<Choice>([best.choice]);
   const tagged = (o: Outcome) => o.events.some((e) => e.out && e.tag);
 
@@ -102,7 +102,7 @@ export function explainThrow(scn: ThrowScenario): string {
       const alt = fl?.options.find((o) => o.follow !== fa && o.outsMade >= 2);
       if (alt && alt.follow && alt.follow !== 'hold') {
         const a = NUM[alt.follow as BaseId];
-        if (fl!.best.includes(alt.follow)) out.push(`${josa(a, '으로', '로')} 던져도 같은 병살이라 정답이에요.`);
+        if (fl!.best.includes(alt.follow)) out.push(`${josa(a, '으로', '로')} 던져도 같은 병살이라 똑같이 좋은 판단이에요.`);
         else if (alt.resultState !== best.resultState)
           out.push(`${josa(a, '으로', '로')} 던져도 병살이지만 남는 상황이 ${alt.resultState}예요. ${ro(fa)} 던지면 ${best.resultState}라 더 좋아요.`);
         else out.push(`${josa(a, '으로', '로')} 던져도 병살이지만, ${josa(NUM[fa as BaseId], '이', '가')} 더 가까워서 안전해요.`);
@@ -118,20 +118,20 @@ export function explainThrow(scn: ThrowScenario): string {
   } else if (best.choice === 'first' && scn.situation.outs < 2) {
     const tagAlt = immediate.find((o) => o.choice !== 'first' && tagged(o));
     if (tagAlt && answers.includes(tagAlt.choice)) {
-      out.push(`${NUM[tagAlt.choice as BaseId]}에서 태그로 앞 주자를 잡을 시간도 있어서 둘 다 정답이에요. 다만 태그는 실수할 여지가 있어서 확실한 1루 아웃이 조금 더 안전해요.`);
+      out.push(`${NUM[tagAlt.choice as BaseId]}에서 태그로 앞 주자를 잡을 시간도 있어서 둘 다 좋은 판단이에요. 다만 태그는 실수할 여지가 있어서 확실한 1루 아웃이 조금 더 안전해요.`);
       mentioned.add(tagAlt.choice);
     } else if (tagAlt) out.push('다른 베이스에서도 아웃을 노릴 수는 있지만 태그가 필요해서 위험해요. 확실한 1루 아웃을 챙기세요.');
     else out.push('확실하게 잡을 수 있는 1루로 던지세요.');
   }
   if (close) {
     out.push(
-      `다만 ${josa(choiceLabel(scn, close.lead.choice), '은', '는')} 잡자마자 던져도 ${close.margin.toFixed(2)}초 차이로 아슬아슬해서, 확실한 ${choiceLabel(scn, close.safe.choice)}도 정답이에요.`,
+      `다만 ${josa(choiceLabel(scn, close.lead.choice), '은', '는')} 잡자마자 던져도 ${close.margin.toFixed(2)}초 차이로 아슬아슬해서, 확실한 ${choiceLabel(scn, close.safe.choice)}도 좋은 판단이에요.`,
     );
     mentioned.add(close.safe.choice);
   }
-  // 점수 차이가 거의 없어서 같이 정답인 선택지
+  // 점수 차이가 거의 없어서 같이 인정되는 선택지
   const others = answers.filter((c) => !mentioned.has(c));
-  if (others.length) out.push(`${others.map((c) => choiceLabel(scn, c)).join(', ')}도 결과가 거의 같아서 정답이에요.`);
+  if (others.length) out.push(`${others.map((c) => choiceLabel(scn, c)).join(', ')}도 결과가 거의 같아서 좋은 판단이에요.`);
   if (bunt && best.choice === 'first') {
     // 앞 주자를 왜 못 잡는지: 잡자마자 던져도 늦는다
     const late = immediate.filter((o) => o.choice !== 'first' && o.events.length).map((o) => ({ o, m: playMargin(o)! })).find((x) => x.m < 0);
@@ -146,7 +146,7 @@ export function explainThrow(scn: ThrowScenario): string {
   }
   if (best.runs > 0 && !endsInning) out.push('1점은 주지만, 아웃을 늘리는 게 더 나아요.');
 
-  // 4. 늦었을 때: 다른 정답이면 '더 안전하다', 정답이 아니면 '차선'
+  // 4. 늦었을 때: 함께 인정되는 선택이면 '더 안전하다', 아니면 '차선'
   if (best.outsMade > 0) {
     const w = latestDecision(scn, best.choice, best.outsMade);
     if (w !== null) {

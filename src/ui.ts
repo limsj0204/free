@@ -61,8 +61,8 @@ const GRADE_LABEL: Record<Grade, string> = {
 const VERDICT_LABEL: Record<ThrowVerdict, (g: Grade) => string> = {
   ideal: () => '최선의 판단',
   late: (g) => (g === 'ok' ? '판단은 맞았지만 늦었어요' : '판단은 맞았지만 너무 늦었어요'),
-  fallback: () => '정답은 아니지만, 늦은 시점에선 맞는 선택',
-  other: (g) => (g === 'ok' ? '아웃은 잡았지만 정답이 아니에요' : '다시 생각해 봐요'),
+  fallback: () => '최선은 아니지만, 늦은 시점에선 가장 나은 선택',
+  other: (g) => (g === 'ok' ? '아웃은 잡았지만 최선은 아니에요' : '다시 생각해 봐요'),
   timeout: () => '시간 안에 결정하지 못했어요',
   miss: () => '포구 실패',
   follow: () => '밟은 건 맞았지만 이어 던진 곳이 아쉬워요',
@@ -98,6 +98,14 @@ function marginText(m: number) {
 function planLabel(scn: ThrowScenario, o: Outcome) {
   const f = o.follow && o.follow !== 'hold' ? ` → ${BASE_LABEL[o.follow as BaseId]}` : o.follow === 'hold' && !o.followAuto ? ' → 들고 있기' : '';
   return throwLabel(scn, o.choice) + f;
+}
+
+// 최선은 하나일 때만 '최선', 여러 개가 같이 인정되면 '좋은 판단'
+const bestWord = (n: number) => (n > 1 ? '좋은 판단' : '최선');
+const badge = (n: number) => `<span class="badge">${bestWord(n)}</span>`;
+function bestSentence(labels: string[]) {
+  if (labels.length <= 1) return `최선은 <b>${labels[0] ?? ''}</b>예요.`;
+  return `<b>${labels.join(', ')}</b> ${labels.length === 2 ? '둘' : labels.length === 3 ? '셋' : '모두'} 다 좋은 판단이에요.`;
 }
 
 // 그 베이스로 오는 주자가 포스 상태가 아니라서 태그해야 하는가
@@ -576,13 +584,13 @@ export class UI {
       : `<tr><td colspan="5">${o.autoOuts ? '직선타로 타자는 잡자마자 아웃. ' : ''}송구로 노린 아웃이 없었어요.</td></tr>`;
 
     const v = r.verdict;
-    const answerLabel = v.answers.map((c) => throwLabel(scn, c)).join(' 또는 ');
+    const answerSentence = bestSentence(v.answers.map((c) => throwLabel(scn, c)));
     const alts = r.alternatives
       .map((a) => {
         const chosen = a.choice === o.choice && !o.timedOut;
         const isAnswer = v.answers.includes(a.choice);
         return `<div class="alt ${chosen ? 'chosen' : ''}">
-          <span class="alt-name">${planLabel(scn, a)}${chosen ? ' (내 선택)' : ''}${isAnswer ? '<span class="badge">정답</span>' : ''}</span>
+          <span class="alt-name">${planLabel(scn, a)}${chosen ? ' (내 선택)' : ''}${isAnswer ? badge(v.answers.length) : ''}</span>
           <span class="alt-res">${a.headline} · ${a.resultState}</span>
         </div>`;
       })
@@ -594,13 +602,13 @@ export class UI {
       .map((a) => {
         const m = playMargin(a)!;
         return `<div class="alt">
-          <span class="alt-name">${planLabel(scn, a)}${v.answers.includes(a.choice) ? '<span class="badge">정답</span>' : ''}</span>
+          <span class="alt-name">${planLabel(scn, a)}${v.answers.includes(a.choice) ? badge(v.answers.length) : ''}</span>
           <span class="alt-res">${marginText(m)} · ${a.resultState}</span>
         </div>`;
       })
       .join('');
 
-    // 직접 밟은 뒤 이어 던질 곳: 내가 밟았거나 정답이 밟기면 보여준다
+    // 직접 밟은 뒤 이어 던질 곳: 내가 밟았거나 최선이 밟기면 보여준다
     const followChoice = o.follow !== undefined && !o.followAuto ? o.choice : v.follows[v.ideal.choice] ? v.ideal.choice : null;
     const fa = followChoice ? v.follows[followChoice] : undefined;
     const followBlock = fa
@@ -609,7 +617,7 @@ export class UI {
             const to = f.follow ?? 'hold';
             const mine = o.choice === followChoice && o.follow === to && !o.followAuto;
             return `<div class="alt ${mine ? 'chosen' : ''}">
-              <span class="alt-name">${to === 'hold' ? '들고 있기' : `${BASE_LABEL[to as BaseId]}로 송구`}${mine ? ' (내 선택)' : ''}${fa.best.includes(to) ? '<span class="badge">정답</span>' : ''}</span>
+              <span class="alt-name">${to === 'hold' ? '들고 있기' : `${BASE_LABEL[to as BaseId]}로 송구`}${mine ? ' (내 선택)' : ''}${fa.best.includes(to) ? badge(fa.best.length) : ''}</span>
               <span class="alt-res">${f.headline} · ${f.resultState}</span>
             </div>`;
           })
@@ -620,16 +628,16 @@ export class UI {
     const ideal = v.ideal;
     const notes: string[] = [];
     if (v.verdict === 'fallback') {
-      notes.push(`정답은 <b>${answerLabel}</b>예요. 판단이 늦어서 그 시점에는 <b>${josa(throwLabel(scn, v.bestNow.choice), '이', '가')}</b> 가장 나은 선택이었어요.`);
+      notes.push(`${answerSentence} 판단이 늦어서 그 시점에는 <b>${josa(throwLabel(scn, v.bestNow.choice), '이', '가')}</b> 가장 나은 선택이었어요.`);
     } else if (v.verdict === 'late') {
-      notes.push(`<b>${josa(throwLabel(scn, o.choice), '은', '는')}</b> 정답이지만, 늦게 던져서 ${o.outsMade > 0 ? '노린 아웃을 다 잡지 못했어요' : '세이프가 됐어요'}.`);
+      notes.push(`<b>${josa(throwLabel(scn, o.choice), '이', '가')}</b> ${bestWord(v.answers.length)}이었지만, 늦게 던져서 ${o.outsMade > 0 ? '노린 아웃을 다 잡지 못했어요' : '세이프가 됐어요'}.`);
     } else if (v.verdict === 'follow') {
       const best = fa!.best.filter((c) => c !== 'hold').map((c) => BASE_LABEL[c as BaseId]);
-      notes.push(`<b>${josa(throwLabel(scn, o.choice), '은', '는')}</b> 정답이에요. 다만 밟은 다음에는 <b>${best.join(' 또는 ')}</b>${best.length ? '로' : ''} 이어 던지는 게 더 좋아요.`);
+      notes.push(`<b>${josa(throwLabel(scn, o.choice), '은', '는')}</b> ${bestWord(v.answers.length)}이에요. 다만 밟은 다음에는 <b>${best.join(' 또는 ')}</b>${best.length ? '로' : ''} 이어 던지는 게 더 좋아요.`);
     } else if (v.verdict === 'miss') {
-      notes.push(`공이 지나가는 길목으로 미리 움직여야 잡을 수 있어요. 잡았다면 정답은 <b>${answerLabel}</b>예요.`);
+      notes.push(`공이 지나가는 길목으로 미리 움직여야 잡을 수 있어요. 잡았다면 ${answerSentence}`);
     } else if (v.verdict !== 'ideal') {
-      notes.push(`정답은 <b>${answerLabel}</b>예요.`);
+      notes.push(answerSentence);
     }
     if (ideal.outsMade > 0) {
       const w = latestDecision(scn, ideal.choice, ideal.outsMade);
@@ -638,7 +646,7 @@ export class UI {
     if (v.close) {
       const { lead, safe, margin } = v.close;
       notes.push(
-        `<b>${josa(throwLabel(scn, lead.choice), '은', '는')}</b> 잡자마자 던져도 여유가 <b>${sec(margin)}</b>뿐이라 아슬아슬해요. 그래서 <b>${throwLabel(scn, safe.choice)}</b>도 정답이에요. ` +
+        `<b>${josa(throwLabel(scn, lead.choice), '은', '는')}</b> 잡자마자 던져도 여유가 <b>${sec(margin)}</b>뿐이라 아슬아슬해요. 그래서 <b>${throwLabel(scn, safe.choice)}</b>도 좋은 판단이에요. ` +
           `(${throwLabel(scn, lead.choice)}: ${lead.resultState} / ${throwLabel(scn, safe.choice)}: ${safe.resultState})`,
       );
     }

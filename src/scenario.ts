@@ -308,7 +308,7 @@ export interface ThrowExec {
 }
 
 export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut = false, exec?: ThrowExec, follow?: Follow): Outcome {
-  // 직접 밟는 선택인데 이어 던질 곳을 안 정했으면, 가장 좋은 곳으로 계산한다 (정답·해설 분석용)
+  // 직접 밟는 선택인데 이어 던질 곳을 안 정했으면, 가장 좋은 곳으로 계산한다 (최선 판정·해설 분석용)
   const carrying = choice !== 'hold' && exec?.tagT === undefined && (exec ? exec.stepT !== undefined : isCarry(scn, choice));
   if (carrying && follow === undefined) {
     const opts = followOptions(scn, choice, d, exec);
@@ -552,7 +552,7 @@ export function altExec(exec?: ThrowExec): ThrowExec | undefined {
   return { catchPos: exec.catchPos, catchT: exec.catchT, releasePos: exec.releasePos ?? exec.catchPos, releaseT };
 }
 
-// 상황의 정답: 공을 잡자마자 결정했을 때의 최선. 판단 속도와 상관없이 상황마다 고정이다.
+// 상황의 최선: 공을 잡자마자 결정했을 때 가장 좋은 선택. 결과가 거의 같으면 여럿을 함께 인정한다. 판단 속도와 상관없이 상황마다 고정이다.
 // 공이 주자보다 몇 초 먼저 도착하는지 (음수면 늦음). 고른 베이스의 첫 플레이 기준.
 export function playMargin(o: Outcome): number | null {
   const e = o.events[0];
@@ -571,11 +571,11 @@ export interface ThrowAnswers {
   ideal: Outcome;
   immediate: Outcome[]; // 잡자마자 결정했을 때 선택지별 결과
   close?: CloseCall;
-  // 직접 밟는 정답이면, 밟은 뒤 이어 던질 곳의 정답과 선택지별 결과
+  // 최선이 직접 밟기면, 밟은 뒤 이어 던질 곳의 최선과 선택지별 결과
   follows: Partial<Record<Choice, { best: Choice[]; options: Outcome[] }>>;
 }
 
-// 직접 밟은 뒤 이어 던지는 곳별 결과와 그중 정답 (점수 차이가 거의 없으면 함께 정답)
+// 직접 밟은 뒤 이어 던지는 곳별 결과와 그중 최선 (점수 차이가 거의 없으면 함께 인정)
 export function followAnswers(scn: ThrowScenario, choice: Choice): { best: Choice[]; options: Outcome[] } | undefined {
   const opts = followOptions(scn, choice);
   if (!opts.length) return undefined;
@@ -589,7 +589,7 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
   const best = (xs: Outcome[]) => xs.reduce((a, b) => (b.value > a.value ? b : a));
   const ideal = best(immediate);
   const answers = immediate.filter((o) => o.outsMade > 0 && o.value >= ideal.value - VALUE.bestTolerance).map((o) => o.choice);
-  // 최선이 잡자마자 던져도 아슬아슬하면, 여유 있게 아웃을 잡는 쪽도 정답으로 인정한다
+  // 최선이 잡자마자 던져도 아슬아슬하면, 여유 있게 아웃을 잡는 쪽도 좋은 판단으로 인정한다
   let close: CloseCall | undefined;
   const margin = playMargin(ideal);
   if (ideal.outsMade > 0 && margin !== null && margin < VALUE.closeMargin) {
@@ -608,16 +608,16 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
   return { answers, ideal, immediate, close, follows };
 }
 
-// ideal: 정답을 제때 고름 / late: 정답이지만 늦어서 아웃이 줄었음
-// fallback: 정답은 아니지만 늦은 시점에선 가장 나은 선택 / other: 그 밖 / timeout: 시간 초과
-// follow: 직접 밟은 건 정답인데 이어 던진 곳이 정답이 아님
+// ideal: 최선을 제때 고름 / late: 최선이었지만 늦어서 아웃이 줄었음
+// fallback: 최선은 아니지만 늦은 시점에선 가장 나은 선택 / other: 그 밖 / timeout: 시간 초과
+// follow: 직접 밟은 건 최선인데 이어 던진 곳이 최선이 아님
 export type ThrowVerdict = 'ideal' | 'late' | 'fallback' | 'other' | 'timeout' | 'miss' | 'follow';
 
 export interface ThrowGrade {
   grade: Grade;
   verdict: ThrowVerdict;
   answers: Choice[];
-  ideal: Outcome; // 정답을 바로 골랐을 때의 결과
+  ideal: Outcome; // 최선을 바로 골랐을 때의 결과
   bestNow: Outcome; // 내 판단 시간 기준으로 가장 나은 결과
   immediate: Outcome[];
   close?: CloseCall;
