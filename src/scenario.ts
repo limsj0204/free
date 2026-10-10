@@ -313,7 +313,8 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
   if (carrying && follow === undefined) {
     const opts = followOptions(scn, choice, d, exec);
     if (opts.length) {
-      const all = opts.map((f) => evaluate(scn, choice, d, timedOut, exec, { to: f, d: 0 }));
+      // 던질 곳이 다 별로면 안 던지는 게 나을 수도 있어서 hold도 같이 따져본다 (고를 수 있는 선택지는 아님)
+      const all = [...opts, 'hold' as Choice].map((f) => evaluate(scn, choice, d, timedOut, exec, { to: f, d: 0 }));
       const best = all.reduce((a, b) => (b.value > a.value ? b : a));
       return { ...best, followAuto: true };
     }
@@ -487,7 +488,7 @@ export function followOptions(scn: ThrowScenario, choice: Choice, d = 0, exec?: 
     const cover = scn.covers[base];
     if (cover && cover !== scn.position) bases.add(base);
   }
-  return bases.size ? [...THROW_CHOICES.filter((c) => bases.has(c)), 'hold'] : [];
+  return THROW_CHOICES.filter((c) => bases.has(c));
 }
 
 // 액션 모드에서 공을 못 잡았을 때: 공이 외야로 빠져 타자는 1루, 주자는 한 베이스씩 간다

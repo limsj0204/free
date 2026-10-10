@@ -82,7 +82,7 @@ function situationText(scn: Scenario) {
 }
 
 function throwLabel(scn: ThrowScenario, c: Choice) {
-  if (c === 'hold') return '들고 있기';
+  if (c === 'hold') return '던지지 못함';
   const tag = isTagBase(scn, c);
   if (isCarry(scn, c)) return `${BASE_LABEL[c]} ${tag ? '주자 직접 태그' : '직접 밟기'}`;
   return `${BASE_LABEL[c]} 송구${tag ? ' (태그 플레이)' : ''}`;
@@ -96,7 +96,7 @@ function marginText(m: number) {
 
 // 직접 밟은 뒤 이어 던진 곳까지 붙인 이름 (예: 3루 직접 밟기 → 2루)
 function planLabel(scn: ThrowScenario, o: Outcome) {
-  const f = o.follow && o.follow !== 'hold' ? ` → ${BASE_LABEL[o.follow as BaseId]}` : o.follow === 'hold' && !o.followAuto ? ' → 들고 있기' : '';
+  const f = o.follow && o.follow !== 'hold' ? ` → ${BASE_LABEL[o.follow as BaseId]}` : o.follow === 'hold' && !o.followAuto ? ' → 던지지 못함' : '';
   return throwLabel(scn, o.choice) + f;
 }
 
@@ -230,7 +230,6 @@ export class UI {
             <span><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>1루 · 2루 · 3루로 송구 (위치 판단은 선택지 순서대로)</span>
             <span><b class="ctl-label">직접 밟기</b></span><span>베이스가 가까우면 같은 키로 직접 밟고, 밟은 다음 이어 던질 곳을 한 번 더 골라요</span>
             <span><kbd>Space</kbd></span><span>홈으로 송구</span>
-            <span><kbd>W</kbd></span><span>던지지 않고 들고 있기</span>
             <span><kbd>좌클릭</kbd></span><span>바라보는 베이스로 송구 · 바라보는 선택지 고르기</span>
             <span><kbd>마우스</kbd></span><span>시점 돌리기 (화면을 클릭하면 마우스가 잠겨요)</span>
           </div>
@@ -316,9 +315,9 @@ export class UI {
     this.help.textContent = action
       ? 'WASD: 이동 · 마우스: 시점 (안 잠겼으면 우클릭 드래그) · 좌클릭: 조준한 베이스로 송구 · 공을 든 채 포스 베이스를 밟거나 주자에게 다가가 태그 · Esc: 마우스 풀기'
       : hidden
-      ? '마우스: 시점 이동 · 클릭: 바라보는 곳 선택 · A/S/D, Space, W: 선택지 · Esc: 마우스 풀기'
+      ? '마우스: 시점 이동 · 클릭: 바라보는 곳 선택 · A/S/D, Space: 선택지 · Esc: 마우스 풀기'
       : scn.kind === 'throw'
-        ? '마우스: 시점 이동 · 클릭: 바라보는 베이스로 송구 · A/S/D: 1루/2루/3루 · Space: 홈 · W: 들고 있기 · Esc: 마우스 풀기'
+        ? '마우스: 시점 이동 · 클릭: 바라보는 베이스로 송구 · A/S/D: 1루/2루/3루 · Space: 홈 · Esc: 마우스 풀기'
         : '마우스: 시점 이동 · 클릭: 바라보는 위치로 이동 · A/S/D: 선택지 순서대로 · Esc: 마우스 풀기';
     this.hud.classList.remove('hidden');
     const sit = scn.situation;
@@ -374,9 +373,9 @@ export class UI {
               ? '액션 모드: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 움직여 갈 곳까지 직접 뛰어가세요. 공(송구)이 그곳에 가는 순간의 위치로 판정해요.'
               : '액션 모드: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 움직여 공이 지나가는 길로 가면 자동으로 잡혀요. 잡은 뒤 던질 베이스를 조준하고 좌클릭하거나, 공을 든 채 직접 아웃을 잡으세요. 포스 상황이면 베이스를 밟고, 아니면 뛰는 주자에게 다가가 태그해야 해요.'
             : hidden
-            ? '타격 순간 타구가 공개되고 선택지가 떠요. 공이 나에게 오면 <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 1루·2루·3루, <kbd>Space</kbd>로 홈, <kbd>W</kbd>로 들고 있기. 다른 수비수에게 가면 <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 갈 곳을 골라요. 미리 고르면 그 순간 바로 실행돼요.'
+            ? '타격 순간 타구가 공개되고 선택지가 떠요. 공이 나에게 오면 <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 1루·2루·3루, <kbd>Space</kbd>로 홈. 다른 수비수에게 가면 <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>로 갈 곳을 골라요. 미리 고르면 그 순간 바로 실행돼요.'
             : scn.kind === 'throw'
-            ? '타격 순간부터 선택지가 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 1루·2루·3루, <kbd>Space</kbd>로 홈, <kbd>W</kbd>로 들고 있기. 공을 잡기 전에 미리 눌러두면 잡자마자 던지고, 안 눌렀으면 잡는 순간 화면이 느려져요.'
+            ? '타격 순간부터 선택지가 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 1루·2루·3루, <kbd>Space</kbd>로 홈. 공을 잡기 전에 미리 눌러두면 잡자마자 던지고, 안 눌렀으면 잡는 순간 화면이 느려져요.'
             : '선택지가 미리 떠요. <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 키로 고르거나 갈 곳을 바라보고 클릭하세요. 판단할 순간까지 안 골랐으면 그때 화면이 느려져요.'
         }</p>
         <div class="actions">
@@ -584,7 +583,8 @@ export class UI {
     const answerSentence = bestSentence(v.answers.map((c) => throwLabel(scn, c)));
     const alts = r.alternatives
       .map((a) => {
-        const chosen = a.choice === o.choice && !o.timedOut;
+        // 밟은 뒤 이어 던진 곳이 다르면 같은 선택이 아니다
+        const chosen = a.choice === o.choice && !o.timedOut && (o.follow === undefined || o.followAuto || a.follow === o.follow);
         const isAnswer = v.answers.includes(a.choice);
         return `<div class="alt ${chosen ? 'chosen' : ''}">
           <span class="alt-name">${planLabel(scn, a)}${chosen ? ' (내 선택)' : ''}${isAnswer ? badge(v.answers.length) : ''}</span>
@@ -614,7 +614,7 @@ export class UI {
             const to = f.follow ?? 'hold';
             const mine = o.choice === followChoice && o.follow === to && !o.followAuto;
             return `<div class="alt ${mine ? 'chosen' : ''}">
-              <span class="alt-name">${to === 'hold' ? '들고 있기' : `${BASE_LABEL[to as BaseId]}로 송구`}${mine ? ' (내 선택)' : ''}${fa.best.includes(to) ? badge(fa.best.length) : ''}</span>
+              <span class="alt-name">${to === 'hold' ? '던지지 않기' : `${josa(BASE_LABEL[to as BaseId], '으로', '로')} 송구`}${mine ? ' (내 선택)' : ''}${fa.best.includes(to) ? badge(fa.best.length) : ''}</span>
               <span class="alt-res">${f.headline} · ${f.resultState}</span>
             </div>`;
           })
@@ -658,7 +658,7 @@ export class UI {
     this.openResult(`
       <span class="grade ${v.grade}">${VERDICT_LABEL[v.verdict](v.grade)}</span>
       <h1>${o.headline}</h1>
-      <div class="result-state">${v.verdict === 'miss' ? '공을 놓쳤어요' : `${o.timedOut ? '시간 안에 결정하지 못했어요 · ' : ''}${o.events.some((e) => e.at) ? `${josa(BASE_LABEL[o.choice as BaseId], '으로', '로')} 뛰는 주자 직접 태그` : o.segments.some((g) => g.carry) && o.choice !== 'hold' ? `${BASE_LABEL[o.choice]} ${isTagBase(scn, o.choice) ? '주자 직접 태그' : '직접 밟기'}${o.follow && o.follow !== 'hold' ? ` → ${BASE_LABEL[o.follow as BaseId]} 송구` : ''}` : throwLabel(scn, o.choice)}`} → ${o.resultState}</div>
+      <div class="result-state">${v.verdict === 'miss' ? '공을 놓쳤어요' : `${o.timedOut ? '시간 안에 결정하지 못했어요 · ' : ''}${o.events.some((e) => e.at) ? `${josa(BASE_LABEL[o.choice as BaseId], '으로', '로')} 뛰는 주자 직접 태그` : o.segments.some((g) => g.carry) && o.choice !== 'hold' ? `${BASE_LABEL[o.choice]} ${isTagBase(scn, o.choice) ? '주자 직접 태그' : '직접 밟기'}${o.follow && o.follow !== 'hold' ? ` → ${BASE_LABEL[o.follow as BaseId]} 송구` : o.follow === 'hold' && !o.followAuto ? ' → 이어 던지지 못함' : ''}` : throwLabel(scn, o.choice)}`} → ${o.resultState}</div>
       <div class="stat-row">
         ${
           v.verdict === 'miss'

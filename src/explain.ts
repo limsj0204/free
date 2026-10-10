@@ -30,7 +30,7 @@ function isTagBase(scn: ThrowScenario, c: Choice) {
 }
 
 export function choiceLabel(scn: ThrowScenario, c: Choice) {
-  if (c === 'hold') return '들고 있기';
+  if (c === 'hold') return '던지지 않기';
   if (isCarry(scn, c)) return `${BASE_LABEL[c]} ${isTagBase(scn, c) ? '직접 태그' : '직접 밟기'}`;
   return `${BASE_LABEL[c]} 송구`;
 }

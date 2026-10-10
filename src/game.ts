@@ -59,7 +59,7 @@ const EYE_HEIGHT = 1.62;
 const PICK_ANGLE = 0.3; // 시선으로 고를 때 허용 각도 (rad)
 const REPLAY_SPEED = 0.6;
 const FOLLOW_WINDOW = 1.5; // 직접 밟은 뒤 이어 던질 곳을 고르는 시간 (게임 시간)
-// 판단 키: 왼손 기본 줄(A S D)과 엄지(Space). 들고 있기는 실수로 누르지 않게 W에 둔다.
+// 판단 키: 왼손 기본 줄(A S D)과 엄지(Space). 시간 안에 못 고르면 던지지 않은 것(hold)으로 처리한다.
 // 물리 키(code) 기준이라 한글 입력 상태에서도 동작한다.
 const DECISION_KEYS = ['A', 'S', 'D', 'F'];
 const FIELDER_IDS: FielderId[] = ['P', 'C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'];
@@ -404,13 +404,13 @@ export class Game {
         hold: ['W', 'KeyW'],
       };
       const action = this.mode === 'action';
-      return THROW_CHOICES.filter((c) => !action || c !== 'hold').map((c) => ({
+      return THROW_CHOICES.filter((c) => c !== 'hold').map((c) => ({
         value: c,
         key: action ? '' : keys[c][0],
         code: keys[c][1],
-        label: c === 'hold' ? '들고 있기' : !action && isCarry(scn, c) ? `${BASE_LABEL[c]} ${planRunners(scn).some((r) => r.kind === 'advance' && r.target === c) ? '직접 태그' : '직접 밟기'}` : BASE_LABEL[c],
-        short: c === 'hold' ? '들고 있기' : BASE_LABEL[c],
-        pos: c === 'hold' ? null : BASES[c as BaseId],
+        label: !action && isCarry(scn, c) ? `${BASE_LABEL[c]} ${planRunners(scn).some((r) => r.kind === 'advance' && r.target === c) ? '직접 태그' : '직접 밟기'}` : BASE_LABEL[c],
+        short: BASE_LABEL[c],
+        pos: BASES[c as BaseId],
       }));
     }
     return scn.options.map((o, i) => ({
@@ -517,11 +517,11 @@ export class Game {
     this.ui.hideDecision();
   }
 
-  // 이어 던질 곳 선택지: 키는 처음 판단과 같다 (A/S/D 1·2·3루, Space 홈, W 들고 있기)
+  // 이어 던질 곳 선택지: 키는 처음 판단과 같다 (A/S/D 1·2·3루, Space 홈)
   private followDefs(opts: Choice[]): DecisionDef[] {
     return this.decisionDefs()
       .filter((d) => opts.includes(d.value as Choice))
-      .map((d) => ({ ...d, label: d.value === 'hold' ? '들고 있기' : `${BASE_LABEL[d.value as BaseId]} 송구` }));
+      .map((d) => ({ ...d, label: `${BASE_LABEL[d.value as BaseId]} 송구` }));
   }
 
   private finish() {
@@ -543,7 +543,7 @@ export class Game {
         scenario: scn,
         outcome: o,
         verdict: g,
-        alternatives: THROW_CHOICES.map((c) => evaluate(scn, c, o.decisionDelay, false, altExec(exec))),
+        alternatives: THROW_CHOICES.filter((c) => c !== 'hold').map((c) => evaluate(scn, c, o.decisionDelay, false, altExec(exec))),
         reactionReal: this.reactionReal,
         timeScale,
       });
@@ -711,7 +711,7 @@ export class Game {
     }
 
     if (this.phase === 'decision' && act.caughtT !== null && act.stepped) {
-      // 밟은 뒤: 조준만 하고 좌클릭을 기다린다. 시간이 지나면 들고 있기.
+      // 밟은 뒤: 조준만 하고 좌클릭을 기다린다. 시간이 지나면 던지지 않은 것으로 본다.
       act.aimed = this.aimedIndex();
       this.ui.setAim(act.aimed);
       const held = t - act.stepped.t;
@@ -807,7 +807,7 @@ export class Game {
     this.resolveActionThrow(this.defs[i].value as Choice, { releasePos: this.act.pos.clone(), releaseT: this.t + THROW.transferTime });
   }
 
-  // 밟은 뒤 이어 던지기 (to가 hold면 들고 있기)
+  // 밟은 뒤 이어 던지기 (to가 hold면 시간 초과로 안 던짐)
   private resolveStepFollow(to: Choice) {
     const s = this.act.stepped!;
     const follow: Follow = { to, d: Math.max(0, this.t - s.t), releaseT: Math.max(s.t + THROW.pivotTime, this.t + THROW.transferTime), from: this.act.pos.clone() };
