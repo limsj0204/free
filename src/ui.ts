@@ -65,6 +65,7 @@ const VERDICT_LABEL: Record<ThrowVerdict, (g: Grade) => string> = {
   other: (g) => (g === 'ok' ? '아웃은 잡았지만 정답이 아니에요' : '다시 생각해 봐요'),
   timeout: () => '시간 안에 결정하지 못했어요',
   miss: () => '포구 실패',
+  follow: () => '밟은 건 맞았지만 이어 던진 곳이 아쉬워요',
 };
 
 const GRADE_SHORT: Record<Grade, string> = { best: '최선', ok: '아쉬움', bad: '오답' };
@@ -91,6 +92,12 @@ function throwLabel(scn: ThrowScenario, c: Choice) {
 function marginText(m: number) {
   if (m < 0) return `주자보다 <b>${(-m).toFixed(2)}초</b> 늦음`;
   return `주자보다 <b>${m.toFixed(2)}초</b> 먼저${m < VALUE.closeMargin ? ' (아슬아슬)' : ''}`;
+}
+
+// 직접 밟은 뒤 이어 던진 곳까지 붙인 이름 (예: 3루 직접 밟기 → 2루)
+function planLabel(scn: ThrowScenario, o: Outcome) {
+  const f = o.follow && o.follow !== 'hold' ? ` → ${BASE_LABEL[o.follow as BaseId]}` : o.follow === 'hold' && !o.followAuto ? ' → 들고 있기' : '';
+  return throwLabel(scn, o.choice) + f;
 }
 
 // 그 베이스로 오는 주자가 포스 상태가 아니라서 태그해야 하는가
@@ -211,12 +218,12 @@ export class UI {
             <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>이동. 공이 지나가는 길로 가면 자동으로 잡혀요</span>
             <span><kbd>마우스</kbd></span><span>시점 돌리기 (화면을 클릭하면 마우스가 잠겨요)</span>
             <span><kbd>좌클릭</kbd></span><span>조준한 베이스로 송구</span>
-            <span><b class="ctl-label">밟기·태그</b></span><span>공을 든 채 포스 베이스를 밟거나, 뛰는 주자에게 다가가 직접 아웃</span>
+            <span><b class="ctl-label">밟기·태그</b></span><span>공을 든 채 포스 베이스를 밟거나 뛰는 주자에게 다가가 직접 아웃. 밟은 뒤 조준·좌클릭으로 이어 던지기</span>
             <span><b class="ctl-label">위치 판단</b></span><span>갈 곳까지 직접 뛰어가기</span>
           </div>`
         : `<div class="controls">
             <span><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>1루 · 2루 · 3루로 송구 (위치 판단은 선택지 순서대로)</span>
-            <span><b class="ctl-label">직접 밟기</b></span><span>베이스가 가까우면 같은 키로 직접 밟아요 (선택지에 '직접 밟기'로 표시)</span>
+            <span><b class="ctl-label">직접 밟기</b></span><span>베이스가 가까우면 같은 키로 직접 밟고, 밟은 다음 이어 던질 곳을 한 번 더 골라요</span>
             <span><kbd>Space</kbd></span><span>홈으로 송구</span>
             <span><kbd>W</kbd></span><span>던지지 않고 들고 있기</span>
             <span><kbd>좌클릭</kbd></span><span>바라보는 베이스로 송구 · 바라보는 선택지 고르기</span>
@@ -572,7 +579,7 @@ export class UI {
         const chosen = a.choice === o.choice && !o.timedOut;
         const isAnswer = v.answers.includes(a.choice);
         return `<div class="alt ${chosen ? 'chosen' : ''}">
-          <span class="alt-name">${throwLabel(scn, a.choice)}${chosen ? ' (내 선택)' : ''}${isAnswer ? '<span class="badge">정답</span>' : ''}</span>
+          <span class="alt-name">${planLabel(scn, a)}${chosen ? ' (내 선택)' : ''}${isAnswer ? '<span class="badge">정답</span>' : ''}</span>
           <span class="alt-res">${a.headline} · ${a.resultState}</span>
         </div>`;
       })
@@ -584,11 +591,27 @@ export class UI {
       .map((a) => {
         const m = playMargin(a)!;
         return `<div class="alt">
-          <span class="alt-name">${throwLabel(scn, a.choice)}${v.answers.includes(a.choice) ? '<span class="badge">정답</span>' : ''}</span>
+          <span class="alt-name">${planLabel(scn, a)}${v.answers.includes(a.choice) ? '<span class="badge">정답</span>' : ''}</span>
           <span class="alt-res">${marginText(m)} · ${a.resultState}</span>
         </div>`;
       })
       .join('');
+
+    // 직접 밟은 뒤 이어 던질 곳: 내가 밟았거나 정답이 밟기면 보여준다
+    const followChoice = o.follow !== undefined && !o.followAuto ? o.choice : v.follows[v.ideal.choice] ? v.ideal.choice : null;
+    const fa = followChoice ? v.follows[followChoice] : undefined;
+    const followBlock = fa
+      ? fa.options
+          .map((f) => {
+            const to = f.follow ?? 'hold';
+            const mine = o.choice === followChoice && o.follow === to && !o.followAuto;
+            return `<div class="alt ${mine ? 'chosen' : ''}">
+              <span class="alt-name">${to === 'hold' ? '들고 있기' : `${BASE_LABEL[to as BaseId]}로 송구`}${mine ? ' (내 선택)' : ''}${fa.best.includes(to) ? '<span class="badge">정답</span>' : ''}</span>
+              <span class="alt-res">${f.headline} · ${f.resultState}</span>
+            </div>`;
+          })
+          .join('')
+      : '';
 
     // 판단 시간 안내 (실제 경기 속도 기준)
     const ideal = v.ideal;
@@ -597,6 +620,9 @@ export class UI {
       notes.push(`정답은 <b>${answerLabel}</b>예요. 판단이 늦어서 그 시점에는 <b>${josa(throwLabel(scn, v.bestNow.choice), '이', '가')}</b> 가장 나은 선택이었어요.`);
     } else if (v.verdict === 'late') {
       notes.push(`<b>${josa(throwLabel(scn, o.choice), '은', '는')}</b> 정답이지만, 늦게 던져서 ${o.outsMade > 0 ? '노린 아웃을 다 잡지 못했어요' : '세이프가 됐어요'}.`);
+    } else if (v.verdict === 'follow') {
+      const best = fa!.best.filter((c) => c !== 'hold').map((c) => BASE_LABEL[c as BaseId]);
+      notes.push(`<b>${josa(throwLabel(scn, o.choice), '은', '는')}</b> 정답이에요. 다만 밟은 다음에는 <b>${best.join(' 또는 ')}</b>${best.length ? '로' : ''} 이어 던지는 게 더 좋아요.`);
     } else if (v.verdict === 'miss') {
       notes.push(`공이 지나가는 길목으로 미리 움직여야 잡을 수 있어요. 잡았다면 정답은 <b>${answerLabel}</b>예요.`);
     } else if (v.verdict !== 'ideal') {
@@ -624,7 +650,7 @@ export class UI {
     this.openResult(`
       <span class="grade ${v.grade}">${VERDICT_LABEL[v.verdict](v.grade)}</span>
       <h1>${o.headline}</h1>
-      <div class="result-state">${v.verdict === 'miss' ? '공을 놓쳤어요' : `${o.timedOut ? '시간 안에 결정하지 못했어요 · ' : ''}${o.events.some((e) => e.at) ? `${josa(BASE_LABEL[o.choice as BaseId], '으로', '로')} 뛰는 주자 직접 태그` : o.segments.some((g) => g.carry) && o.choice !== 'hold' ? `${BASE_LABEL[o.choice]} ${isTagBase(scn, o.choice) ? '주자 직접 태그' : '직접 밟기'}` : throwLabel(scn, o.choice)}`} → ${o.resultState}</div>
+      <div class="result-state">${v.verdict === 'miss' ? '공을 놓쳤어요' : `${o.timedOut ? '시간 안에 결정하지 못했어요 · ' : ''}${o.events.some((e) => e.at) ? `${josa(BASE_LABEL[o.choice as BaseId], '으로', '로')} 뛰는 주자 직접 태그` : o.segments.some((g) => g.carry) && o.choice !== 'hold' ? `${BASE_LABEL[o.choice]} ${isTagBase(scn, o.choice) ? '주자 직접 태그' : '직접 밟기'}${o.follow && o.follow !== 'hold' ? ` → ${BASE_LABEL[o.follow as BaseId]} 송구` : ''}` : throwLabel(scn, o.choice)}`} → ${o.resultState}</div>
       <div class="stat-row">
         ${
           v.verdict === 'miss'
@@ -640,6 +666,7 @@ export class UI {
         ${timingRows}
       </table></div>
       ${basis ? `<h2>판단 기준: 잡자마자 던졌다면</h2>${basis}` : ''}
+      ${followBlock ? `<h2>${throwLabel(scn, followChoice!)} 다음 어디로? (밟자마자 던졌다면)</h2>${followBlock}` : ''}
       <h2>내 판단 시간(${sec(o.decisionDelay)}) 그대로 다른 곳에 던졌다면</h2>
       ${alts}
       <h2>해설</h2>

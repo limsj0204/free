@@ -69,7 +69,7 @@ export function explainThrow(scn: ThrowScenario): string {
     out.push(`${join(held.map((r) => NUM[r.origin]))} 주자는 멈춰 있어서 그 앞 베이스로 던져도 잡을 주자가 없어요.`);
   }
 
-  const { answers, close, immediate } = throwAnswers(scn);
+  const { answers, close, immediate, follows } = throwAnswers(scn);
   const best = bestAt(scn, 0);
   const totalOuts = best.outsMade + best.autoOuts;
   // 해설에서 이미 정답이라고 말한 선택지 (나머지 정답은 뒤에서 따로 알려준다)
@@ -90,7 +90,24 @@ export function explainThrow(scn: ThrowScenario): string {
   if (best.outsMade === 0) {
     out.push('어디로 던져도 아웃을 잡기 어려운 상황이에요. 무리하게 던지면 실책만 늘어요.');
   } else if (best.outsMade >= 2) {
-    out.push(`${label} 후 이어 던지면 병살이에요.`);
+    const fa = best.choice !== 'hold' && isCarry(scn, best.choice) && best.follow && best.follow !== 'hold' ? best.follow : null;
+    const ro = (b: Choice) => josa(NUM[b as BaseId], '으로', '로');
+    out.push(fa ? `${label} 후 ${ro(fa)} 이어 던지면 병살이에요.` : `${label} 후 이어 던지면 병살이에요.`);
+    // 뒤 주자를 먼저 잡아서 앞 주자의 포스가 풀린 경우
+    const released = fa && best.events.find((e) => e.base === fa && e.tag && planRunners(scn).some((r) => r.id === e.runner && r.kind === 'force'));
+    if (released) out.push(`${josa(NUM[best.choice as BaseId], '을', '를')} 먼저 밟아서 ${ro(fa)} 가는 주자는 포스가 풀렸어요. ${NUM[fa as BaseId]}에서는 태그해야 해요.`);
+    if (fa) {
+      // 밟은 뒤 다른 곳으로 던져도 병살이 되면, 왜 이쪽이 나은지 알려준다
+      const fl = follows[best.choice];
+      const alt = fl?.options.find((o) => o.follow !== fa && o.outsMade >= 2);
+      if (alt && alt.follow && alt.follow !== 'hold') {
+        const a = NUM[alt.follow as BaseId];
+        if (fl!.best.includes(alt.follow)) out.push(`${josa(a, '으로', '로')} 던져도 같은 병살이라 정답이에요.`);
+        else if (alt.resultState !== best.resultState)
+          out.push(`${josa(a, '으로', '로')} 던져도 병살이지만 남는 상황이 ${alt.resultState}예요. ${ro(fa)} 던지면 ${best.resultState}라 더 좋아요.`);
+        else out.push(`${josa(a, '으로', '로')} 던져도 병살이지만, ${josa(NUM[fa as BaseId], '이', '가')} 더 가까워서 안전해요.`);
+      }
+    }
     if (endsInning && scoredRunner) out.push('세 번째 아웃이 포스아웃이면, 그 사이 홈을 밟은 주자의 득점은 인정되지 않아요.');
   } else if (best.choice === 'home') {
     out.push('실점을 막는 게 가장 중요해서 홈에서 승부해요.');

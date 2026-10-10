@@ -244,7 +244,21 @@ export interface Outcome {
   resultState: string;
   headline: string;
   noCover: boolean;
+  follow?: Choice; // 직접 밟은 뒤 내가 이어서 던진 곳
+  followAuto?: boolean; // follow를 고르지 않아서 가장 좋은 곳으로 계산한 것 (분석용)
 }
+
+// 직접 밟은 뒤 이어서 던질 곳. to가 null이면 아직 안 골랐다(밟기까지만 계산).
+export interface Follow {
+  to: Choice | null;
+  d: number; // 밟은 뒤 결정까지 걸린 시간
+  releaseT?: number; // 액션 모드: 실제로 공을 놓은 시간
+  from?: THREE.Vector3; // 액션 모드: 던진 위치
+}
+
+// 뒤 주자가 먼저 아웃되면 앞 주자는 더 이상 밀려서 뛰는 게 아니다 (포스 해제).
+// 포스는 타자부터 이어지므로 뒤쪽 주자 중 누구라도 아웃이면 풀린다.
+const BEHIND: Partial<Record<RunnerId, RunnerId[]>> = { r1: ['batter'], r2: ['r1', 'batter'], r3: ['r2', 'r1', 'batter'] };
 
 const GLOVE = 1.2;
 const at = (b: BaseId) => BASES[b].clone().setY(GLOVE);
@@ -293,7 +307,17 @@ export interface ThrowExec {
   tagRunner?: RunnerId; // 태그한 주자
 }
 
-export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut = false, exec?: ThrowExec): Outcome {
+export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut = false, exec?: ThrowExec, follow?: Follow): Outcome {
+  // 직접 밟는 선택인데 이어 던질 곳을 안 정했으면, 가장 좋은 곳으로 계산한다 (정답·해설 분석용)
+  const carrying = choice !== 'hold' && exec?.tagT === undefined && (exec ? exec.stepT !== undefined : isCarry(scn, choice));
+  if (carrying && follow === undefined) {
+    const opts = followOptions(scn, choice, d, exec);
+    if (opts.length) {
+      const all = opts.map((f) => evaluate(scn, choice, d, timedOut, exec, { to: f, d: 0 }));
+      const best = all.reduce((a, b) => (b.value > a.value ? b : a));
+      return { ...best, followAuto: true };
+    }
+  }
   const runners = planRunners(scn);
   const catchT = exec?.catchT ?? scn.batted.travelTime;
   const catchPos = (exec?.catchPos ?? scn.batted.catchPoint).clone().setY(GLOVE);
@@ -304,6 +328,7 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
   let tagOuts = 0;
   let thrown = 0;
   let noCover = false;
+  let followTo: Choice | undefined;
 
   const playAt = (base: BaseId, arrive: number) => {
     const r = runners.find(
@@ -312,7 +337,8 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
         (((x.kind === 'force' || x.kind === 'advance') && x.target === base) || (x.kind === 'return' && x.origin === base)),
     );
     if (!r) return null;
-    const tag = r.kind === 'advance';
+    const released = r.kind === 'force' && (BEHIND[r.id] ?? []).some((id) => outRunners.has(id));
+    const tag = r.kind === 'advance' || released;
     const out = arrive + (tag ? THROW.tagTime : 0) < r.arrival;
     events.push({ base, runner: r.id, ballTime: arrive, runnerTime: r.arrival, out, tag, kind: tag ? 'tag' : r.kind === 'return' ? 'return' : 'force' });
     if (out) {
@@ -361,12 +387,25 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
       }
       const out = playAt(choice, arrive);
 
-      // 1루가 아닌 곳에서 포스아웃을 잡으면 1루로 이어 던진다 (병살). 태그 플레이 뒤에는 이어 던지지 않는다.
       const batter = runners.find((r) => r.id === 'batter');
       const outsNow = scn.situation.outs + autoOuts + outRunners.size;
-      const relayer = carry ? scn.position : cover;
       const forceOut = out && !events[events.length - 1].tag;
-      if (forceOut && choice !== 'first' && batter && outsNow < 3 && scn.covers.first && relayer) {
+      if (carry) {
+        // 직접 밟은 뒤 어디로 이어 던질지는 내 판단이다 (동료가 받아서 또 던지는 삼중살은 없다)
+        const to = follow?.to;
+        if (follow && to && to !== 'hold' && to !== choice && outsNow < 3) {
+          const fromPos = follow.from ? follow.from.clone().setY(GLOVE) : at(choice);
+          const f = flight(fromPos, at(to));
+          const ready = follow.releaseT ?? arrive + THROW.pivotTime + follow.d;
+          const t0 = Math.max(ready, coverArrival(scn, to) - f.time);
+          thrown += f.dist;
+          segments.push({ from: fromPos, to: at(to), t0, t1: t0 + f.time, arc: f.arc, thrower: scn.position, waited: t0 > ready + 0.01 ? t0 - ready : undefined });
+          playAt(to, t0 + f.time);
+          followTo = to;
+        } else if (follow?.to === 'hold') followTo = 'hold';
+      } else if (forceOut && choice !== 'first' && batter && outsNow < 3 && scn.covers.first && cover) {
+        // 동료가 포스아웃을 잡으면 1루로 이어 던진다 (병살). 태그 플레이 뒤에는 이어 던지지 않는다.
+        const relayer = cover;
         const f = flight(at(choice), at('first'));
         const ready = arrive + THROW.pivotTime;
         const t0 = Math.max(ready, coverArrival(scn, 'first') - f.time);
@@ -426,7 +465,29 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
     resultState,
     headline,
     noCover,
+    follow: followTo,
   };
+}
+
+// 직접 밟은 뒤 이어 던질 수 있는 곳: 아직 살아서 뛰고 있는 주자가 가는 베이스 중 받을 사람이 있는 곳
+export function followOptions(scn: ThrowScenario, choice: Choice, d = 0, exec?: ThrowExec): Choice[] {
+  if (choice === 'hold') return [];
+  // 내가 직접 밟았을 때만 (송구를 받은 동료가 이어 던지는 건 자동이다)
+  if (exec ? exec.stepT === undefined : !isCarry(scn, choice)) return [];
+  const first = evaluate(scn, choice, d, false, exec, { to: null, d: 0 });
+  // 밟은 베이스에 승부할 주자가 없었으면 밟기는 의미가 없다 (그냥 늦은 송구라 이어 던지기 대상이 아님)
+  if (!first.events.some((e) => e.base === choice)) return [];
+  if (scn.situation.outs + first.autoOuts + first.outsMade >= 3) return [];
+  const out = new Set(first.events.filter((e) => e.out).map((e) => e.runner));
+  const bases = new Set<Choice>();
+  for (const r of planRunners(scn)) {
+    if (out.has(r.id)) continue;
+    const base = r.kind === 'force' || r.kind === 'advance' ? r.target : r.kind === 'return' ? r.origin : null;
+    if (!base || base === choice) continue;
+    const cover = scn.covers[base];
+    if (cover && cover !== scn.position) bases.add(base);
+  }
+  return bases.size ? [...THROW_CHOICES.filter((c) => bases.has(c)), 'hold'] : [];
 }
 
 // 액션 모드에서 공을 못 잡았을 때: 공이 외야로 빠져 타자는 1루, 주자는 한 베이스씩 간다
@@ -510,6 +571,17 @@ export interface ThrowAnswers {
   ideal: Outcome;
   immediate: Outcome[]; // 잡자마자 결정했을 때 선택지별 결과
   close?: CloseCall;
+  // 직접 밟는 정답이면, 밟은 뒤 이어 던질 곳의 정답과 선택지별 결과
+  follows: Partial<Record<Choice, { best: Choice[]; options: Outcome[] }>>;
+}
+
+// 직접 밟은 뒤 이어 던지는 곳별 결과와 그중 정답 (점수 차이가 거의 없으면 함께 정답)
+export function followAnswers(scn: ThrowScenario, choice: Choice): { best: Choice[]; options: Outcome[] } | undefined {
+  const opts = followOptions(scn, choice);
+  if (!opts.length) return undefined;
+  const options = opts.map((f) => evaluate(scn, choice, 0, false, undefined, { to: f, d: 0 }));
+  const top = Math.max(...options.map((o) => o.value));
+  return { best: options.filter((o) => o.value >= top - VALUE.bestTolerance).map((o) => o.follow ?? 'hold'), options };
 }
 
 export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
@@ -528,12 +600,18 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
       close = { lead: ideal, safe, margin };
     }
   }
-  return { answers, ideal, immediate, close };
+  const follows: ThrowAnswers['follows'] = {};
+  for (const c of answers) {
+    const f = followAnswers(scn, c);
+    if (f) follows[c] = f;
+  }
+  return { answers, ideal, immediate, close, follows };
 }
 
 // ideal: 정답을 제때 고름 / late: 정답이지만 늦어서 아웃이 줄었음
 // fallback: 정답은 아니지만 늦은 시점에선 가장 나은 선택 / other: 그 밖 / timeout: 시간 초과
-export type ThrowVerdict = 'ideal' | 'late' | 'fallback' | 'other' | 'timeout' | 'miss';
+// follow: 직접 밟은 건 정답인데 이어 던진 곳이 정답이 아님
+export type ThrowVerdict = 'ideal' | 'late' | 'fallback' | 'other' | 'timeout' | 'miss' | 'follow';
 
 export interface ThrowGrade {
   grade: Grade;
@@ -543,18 +621,23 @@ export interface ThrowGrade {
   bestNow: Outcome; // 내 판단 시간 기준으로 가장 나은 결과
   immediate: Outcome[];
   close?: CloseCall;
+  follows: ThrowAnswers['follows'];
 }
 
 export function gradeThrow(scn: ThrowScenario, outcome: Outcome, exec?: ThrowExec, missed = false): ThrowGrade {
-  const { answers, ideal, immediate, close } = throwAnswers(scn);
-  if (missed) return { grade: 'bad', verdict: 'miss', answers, ideal, bestNow: ideal, immediate, close };
+  const { answers, ideal, immediate, close, follows } = throwAnswers(scn);
+  if (missed) return { grade: 'bad', verdict: 'miss', answers, ideal, bestNow: ideal, immediate, close, follows };
   // 내 판단 시간 기준 최선: 액션 모드면 실제로 잡은 위치와 던진 시점에서 다른 곳으로 던졌다고 친다
   const alt = altExec(exec);
   const bestNow = THROW_CHOICES.map((c) => evaluate(scn, c, outcome.decisionDelay, false, alt)).reduce((a, b) => (b.value > a.value ? b : a));
   const gotOut = outcome.outsMade > 0;
-  const base = { answers, ideal, bestNow, immediate, close };
+  const base = { answers, ideal, bestNow, immediate, close, follows };
   if (outcome.timedOut) return { ...base, grade: 'bad', verdict: 'timeout' };
   if (answers.includes(outcome.choice)) {
+    const fa = follows[outcome.choice];
+    if (fa && outcome.follow !== undefined && !outcome.followAuto && !fa.best.includes(outcome.follow)) {
+      return { ...base, grade: gotOut ? 'ok' : 'bad', verdict: 'follow' };
+    }
     const planned = evaluate(scn, outcome.choice, 0).outsMade;
     if (outcome.outsMade >= planned) return { ...base, grade: 'best', verdict: 'ideal' };
     return { ...base, grade: gotOut ? 'ok' : 'bad', verdict: 'late' };

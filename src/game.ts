@@ -23,8 +23,10 @@ import {
   altExec,
   evaluate,
   gradeThrow,
+  followOptions,
   missOutcome,
   planRunners,
+  type Follow,
   type ThrowExec,
   isCarry,
   runnerCalls,
@@ -56,6 +58,7 @@ type Phase = 'menu' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 're
 const EYE_HEIGHT = 1.62;
 const PICK_ANGLE = 0.3; // 시선으로 고를 때 허용 각도 (rad)
 const REPLAY_SPEED = 0.6;
+const FOLLOW_WINDOW = 1.5; // 직접 밟은 뒤 이어 던질 곳을 고르는 시간 (게임 시간)
 // 판단 키: 왼손 기본 줄(A S D)과 엄지(Space). 들고 있기는 실수로 누르지 않게 W에 둔다.
 // 물리 키(code) 기준이라 한글 입력 상태에서도 동작한다.
 const DECISION_KEYS = ['A', 'S', 'D', 'F'];
@@ -75,11 +78,13 @@ interface ActState {
   evalT: number; // 위치 판단: 이 시점의 위치로 판정한다
   // 커버 상황: 공을 잡은 수비수가 내 위치를 보고 던질 때를 정한다
   cover: { bag: THREE.Vector3; idx: number; ready: number; flight: number; last: number } | null;
+  // 공을 든 채 베이스를 밟은 뒤 이어 던지기를 기다리는 중
+  stepped: { base: BaseId; t: number; pos: THREE.Vector3 } | null;
   aimed: number; // 조준 중인 베이스 (defs 인덱스, 없으면 -1)
 }
 
 function newAct(pos: THREE.Vector3): ActState {
-  return { pos: pos.clone(), track: [], caughtT: null, caughtPos: null, prevBall: null, missed: false, evalT: Infinity, aimed: -1, cover: null };
+  return { pos: pos.clone(), track: [], caughtT: null, caughtPos: null, prevBall: null, missed: false, evalT: Infinity, aimed: -1, cover: null, stepped: null };
 }
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD'];
@@ -113,6 +118,8 @@ export class Game {
   private reactionReal = 0;
   private decisionDelay = 0;
   private outcome: Outcome | null = null;
+  // 판단 모드: 직접 밟기를 골랐을 때, 밟은 뒤 이어 던질 곳을 고르는 두 번째 판단
+  private follow: { choice: Choice; d: number; stepT: number; pending: Choice | null; pendingReal: number } | null = null;
   private shownCalls = new Set<number>();
   private calls: THREE.Sprite[] = [];
   private defs: DecisionDef[] = [];
@@ -293,7 +300,7 @@ export class Game {
 
   private get canChoose() {
     if (this.mode === 'action') return false;
-    return this.phase === 'decision' || (this.phase === 'live' && this.panelShown);
+    return this.phase === 'decision' || (this.phase === 'live' && this.panelShown) || (this.phase === 'play' && this.follow !== null);
   }
 
   private get tagsVisible() {
@@ -304,6 +311,16 @@ export class Game {
 
   // 공을 잡기 전이면 미리 골라두고(잡는 순간 바로 실행), 잡은 뒤면 바로 결정한다
   private input(value: Choice | number) {
+    if (this.follow) {
+      // 이어 던질 곳: 밟은 뒤면 바로, 밟기 전이면 미리 골라둔다
+      if (this.phase === 'decision') this.resolveFollow(value as Choice);
+      else {
+        this.follow.pending = value as Choice;
+        this.follow.pendingReal = performance.now();
+        this.ui.markPending(this.defs.findIndex((d) => d.value === value));
+      }
+      return;
+    }
     if (this.phase === 'decision') {
       this.choose(value);
       return;
@@ -342,6 +359,7 @@ export class Game {
     this.outcome = null;
     this.panelShown = false;
     this.pending = null;
+    this.follow = null;
     this.timeScale = 1;
     this.clearCalls();
     this.pitchKmh = Math.round(PITCH.minKmh + Math.random() * (PITCH.maxKmh - PITCH.minKmh));
@@ -463,13 +481,47 @@ export class Game {
     this.reactionReal = Math.max(0, (decidedAtReal - this.decisionRealStart) / 1000);
     const scn = this.scn;
     if (scn.kind === 'throw') {
-      this.outcome = evaluate(scn, value as Choice, d, timedOut);
+      const choice = value as Choice;
+      const opts = timedOut ? [] : followOptions(scn, choice, d);
+      if (opts.length) {
+        // 직접 밟기: 밟기까지만 진행하고, 밟은 뒤 이어 던질 곳을 한 번 더 고른다
+        this.outcome = evaluate(scn, choice, d, false, undefined, { to: null, d: 0 });
+        this.tl = buildThrowTimeline(scn, this.pitchFlight, this.outcome);
+        const carry = this.outcome.segments.find((s) => s.carry);
+        this.follow = { choice, d, stepT: carry ? carry.t1 : this.t, pending: null, pendingReal: 0 };
+        this.defs = this.followDefs(opts);
+        this.phase = 'play';
+        this.ui.showDecision(`${BASE_LABEL[choice as BaseId]} 밟은 다음 어디로?`, this.defs, []);
+        this.ui.setDecisionTimer(1);
+        return;
+      }
+      this.outcome = evaluate(scn, choice, d, timedOut);
       this.tl = buildThrowTimeline(scn, this.pitchFlight, this.outcome);
     } else {
       this.tl = buildChoiceTimeline(scn, this.pitchFlight, { index: timedOut ? null : (value as number), d });
     }
     this.phase = 'play';
     this.ui.hideDecision();
+  }
+
+  private resolveFollow(to: Choice, timedOut = false) {
+    const scn = this.scn;
+    const f = this.follow;
+    if (scn.kind !== 'throw' || !f) return;
+    const d2 = timedOut ? FOLLOW_WINDOW : Math.max(0, this.t - f.stepT);
+    this.outcome = evaluate(scn, f.choice, f.d, false, undefined, { to, d: d2 });
+    this.tl = buildThrowTimeline(scn, this.pitchFlight, this.outcome);
+    this.follow = null;
+    this.defs = this.decisionDefs();
+    this.phase = 'play';
+    this.ui.hideDecision();
+  }
+
+  // 이어 던질 곳 선택지: 키는 처음 판단과 같다 (A/S/D 1·2·3루, Space 홈, W 들고 있기)
+  private followDefs(opts: Choice[]): DecisionDef[] {
+    return this.decisionDefs()
+      .filter((d) => opts.includes(d.value as Choice))
+      .map((d) => ({ ...d, label: d.value === 'hold' ? '들고 있기' : `${BASE_LABEL[d.value as BaseId]} 송구` }));
   }
 
   private finish() {
@@ -567,12 +619,27 @@ export class Game {
         if (scn.kind === 'throw') this.ui.setDecisionTitle('어디로 던질까?');
       }
     }
-    if (this.mode !== 'action' && this.phase === 'decision') {
-      const d = this.t - this.tl.decisionAt;
-      this.ui.setDecisionTimer(1 - d / this.tl.window);
-      if (d >= this.tl.window) this.choose('hold', true);
+    if (this.follow && this.phase === 'play' && this.t >= this.follow.stepT) {
+      // 베이스를 밟았다: 미리 골라뒀으면 바로 던지고, 아니면 슬로모션으로 고른다
+      this.t = this.follow.stepT;
+      if (this.follow.pending !== null) this.resolveFollow(this.follow.pending);
+      else {
+        this.phase = 'decision';
+        this.ui.setDecisionTitle('어디로 이어 던질까?');
+      }
     }
-    if (this.phase === 'play' && this.t >= this.tl.end) this.finish();
+    if (this.mode !== 'action' && this.phase === 'decision') {
+      if (this.follow) {
+        const d2 = this.t - this.follow.stepT;
+        this.ui.setDecisionTimer(1 - d2 / FOLLOW_WINDOW);
+        if (d2 >= FOLLOW_WINDOW) this.resolveFollow('hold', true);
+      } else {
+        const d = this.t - this.tl.decisionAt;
+        this.ui.setDecisionTimer(1 - d / this.tl.window);
+        if (d >= this.tl.window) this.choose('hold', true);
+      }
+    }
+    if (this.phase === 'play' && !this.follow && this.t >= this.tl.end) this.finish();
 
     this.animate(realDt);
     this.updateCamera();
@@ -643,6 +710,15 @@ export class Game {
       }
     }
 
+    if (this.phase === 'decision' && act.caughtT !== null && act.stepped) {
+      // 밟은 뒤: 조준만 하고 좌클릭을 기다린다. 시간이 지나면 들고 있기.
+      act.aimed = this.aimedIndex();
+      this.ui.setAim(act.aimed);
+      const held = t - act.stepped.t;
+      this.ui.setDecisionTimer(1 - held / FOLLOW_WINDOW);
+      if (held >= FOLLOW_WINDOW) this.resolveStepFollow('hold');
+      return;
+    }
     if (this.phase === 'decision' && act.caughtT !== null) {
       // 조준: 화면 가운데에 가장 가까운 베이스
       act.aimed = this.aimedIndex();
@@ -662,6 +738,13 @@ export class Game {
       for (const b of ['first', 'second', 'third', 'home'] as BaseId[]) {
         const forced = plans.some((r) => (r.kind === 'force' || r.kind === 'return') && r.target === b);
         if (forced && Math.hypot(act.pos.x - BASES[b].x, act.pos.z - BASES[b].z) < ACTION.stepRadius) {
+          const exec: ThrowExec = { catchPos: act.caughtPos!, catchT: act.caughtT, stepT: t, releasePos: act.pos.clone() };
+          if (followOptions(scn, b, Math.max(0, t - act.caughtT), exec).length) {
+            // 밟은 뒤에도 공을 들고 있다: 이어서 던질 곳을 조준하고 좌클릭
+            act.stepped = { base: b, t, pos: act.pos.clone() };
+            this.ui.setDecisionTitle(`${BASE_LABEL[b]} 밟았어요! 이어 던질 곳을 조준하고 좌클릭`);
+            return;
+          }
           this.resolveActionThrow(b, { stepT: t, releasePos: act.pos.clone() });
           return;
         }
@@ -716,19 +799,32 @@ export class Game {
       this.ui.toast('던질 베이스를 조준하세요', false);
       return;
     }
+    if (this.act.stepped) {
+      if (this.defs[i].value === this.act.stepped.base) return;
+      this.resolveStepFollow(this.defs[i].value as Choice);
+      return;
+    }
     this.resolveActionThrow(this.defs[i].value as Choice, { releasePos: this.act.pos.clone(), releaseT: this.t + THROW.transferTime });
   }
 
-  private resolveActionThrow(choice: Choice, part: Partial<ThrowExec>, timedOut = false) {
+  // 밟은 뒤 이어 던지기 (to가 hold면 들고 있기)
+  private resolveStepFollow(to: Choice) {
+    const s = this.act.stepped!;
+    const follow: Follow = { to, d: Math.max(0, this.t - s.t), releaseT: Math.max(s.t + THROW.pivotTime, this.t + THROW.transferTime), from: this.act.pos.clone() };
+    this.act.stepped = null;
+    this.resolveActionThrow(s.base, { stepT: s.t, releasePos: s.pos }, false, follow);
+  }
+
+  private resolveActionThrow(choice: Choice, part: Partial<ThrowExec>, timedOut = false, follow?: Follow) {
     const scn = this.scn;
     if (scn.kind !== 'throw') return;
     const act = this.act;
     const exec: ThrowExec = { catchPos: act.caughtPos!, catchT: act.caughtT!, ...part };
     act.exec = exec;
-    const d = Math.max(0, this.t - act.caughtT!);
+    const d = Math.max(0, (part.stepT ?? this.t) - act.caughtT!);
     this.decisionDelay = d;
     this.reactionReal = (performance.now() - this.decisionRealStart) / 1000;
-    this.outcome = evaluate(scn, choice, d, timedOut, exec);
+    this.outcome = evaluate(scn, choice, d, timedOut, exec, follow);
     this.tl = buildActionThrowTimeline(scn, this.pitchFlight, this.outcome, act.caughtT);
     this.phase = 'play';
     this.ui.hideDecision();
