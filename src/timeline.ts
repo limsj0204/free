@@ -62,6 +62,8 @@ export interface ChoiceResult {
   deadline: number; // 이 시간까지 도착해야 제때
   lastChance?: number; // 커버: 이 시간까지만 도착하면 기다렸다 던져 줘서 아웃은 된다
   waited?: number; // 커버가 늦어서 공을 잡은 수비수가 기다린 시간
+  throwReady?: number; // 커버: 공을 잡은 수비수가 던질 준비가 되는 시간
+  flight?: number; // 커버: 송구가 베이스까지 날아가는 시간
 }
 
 export interface Timeline {
@@ -310,6 +312,7 @@ export interface ChoiceInput {
   index: number | null; // null이면 시간 초과
   d: number; // 결정까지 걸린 게임 시간
   arrival?: number; // 액션 모드: 실제로 그 위치에 도착한 시간 (플레이어 움직임은 입력 기록을 쓴다)
+  now?: number; // 액션 모드: 판정한 시각. 이보다 이른 송구는 이미 지나간 것이라 이 시각부터 던진다
 }
 
 export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, input?: ChoiceInput): Timeline {
@@ -364,6 +367,8 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
   let late = false;
   let lastChance: number | undefined;
   let waited: number | undefined;
+  let throwReady: number | undefined;
+  let coverFlight: number | undefined;
 
   switch (scn.setup) {
     case 'steal': {
@@ -383,11 +388,12 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       arrival = movePlayer();
       late = !!opt?.takes && arrival > deadline;
       const received = !!input && (scn.otherCovers || (!!opt?.takes && !late));
+      // 포수 송구는 내 선택과 상관없이 같다 (액션 모드는 판정 전에도 이 타임라인으로 진행된다)
+      tl.ball.push({ from: throwFrom, to: target, t0, t1, arc: 0.5, thrower: 'C' });
       if (!input) {
         tl.runners.set('r1', { waypoints: [lead, BASES.second.clone()], startTime: runStart, speed: RUN.speed });
         break;
       }
-      tl.ball.push({ from: throwFrom, to: target, t0, t1, arc: 0.5, thrower: 'C' });
       if (received) {
         const out = t1 + THROW.tagTime < runArrive;
         const tagT = out ? Math.max(t1 + THROW.tagTime, runArrive - TAG_REACH / RUN.speed) : runArrive;
@@ -473,6 +479,8 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       late = !!opt?.takes && arrival > deadline;
       const received = !!opt?.takes && !late;
       if (!input) {
+        // 판정 전(액션 모드)에는 홈으로 가는 송구를 보여준다. 커트 위치는 그 길목 위라 판정 뒤에도 이어진다.
+        tl.ball.push({ from, to: homeTo, t0: throwT0, t1: throwT0 + from.distanceTo(homeTo) / THROW.outfieldSpeed, arc: 2.5, thrower: 'CF' });
         tl.runners.set('batter', { waypoints: [box, BASES.first.clone()], startTime: RUN.batterStartDelay, speed: RUN.speed });
         break;
       }
@@ -592,11 +600,16 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       const leadPath: Path = { waypoints: [lead, via.clone(), BASES[b.base].clone()], startTime: RUN.runnerStartDelay, speed: RUN.speed };
       tl.runners.set(leadId, leadPath);
       const box = batterBox(scn);
+      // 송구와 빠진 공이 굴러가는 길은 내 선택과 상관없이 같다. 백업 자리는 그 길 위에 있다.
+      tl.ball.push({ from, to: baseAt, t0: throwT0, t1, arc: 2.5, thrower: b.fielder });
+      const dir = baseAt.clone().sub(from).setY(0).normalize();
+      const past = BASES[b.base].clone().addScaledVector(dir, 16).setY(0.1);
+      const rollPast = { from: baseAt, to: past, t0: t1, t1: t1 + baseAt.distanceTo(past) / BACKUP_ROLL, arc: 0.3, bounces: 2 };
       if (!input) {
+        tl.ball.push(rollPast);
         tl.runners.set('batter', { waypoints: [box, BASES.first.clone()], startTime: RUN.batterStartDelay, speed: RUN.speed });
         break;
       }
-      tl.ball.push({ from, to: baseAt, t0: throwT0, t1, arc: 2.5, thrower: b.fielder });
       tl.calls.push({ t: t1 + 0.1, pos: BASES[b.base], text: '빠졌다!', good: false });
       if (received) {
         tl.ball.push({ from: baseAt, to: spot, t0: t1, t1: deadline, arc: 0.3, bounces: 2 });
@@ -604,9 +617,7 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
         tl.calls.push({ t: deadline, pos: opt!.moveTo, text: '백업!', good: true });
         tl.end = deadline + 2;
       } else {
-        const dir = baseAt.clone().sub(from).setY(0).normalize();
-        const past = BASES[b.base].clone().addScaledVector(dir, 16).setY(0.1);
-        tl.ball.push({ from: baseAt, to: past, t0: t1, t1: t1 + 2.2, arc: 0.4, bounces: 3 });
+        tl.ball.push(rollPast);
         // 공이 빠진 사이 한 베이스씩 더 간다
         if (b.base === 'third') leadPath.waypoints.push(BASES.home.clone());
         const extra = b.base === 'home' ? [BASES.second.clone(), BASES.third.clone()] : [BASES.second.clone()];
@@ -668,15 +679,18 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       // 그래도 주자보다 늦으면 던지지 않는다.
       deadline = ready + flight;
       lastChance = runnerArrive;
+      throwReady = ready;
+      coverFlight = flight;
       arrival = movePlayer();
       if (!input) break;
       if (opt?.takes) {
-        const throwT0 = Math.max(ready, arrival - flight);
+        const throwT0 = Math.max(ready, arrival - flight, input.now ?? -Infinity);
         const t1 = throwT0 + flight;
         const out = t1 < runnerArrive;
         late = !out;
         if (out) {
-          if (throwT0 > ready + 0.01) waited = throwT0 - ready;
+          // 제때(deadline)보다 늦게 들어온 만큼 기다린 것 (액션 모드의 프레임 오차는 빼고 내 도착 시간 기준)
+          if (arrival > deadline + 0.01) waited = arrival - deadline;
           tl.ball.push({ from, to, t0: throwT0, t1, arc: toss ? 0.6 : 0.8, thrower: c.fielder });
           target.stopAt = t1;
           tl.calls.push({ t: t1, pos: BASES[c.base], text: callText('force', true), good: true });
@@ -688,9 +702,10 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
           tl.end = runnerArrive + 1.5;
         }
       } else {
-        // 커버가 없으니 정해진 때에 던진 공이 빠진다
-        const t1 = ready + flight;
-        tl.ball.push({ from, to, t0: ready, t1, arc: toss ? 0.6 : 0.8, thrower: c.fielder });
+        // 커버가 없으니 던진 공이 빠진다 (액션 모드는 판정한 시각부터 던진다)
+        const t0 = Math.max(ready, input.now ?? ready);
+        const t1 = t0 + flight;
+        tl.ball.push({ from, to, t0, t1, arc: toss ? 0.6 : 0.8, thrower: c.fielder });
         const past = to.clone().add(to.clone().sub(from).setY(0).normalize().multiplyScalar(14)).setY(0.1);
         tl.ball.push({ from: to, to: past, t0: t1, t1: t1 + 1.3, arc: 0.5, bounces: 3 });
         target.waypoints.push(BASES[c.base === 'first' ? 'second' : 'third'].clone());
@@ -724,7 +739,7 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       // 시간 초과면 제자리에 있었던 것과 같다
       tl.end = Math.max(tl.end === Infinity ? 0 : tl.end, tl.decisionAt + tl.window + 2);
     }
-    tl.choice = { index: input.index, grade, headline, result, feedback, late, playerArrival: arrival, deadline, lastChance, waited };
+    tl.choice = { index: input.index, grade, headline, result, feedback, late, playerArrival: arrival, deadline, lastChance, waited, throwReady, flight: coverFlight };
   }
   return tl;
 }

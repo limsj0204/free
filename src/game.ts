@@ -73,11 +73,13 @@ interface ActState {
   missed: boolean;
   exec?: ThrowExec;
   evalT: number; // 위치 판단: 이 시점의 위치로 판정한다
+  // 커버 상황: 공을 잡은 수비수가 내 위치를 보고 던질 때를 정한다
+  cover: { bag: THREE.Vector3; idx: number; ready: number; flight: number; last: number } | null;
   aimed: number; // 조준 중인 베이스 (defs 인덱스, 없으면 -1)
 }
 
 function newAct(pos: THREE.Vector3): ActState {
-  return { pos: pos.clone(), track: [], caughtT: null, caughtPos: null, prevBall: null, missed: false, evalT: Infinity, aimed: -1 };
+  return { pos: pos.clone(), track: [], caughtT: null, caughtPos: null, prevBall: null, missed: false, evalT: Infinity, aimed: -1, cover: null };
 }
 
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD'];
@@ -361,6 +363,10 @@ export class Game {
       // 커버는 조금 늦어도 공을 잡은 수비수가 기다려 주니, 주자가 들어오기 전까지의 위치로 판정한다
       const dl = pre.choice!.lastChance ?? pre.choice!.deadline;
       this.act.evalT = Number.isFinite(dl) ? dl : scn.setup === 'pickoff' ? pre.decisionAt + pre.window : 1.8;
+      const pc = pre.choice!;
+      if (pc.throwReady !== undefined && pc.flight !== undefined && pc.lastChance !== undefined) {
+        this.act.cover = { bag: scn.options[bestIdx].moveTo, idx: bestIdx, ready: pc.throwReady, flight: pc.flight, last: pc.lastChance };
+      }
     }
     this.camera.position.copy(this.tl.playerStart).setY(EYE_HEIGHT);
     this.lookAtPoint(scn.kind === 'choice' && scn.setup === 'pickoff' ? P(0, 18.44, 1.2) : P(0, 1.2, 1.2));
@@ -596,7 +602,24 @@ export class Game {
     }
 
     if (scn.kind === 'choice') {
-      if (this.phase === 'live' && t >= act.evalT) this.resolveActionChoice();
+      if (this.phase !== 'live') return;
+      const c = act.cover;
+      if (c && t >= c.ready) {
+        // 공을 잡은 수비수가 나를 보고 던진다: 송구와 같이 도착할 만큼 가까우면 지금 던지고,
+        // 주자보다 먼저 못 들어올 것 같으면 기다리지 않는다 (커버가 안 오면 그냥 던져서 빠진다)
+        const dist = Math.max(0, Math.hypot(act.pos.x - c.bag.x, act.pos.z - c.bag.z) - ACTION.choiceRadius);
+        const eta = t + dist / RUN.fielderSpeed;
+        if (dist / RUN.fielderSpeed <= c.flight) {
+          const reached = act.track.find((s) => Math.hypot(s.pos.x - c.bag.x, s.pos.z - c.bag.z) <= ACTION.choiceRadius);
+          this.resolveActionChoice({ index: c.idx, arrival: reached ? reached.t : eta });
+          return;
+        }
+        if (eta > c.last) {
+          this.resolveActionChoice();
+          return;
+        }
+      }
+      if (t >= act.evalT) this.resolveActionChoice();
       return;
     }
 
@@ -725,7 +748,7 @@ export class Game {
     this.ui.toast('공이 빠졌어요!', false);
   }
 
-  private resolveActionChoice() {
+  private resolveActionChoice(pick?: { index: number; arrival: number }) {
     const scn = this.scn;
     if (scn.kind !== 'choice') return;
     const act = this.act;
@@ -743,14 +766,17 @@ export class Game {
     const moved = act.track.find((s) => s.t >= this.tl.decisionAt - 1 && s.pos.distanceTo(start) > 0.5);
     const d = moved ? Math.max(0, moved.t - this.tl.decisionAt) : 0;
     let arrival: number | undefined;
-    if (index !== null) {
+    if (pick) {
+      index = pick.index;
+      arrival = pick.arrival;
+    } else if (index !== null) {
       const target = scn.options[index].moveTo;
       const reached = act.track.find((s) => Math.hypot(s.pos.x - target.x, s.pos.z - target.z) <= ACTION.choiceRadius);
       arrival = reached ? reached.t : this.t;
     }
     this.decisionDelay = d;
     this.reactionReal = (performance.now() - this.decisionRealStart) / 1000;
-    this.tl = buildChoiceTimeline(scn, this.pitchFlight, { index, d, arrival });
+    this.tl = buildChoiceTimeline(scn, this.pitchFlight, { index, d, arrival, now: this.t });
     this.phase = 'play';
     this.ui.hideDecision();
   }
