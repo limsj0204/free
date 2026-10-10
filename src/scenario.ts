@@ -49,7 +49,7 @@ interface ScenarioBase {
 // 공을 잡은 뒤 어디로 던질지 고르는 상황. 결과는 시간 계산으로 판정한다.
 export interface ThrowScenario extends ScenarioBase {
   kind: 'throw';
-  batted: { type: 'grounder' | 'liner' | 'bunt'; catchPoint: THREE.Vector3; travelTime: number };
+  batted: { type: 'grounder' | 'roller' | 'liner' | 'bunt'; catchPoint: THREE.Vector3; travelTime: number }; // roller: 느린 땅볼
   covers: Partial<Record<BaseId, FielderId>>; // 각 베이스에서 공을 받을 수비수
   selfBases?: BaseId[]; // 던지지 않고 직접 밟으러 가는 베이스
   runnerActs?: Partial<Record<Base3, 'advance' | 'hold'>>; // 안 밀리는 주자가 뛸지 (땅볼일 때)
@@ -69,8 +69,10 @@ export interface ChoiceOption {
 // 공이 나에게 오지 않을 때 어디로 움직일지 고르는 상황. 선택지별 결과가 정해져 있다.
 export interface ChoiceScenario extends ScenarioBase {
   kind: 'choice';
-  setup: 'steal' | 'gap' | 'cutoff' | 'pickoff' | 'bunt';
+  setup: 'steal' | 'gap' | 'cutoff' | 'pickoff' | 'bunt' | 'cover';
   side?: 'left' | 'right'; // gap: 좌중간/우중간
+  // cover: 다른 수비수가 공을 잡아 base로 던질 때 내가 그 베이스를 커버하는지
+  play?: { fielder: FielderId; catchPoint: THREE.Vector3; travelTime: number; base: BaseId; batted: 'grounder' | 'bunt' };
   otherCovers?: boolean; // steal: 다른 수비수가 2루 커버를 들어가는지
   prompt: string;
   options: ChoiceOption[];

@@ -716,3 +716,18 @@ button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+.random-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.random-row button {
+  flex: 1 1 180px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 800;
+}

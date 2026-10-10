@@ -82,6 +82,8 @@ export class UI {
   onReplay: () => void = () => {};
   onNext: () => void = () => {};
   onMenu: () => void = () => {};
+  onRandom: (scope: PositionId | 'all') => void = () => {};
+  randomLabel: string | null = null; // 랜덤 연습 중이면 "유격수 랜덤" 같은 이름
 
   private menu = $('menu');
   private briefing = $('briefing');
@@ -156,7 +158,13 @@ export class UI {
         <h1>내야 수비 판단 훈련</h1>
         <p class="note">포지션을 고르고 상황을 선택하세요. 공을 잡거나 상황이 벌어지는 순간 화면이 느려지지만, 주자는 계속 뛰어요. 모든 상황은 오른손 타자 기준이에요. 최선의 판단을 한 상황 ${cleared}/${total}</p>
         <div class="tabs" role="tablist">${tabs}</div>
-        <div class="items">${items}</div>
+        <div class="items">
+          <div class="random-row">
+            <button class="primary" id="random-pos">${FIELDER_NAME[this.tab]} 랜덤 연습</button>
+            <button class="secondary" id="random-all">전체 포지션 랜덤</button>
+          </div>
+          ${items}
+        </div>
         <h2>난이도 (판단 순간의 슬로모션 속도)</h2>
         <div class="difficulties">
           ${DIFFICULTIES.map(
@@ -172,6 +180,8 @@ export class UI {
         this.renderMenu(difficulty);
       }),
     );
+    $('random-pos').addEventListener('click', () => this.onRandom(this.tab));
+    $('random-all').addEventListener('click', () => this.onRandom('all'));
     this.menu.querySelectorAll<HTMLButtonElement>('[data-scenario]').forEach((b) =>
       b.addEventListener('click', () => this.onPickScenario(b.dataset.scenario!)),
     );
@@ -188,10 +198,14 @@ export class UI {
 
   showBriefing(scn: Scenario) {
     this.hideAll();
+    this.help.textContent =
+      scn.kind === 'throw'
+        ? '마우스: 시점 이동 · 클릭: 바라보는 베이스로 송구 · A/S/D/F: 1루/2루/3루/홈 · Space: 들고 있기 · Esc: 마우스 풀기'
+        : '마우스: 시점 이동 · 클릭: 바라보는 위치로 이동 · A/S/D: 선택지 순서대로 · Esc: 마우스 풀기';
     this.hud.classList.remove('hidden');
     this.briefing.innerHTML = `
       <div class="card">
-        <div class="eyebrow">${FIELDER_NAME[scn.position]} · ${scn.kind === 'throw' ? '송구 판단' : '위치 판단'}</div>
+        <div class="eyebrow">${this.randomLabel ? `${this.randomLabel} · ` : ''}${FIELDER_NAME[scn.position]} · ${scn.kind === 'throw' ? '송구 판단' : '위치 판단'}</div>
         <h1>${scn.title}</h1>
         <div class="situation">
           ${situationText(scn)
@@ -332,7 +346,7 @@ export class UI {
       <button class="secondary" id="result-menu-btn">목록</button>
       <button class="secondary" id="replay-btn"><kbd>V</kbd>리플레이</button>
       <button class="secondary" id="retry-btn"><kbd>R</kbd>다시 하기</button>
-      <button class="primary" id="next-btn"><kbd>N</kbd>다음 상황</button>
+      <button class="primary" id="next-btn"><kbd>N</kbd>${this.randomLabel ? '다음 랜덤 상황' : '다음 상황'}</button>
     </div>`;
   }
 

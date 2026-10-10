@@ -157,6 +157,64 @@ export const SCENARIOS: Scenario[] = [
       '송구 길목(마운드와 홈 사이)에 커트맨이 서 있으면, 홈 승부가 안 될 때 공을 중간에서 잘라 다른 주자를 잡거나 묶을 수 있어요. 커트맨이 없으면 공이 홈까지 가는 사이 타자 주자가 공짜로 한 베이스를 더 가요.',
   },
 
+  {
+    id: '1b-cover',
+    kind: 'choice',
+    setup: 'cover',
+    title: '주자 없음, 유격수 땅볼',
+    position: '1B',
+    situation: { outs: 0, runners: NO_RUNNERS, batter: 'R' },
+    brief: '무사, 주자 없음. 1루수는 평소보다 조금 깊게 서 있어요. 타구가 어디로 가는지 보고 바로 움직여야 해요.',
+    fielders: { '1B': P(23, 28) },
+    play: { fielder: 'SS', catchPoint: P(-9.5, 32), travelTime: 1.5, base: 'first', batted: 'grounder' },
+    prompt: '유격수 쪽 땅볼! 어디로?',
+    options: [
+      {
+        label: '1루 베이스 커버',
+        moveTo: P(19.0, 19.6),
+        grade: 'best',
+        takes: true,
+        headline: '1루 아웃',
+        result: '1아웃 주자 없음',
+        feedback: '바로 1루로 달려가 베이스에 발을 대고 유격수 송구를 받았어요.',
+      },
+      {
+        label: '공 쪽으로 대시',
+        moveTo: P(10, 27),
+        grade: 'bad',
+        headline: '1루가 비었어요',
+        result: '무사 2루',
+        feedback: '공은 유격수가 잡아요. 1루수까지 공을 쫓으면 송구를 받을 사람이 없어서, 공이 빠지는 사이 타자가 2루까지 갔어요.',
+      },
+      {
+        label: '제자리',
+        moveTo: P(23, 28),
+        grade: 'bad',
+        headline: '1루가 비었어요',
+        result: '무사 2루',
+        feedback: '1루에 아무도 없어서 유격수 송구가 빠졌고, 타자가 2루까지 갔어요.',
+      },
+    ],
+    explanation:
+      '내야 땅볼은 대부분 1루에서 아웃을 잡아요. 그래서 공이 다른 내야수 쪽으로 가면 1루수는 곧바로 1루 베이스로 달려가 발을 베이스에 대고 송구를 기다려야 해요. ' +
+      '너무 당연해 보이지만, 공을 구경하느라 늦게 출발하는 실수가 가장 흔해요.',
+  },
+  {
+    id: '1b-2out',
+    kind: 'throw',
+    title: '2사 1루, 1루 베이스 근처 땅볼',
+    position: '1B',
+    situation: { outs: 2, runners: ON_FIRST, batter: 'R' },
+    brief: '2아웃, 주자 1루. 투구 후 1루수는 베이스에서 떨어져 수비 위치로 나왔어요. 1루 베이스 근처로 땅볼이 와요.',
+    fielders: { '1B': P(21, 25), ...DP },
+    batted: { type: 'grounder', catchPoint: P(19.8, 22), travelTime: 1.3 },
+    covers: { first: 'P', second: 'SS', third: '3B', home: 'C' },
+    selfBases: ['first'],
+    explanation:
+      '2아웃이면 아웃 하나로 이닝이 끝나요. 바로 옆 1루를 직접 밟는 게 가장 빠르고 확실해요. ' +
+      '2루로 던져도 아웃은 되지만, 멀리 던질수록 실책 위험이 커지고 2루로 뛰는 1루 주자가 송구 길목에 있어요.',
+  },
+
   // ---------------- 2루수 ----------------
   {
     id: '2b-dp',
@@ -284,6 +342,65 @@ export const SCENARIOS: Scenario[] = [
     explanation:
       '외야로 빠진 장타는 외야수가 혼자 내야까지 던지기엔 멀어요. 그래서 내야수가 중간까지 나가 공을 이어주는데, 이걸 중계(릴레이)라고 해요. ' +
       '우중간과 우익선상은 2루수, 좌중간과 좌익선상은 유격수가 중계를 나가고, 나머지 한 명은 2루를 커버해요.',
+  },
+
+  {
+    id: '2b-bunt-cover',
+    kind: 'choice',
+    setup: 'cover',
+    title: '무사 1루, 번트 수비',
+    position: '2B',
+    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
+    brief: '무사, 주자 1루. 번트가 예상돼서 2루수는 평소보다 앞으로 나와 있어요. 투수가 공을 던지는 순간 타자가 번트 자세를 잡아요.',
+    fielders: { ...HOLD_1B, '2B': P(12, 30) },
+    fielderMoves: { SS: P(-0.6, 38.3), '3B': P(-12, 12) },
+    play: { fielder: '1B', catchPoint: P(6, 9.5), travelTime: 1.8, base: 'first', batted: 'bunt' },
+    prompt: '번트다! 어디로?',
+    options: [
+      {
+        label: '1루 커버',
+        moveTo: P(19.0, 19.6),
+        grade: 'best',
+        takes: true,
+        headline: '1루 아웃',
+        result: '1아웃 2루',
+        feedback: '1루수가 번트를 잡으러 나간 사이 2루수가 1루를 커버해서 송구를 받았어요.',
+      },
+      {
+        label: '2루 커버',
+        moveTo: P(0.6, 38.4),
+        grade: 'bad',
+        headline: '1루가 비었어요',
+        result: '무사 2, 3루',
+        feedback: '2루 커버는 유격수 몫이에요. 1루수가 앞으로 나와 있어서 1루가 비었고, 송구가 빠졌어요.',
+      },
+      {
+        label: '앞으로 대시',
+        moveTo: P(10, 15),
+        grade: 'bad',
+        headline: '1루가 비었어요',
+        result: '무사 2, 3루',
+        feedback: '번트는 1루수, 3루수, 투수가 처리해요. 2루수까지 앞으로 오면 1루를 커버할 사람이 없어요.',
+      },
+    ],
+    explanation:
+      '번트 수비는 정해진 순서대로 움직이는 게 전부예요. 1루수와 3루수가 앞으로 대시하고, 2루수는 1루, 유격수는 2루를 커버해요. ' +
+      '2루수가 1루 커버를 늦게 들어가면 번트를 잘 잡아도 던질 곳이 없어요. 타자가 번트 자세를 잡는 순간 바로 1루로 출발하세요.',
+  },
+  {
+    id: '2b-self',
+    kind: 'throw',
+    title: '1사 1루, 2루 베이스 근처 땅볼',
+    position: '2B',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '1아웃, 주자 1루. 병살 대형이에요. 2루 베이스 바로 옆으로 땅볼이 와요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'grounder', catchPoint: P(2.8, 36.5), travelTime: 1.45 },
+    covers: { first: '1B', second: 'SS', third: '3B', home: 'C' },
+    selfBases: ['second'],
+    explanation:
+      '2루 베이스 바로 옆에서 공을 잡았다면 유격수에게 토스할 필요 없이 직접 밟는 게 가장 빨라요. 밟고 나서 1루로 던지면 혼자서 병살을 완성해요. ' +
+      '1루 주자가 슬라이딩해 들어오니, 밟고 나서 바로 몸을 빼며 던지는 게 요령이에요.',
   },
 
   // ---------------- 유격수 ----------------
@@ -418,6 +535,63 @@ export const SCENARIOS: Scenario[] = [
       '좌중간과 좌익선상은 유격수, 우중간과 우익선상은 2루수가 중계를 나가고, 나머지 한 명은 2루를 커버해요.',
   },
 
+  {
+    id: 'ss-cover',
+    kind: 'choice',
+    setup: 'cover',
+    title: '1사 1루, 2루수 땅볼',
+    position: 'SS',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '1아웃, 주자 1루. 병살 대형이에요. 타구가 어디로 가는지 보고 바로 움직여야 해요.',
+    fielders: { ...DP, ...HOLD_1B },
+    play: { fielder: '2B', catchPoint: P(8.5, 31.5), travelTime: 1.45, base: 'second', batted: 'grounder' },
+    prompt: '2루수 쪽 땅볼! 어디로?',
+    options: [
+      {
+        label: '2루 커버',
+        moveTo: P(-0.6, 38.4),
+        grade: 'best',
+        takes: true,
+        headline: '2루 포스아웃',
+        result: '2아웃 1루',
+        feedback: '2루수 송구를 2루에서 받아 앞 주자를 잡았어요. 바로 1루로 이어 던지면 병살(4-6-3)까지 노릴 수 있어요.',
+      },
+      {
+        label: '2루 뒤 백업',
+        moveTo: P(-3, 44),
+        grade: 'bad',
+        headline: '2루가 비었어요',
+        result: '1아웃 1, 3루',
+        feedback: '2루수가 공을 잡았으니 2루에 들어갈 사람은 유격수뿐이에요. 송구를 받을 사람이 없어서 공이 빠졌어요.',
+      },
+      {
+        label: '제자리',
+        moveTo: P(-9, 34),
+        grade: 'bad',
+        headline: '2루가 비었어요',
+        result: '1아웃 1, 3루',
+        feedback: '2루에 아무도 없어서 2루수 송구가 빠졌고, 1루 주자는 3루까지 갔어요.',
+      },
+    ],
+    explanation:
+      '2루수 쪽 땅볼이면 유격수가 2루 커버를 들어가 병살의 중간 연결을 맡아요(4-6-3). 반대로 유격수 쪽 땅볼이면 2루수가 들어가요. ' +
+      '"공을 잡지 않은 쪽이 2루로 간다"고 기억하면 쉬워요. 커버가 늦으면 병살은커녕 앞 주자도 못 잡아요.',
+  },
+  {
+    id: 'ss-hole',
+    kind: 'throw',
+    title: '무사 1, 2루, 유격수 깊은 땅볼',
+    position: 'SS',
+    situation: { outs: 0, runners: { first: true, second: true, third: false }, batter: 'R' },
+    brief: '무사, 주자 1, 2루. 병살 대형이에요. 3루 쪽으로 깊은 땅볼이 와요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'grounder', catchPoint: P(-15, 28), travelTime: 1.5 },
+    covers: { first: '1B', second: '2B', third: '3B', home: 'C' },
+    explanation:
+      '1, 2루라 3루도 포스 상황이에요. 3루 쪽 깊은 타구라 3루가 가장 가까워요. 3루에서 앞 주자를 잡으면 득점권에서 가장 위험한 주자를 지울 수 있고, 3루수가 1루로 이어 던지면 병살까지 돼요. ' +
+      '2루를 거치는 병살도 가능하지만, 그러면 3루에 주자가 남아요.',
+  },
+
   // ---------------- 3루수 ----------------
   {
     id: '3b-bunt-charge',
@@ -501,6 +675,7 @@ export const SCENARIOS: Scenario[] = [
     fielders: INFIELD_IN,
     batted: { type: 'grounder', catchPoint: P(-14, 15.5), travelTime: 0.9 },
     covers: { first: '1B', second: '2B', home: 'C' },
+    selfBases: ['third'],
     runnerActs: { third: 'advance' },
     explanation:
       '전진 수비는 3루 주자의 득점을 막으려고 앞으로 나와 있는 거예요. 땅볼이 오면 홈으로! 3루 주자는 밀려 뛰는 게 아니라서 포수가 태그해야 하지만, 거리가 짧아 충분히 잡을 수 있어요. ' +
@@ -519,6 +694,35 @@ export const SCENARIOS: Scenario[] = [
     explanation:
       '만루에서는 모든 주자가 밀려서 뛰기 때문에 어느 베이스든 밟기만 하면 아웃(포스아웃)이에요. 2아웃이니 아웃 하나면 이닝이 끝나요. ' +
       '그렇다면 가장 가깝고 확실한 곳, 바로 옆의 3루를 직접 밟는 게 정답이에요. 멀리 던질수록 송구 실책이 날 위험이 커져요.',
+  },
+  {
+    id: '3b-dp',
+    kind: 'throw',
+    title: '1사 1루, 3루수 땅볼',
+    position: '3B',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '1아웃, 주자 1루. 병살 대형이에요. 3루수 정면으로 땅볼이 와요. 2루수가 2루 커버를 들어가요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'grounder', catchPoint: P(-20, 25.5), travelTime: 1.25 },
+    covers: { first: '1B', second: '2B', home: 'C' },
+    selfBases: ['third'],
+    explanation:
+      '3루수 땅볼에 1루 주자가 있으면 2루로 던져 앞 주자를 잡고, 2루수가 1루로 이어 던지는 병살(5-4-3)이 정석이에요. ' +
+      '3루수 자리에서 1루는 내야에서 가장 먼 송구라, 1루로 바로 던지는 것보다 2루를 거치는 게 아웃도 더 많이 잡고 덜 위험해요. 3루에는 뛰어오는 주자가 없어요.',
+  },
+  {
+    id: '3b-slow',
+    kind: 'throw',
+    title: '주자 없음, 느린 땅볼',
+    position: '3B',
+    situation: { outs: 0, runners: NO_RUNNERS, batter: 'R' },
+    brief: '무사, 주자 없음. 빗맞은 타구가 3루 쪽으로 느리게 굴러와요. 3루수는 앞으로 뛰어나가 잡아요.',
+    batted: { type: 'roller', catchPoint: P(-13, 14), travelTime: 2.1 },
+    covers: { first: '1B', second: '2B', home: 'C' },
+    selfBases: ['third'],
+    explanation:
+      '느린 땅볼은 앞으로 뛰어나와 잡자마자 1루로 던져야 해요. 공이 느린 만큼 타자 주자는 이미 1루 가까이 와 있어서, 잠깐만 망설여도 세이프가 돼요. ' +
+      '다른 베이스에는 주자가 없으니 고민할 것도 없이 1루예요. 이 상황은 판단보다 속도를 연습하는 상황이에요.',
   },
 ];
 

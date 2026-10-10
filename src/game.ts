@@ -13,7 +13,7 @@ import {
   poseThrow,
   type Mannequin,
 } from './players';
-import { addResult, getDifficulty, setDifficulty } from './progress';
+import { addResult, getDifficulty, getRecord, setDifficulty } from './progress';
 import {
   THROW_CHOICES,
   evaluate,
@@ -21,7 +21,9 @@ import {
   isCarry,
   type Choice,
   type FielderId,
+  FIELDER_NAME,
   type Outcome,
+  type PositionId,
   type RunnerId,
   type Scenario,
 } from './scenario';
@@ -68,6 +70,7 @@ export class Game {
   private shownCalls = new Set<number>();
   private calls: THREE.Sprite[] = [];
   private defs: DecisionDef[] = [];
+  private randomPool: Scenario[] | null = null; // 랜덤 연습 중이면 고를 상황들
 
   private fielders = new Map<FielderId, Mannequin>();
   private runnerModels = new Map<RunnerId, Mannequin>();
@@ -202,7 +205,14 @@ export class Game {
     });
 
     this.ui.onChoose = (v) => this.phase === 'decision' && this.choose(v);
-    this.ui.onPickScenario = (id) => this.openBriefing(SCENARIOS.find((s) => s.id === id)!);
+    this.ui.onPickScenario = (id) => {
+      this.setRandom(null);
+      this.openBriefing(SCENARIOS.find((s) => s.id === id)!);
+    };
+    this.ui.onRandom = (scope) => {
+      this.setRandom(scope);
+      this.openBriefing(this.pickRandom());
+    };
     this.ui.onDifficulty = (d) => {
       this.difficulty = d;
       setDifficulty(d);
@@ -320,8 +330,30 @@ export class Game {
   }
 
   private next() {
+    if (this.randomPool) {
+      this.openBriefing(this.pickRandom());
+      return;
+    }
     const i = SCENARIOS.indexOf(this.scn);
     this.openBriefing(SCENARIOS[(i + 1) % SCENARIOS.length]);
+  }
+
+  private setRandom(scope: PositionId | 'all' | null) {
+    this.randomPool = scope === null ? null : SCENARIOS.filter((s) => scope === 'all' || s.position === scope);
+    this.ui.randomLabel = scope === null ? null : scope === 'all' ? '전체 랜덤' : `${FIELDER_NAME[scope]} 랜덤`;
+  }
+
+  // 방금 한 상황은 빼고, 아직 최선의 판단을 못 한 상황이 두 배 더 잘 나오게 고른다
+  private pickRandom(): Scenario {
+    const pool = this.randomPool!;
+    const cands = pool.length > 1 ? pool.filter((s) => s !== this.scn) : pool;
+    const weights = cands.map((s) => (getRecord(s.id)?.best === 'best' ? 1 : 2));
+    let r = Math.random() * weights.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < cands.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return cands[i];
+    }
+    return cands[cands.length - 1];
   }
 
   private choose(value: Choice | number, timedOut = false) {

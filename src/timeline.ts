@@ -153,6 +153,7 @@ export function buildThrowTimeline(scn: ThrowScenario, pitchFlight: number, outc
   const ball: BallSeg[] = [{ from: releasePoint(), to: CONTACT_POINT, t0: tRelease, t1: 0, arc: 0.15 }];
   if (type === 'grounder') ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(0.35), t0: 0, t1: travelTime, arc: 1.1, bounces: 3 });
   else if (type === 'bunt') ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(0.15), t0: 0, t1: travelTime, arc: 0.25, bounces: 4 });
+  else if (type === 'roller') ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(0.15), t0: 0, t1: travelTime, arc: 0.35, bounces: 6 });
   else ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(1.3), t0: 0, t1: travelTime, arc: 0.4 });
 
   const runners = new Map<RunnerId, Path>();
@@ -471,6 +472,75 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
         tl.ball.push({ from, to: firstTo, t0: throwT0, t1, arc: 0.8, thrower: 'P' });
         tl.calls.push({ t: pathEnd(batterPath), pos: BASES.first, text: '세이프', good: false });
         tl.end = t1 + 1.5;
+      }
+      break;
+    }
+
+    case 'cover': {
+      const c = scn.play!;
+      const bunt = c.batted === 'bunt';
+      tl.batter = bunt ? 'bunt' : 'swing';
+      tl.ball.push({ from: releasePoint(), to: CONTACT_POINT, t0: tRelease, t1: 0, arc: 0.15 });
+      tl.ball.push({
+        from: CONTACT_POINT,
+        to: c.catchPoint.clone().setY(bunt ? 0.15 : 0.35),
+        t0: 0,
+        t1: c.travelTime,
+        arc: bunt ? 0.25 : 1.1,
+        bounces: bunt ? 4 : 3,
+      });
+      // 공을 잡는 수비수는 타구 도착에 맞춰 그 자리로 간다
+      const fStart = fielders[c.fielder];
+      const fT0 = bunt ? tRelease : 0;
+      tl.fielders[c.fielder] = {
+        waypoints: [fStart.clone(), c.catchPoint.clone()],
+        startTime: fT0,
+        speed: Math.max(0.1, fStart.distanceTo(c.catchPoint) / (c.travelTime - fT0)),
+      };
+      fielderMovesFrom(bunt ? tRelease : 0.2);
+      // 번트는 타자가 번트 자세를 잡는 투구 순간, 땅볼은 타구 방향이 보이는 순간에 판단한다
+      decide(bunt ? tRelease + 0.05 : 0.25, 1.5);
+      const box = batterBox(scn);
+      const batterPath: Path = {
+        waypoints: [box, BASES.first.clone()],
+        startTime: bunt ? RUN.buntBatterStartDelay : RUN.batterStartDelay,
+        speed: RUN.speed,
+      };
+      tl.runners.set('batter', batterPath);
+      let r1Path: Path | undefined;
+      if (scn.situation.runners.first) {
+        r1Path = {
+          waypoints: [lead1(), BASES.second.clone()],
+          startTime: bunt ? RUN.buntRunnerStartDelay : RUN.runnerStartDelay,
+          speed: RUN.speed,
+        };
+        tl.runners.set('r1', r1Path);
+      }
+      const target = c.base === 'first' ? batterPath : r1Path!;
+      const from = c.catchPoint.clone().setY(GLOVE);
+      const to = bagSpot(c.base).setY(GLOVE);
+      const dist = from.distanceTo(to);
+      const toss = dist <= THROW.tossMaxDistance;
+      const throwT0 = c.travelTime + 0.5;
+      const t1 = throwT0 + dist / (toss ? THROW.tossSpeed : THROW.speed);
+      deadline = t1;
+      arrival = movePlayer();
+      late = !!opt?.takes && arrival > deadline;
+      if (!input) break;
+      // 커버가 있든 없든 공은 베이스로 던진다
+      tl.ball.push({ from, to, t0: throwT0, t1, arc: toss ? 0.6 : 0.8, thrower: c.fielder });
+      const runnerArrive = pathEnd(target);
+      if (opt?.takes && !late) {
+        const out = t1 < runnerArrive;
+        if (out) target.stopAt = t1;
+        tl.calls.push({ t: out ? t1 : runnerArrive, pos: BASES[c.base], text: out ? '아웃!' : '세이프', good: out });
+        tl.end = Math.max(t1, runnerArrive) + 1.5;
+      } else {
+        const past = to.clone().add(to.clone().sub(from).setY(0).normalize().multiplyScalar(14)).setY(0.1);
+        tl.ball.push({ from: to, to: past, t0: t1, t1: t1 + 1.3, arc: 0.5, bounces: 3 });
+        target.waypoints.push(BASES[c.base === 'first' ? 'second' : 'third'].clone());
+        tl.calls.push({ t: t1 + 0.1, pos: BASES[c.base], text: '빠졌다!', good: false });
+        tl.end = t1 + 3;
       }
       break;
     }
