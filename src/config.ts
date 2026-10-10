@@ -57,7 +57,7 @@ export const VALUE = {
 
 // 결정 순간의 슬로모션 배율. 1이면 실제 속도.
 export const DIFFICULTIES = [
-  { id: 'easy', label: '입문', timeScale: 0.2, desc: '아주 느리게. 상황을 천천히 보면서 판단' },
+  { id: 'easy', label: '입문', timeScale: 0.1, desc: '아주 느리게. 상황을 천천히 보면서 판단' },
   { id: 'normal', label: '보통', timeScale: 0.35, desc: '느리게. 빠른 판단 연습의 시작' },
   { id: 'real', label: '실전', timeScale: 1, desc: '실제 속도. 대회와 같은 시간 압박' },
 ] as const;
