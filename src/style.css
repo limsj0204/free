@@ -30,6 +30,7 @@ body {
 #view {
   position: fixed;
   inset: 0;
+  touch-action: none; /* 휴대폰에서 끌어도 페이지가 스크롤·확대되지 않게 (마우스에는 영향 없음) */
   display: block;
   width: 100%;
   height: 100%;
@@ -1097,4 +1098,36 @@ button:focus-visible {
 
 .channel.youtube {
   background: #e62117;
+}
+
+/* 휴대폰(터치): 결정 패널의 빈 곳을 눌러도 그 뒤의 베이스를 고를 수 있게 패널은 버튼만 터치를 받는다 */
+@media (pointer: coarse) {
+  .decision {
+    pointer-events: none;
+  }
+
+  .decision button {
+    pointer-events: auto;
+  }
+}
+
+/* 세로 길이가 짧은 화면(가로로 든 휴대폰): 결정 패널을 작게, 아래로 */
+@media (max-height: 500px) {
+  .decision {
+    bottom: 6px;
+    padding: 8px 10px 10px;
+  }
+
+  .decision-title {
+    font-size: 15px;
+  }
+
+  .decision-buttons button {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .help {
+    display: none;
+  }
 }

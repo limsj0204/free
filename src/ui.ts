@@ -428,7 +428,8 @@ export class UI {
       el.className = 'tag hidden';
       // 액션 모드(버튼 없음)에서는 표시를 눌러 고르지 않고 조준해서 던진다
       if (!buttons) el.style.pointerEvents = 'none';
-      el.addEventListener('mousedown', (e) => {
+      // pointerdown은 마우스 클릭과 휴대폰 터치 모두에서 바로 온다
+      el.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         this.onChoose(d.value);
       });

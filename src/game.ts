@@ -57,6 +57,8 @@ type Phase = 'menu' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 're
 
 const EYE_HEIGHT = 1.62;
 const PICK_ANGLE = 0.3; // 시선으로 고를 때 허용 각도 (rad)
+const TOUCH_LOOK = 1.8; // 휴대폰: 화면을 끄는 거리 대비 시점 회전 (마우스 감도의 배수)
+const TAP_RADIUS = 70; // 휴대폰: 베이스를 이 거리(px) 안에서 누르면 그곳을 고른다
 const REPLAY_SPEED = 0.6;
 const FOLLOW_WINDOW = 1.5; // 직접 밟은 뒤 이어 던질 곳을 고르는 시간 (게임 시간)
 // 판단 키: 왼손 기본 줄(A S D)과 엄지(Space). 시간 안에 못 고르면 던지지 않은 것(hold)으로 처리한다.
@@ -248,6 +250,44 @@ export class Game {
     });
     document.addEventListener('mouseup', () => (this.dragging = false));
 
+    // 휴대폰: 한 손가락으로 끌면 시점 회전, 짧게 누르면 그 근처 베이스(선택지)를 고른다. 마우스 조작과는 따로 동작한다.
+    let touch: { id: number; x: number; y: number; sx: number; sy: number; t0: number; moved: boolean } | null = null;
+    this.canvas.addEventListener(
+      'touchstart',
+      (e) => {
+        const t = e.changedTouches[0];
+        touch = { id: t.identifier, x: t.clientX, y: t.clientY, sx: t.clientX, sy: t.clientY, t0: performance.now(), moved: false };
+        e.preventDefault();
+      },
+      { passive: false },
+    );
+    this.canvas.addEventListener(
+      'touchmove',
+      (e) => {
+        const t = [...e.changedTouches].find((x) => x.identifier === touch?.id);
+        if (!touch || !t) return;
+        if (this.playing || this.phase === 'replay' || this.phase === 'result') look((t.clientX - touch.x) * TOUCH_LOOK, (t.clientY - touch.y) * TOUCH_LOOK);
+        touch.x = t.clientX;
+        touch.y = t.clientY;
+        if (Math.hypot(t.clientX - touch.sx, t.clientY - touch.sy) > 10) touch.moved = true;
+        e.preventDefault();
+      },
+      { passive: false },
+    );
+    this.canvas.addEventListener(
+      'touchend',
+      (e) => {
+        const t = [...e.changedTouches].find((x) => x.identifier === touch?.id);
+        if (touch && t && !touch.moved && performance.now() - touch.t0 < 400) {
+          if (this.phase === 'replay') this.endReplay();
+          else this.tapAt(t.clientX, t.clientY);
+        }
+        touch = null;
+        e.preventDefault();
+      },
+      { passive: false },
+    );
+
     document.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
     document.addEventListener('keydown', (e) => {
@@ -348,6 +388,25 @@ export class Game {
 
   private unlockPointer() {
     if (document.pointerLockElement) document.exitPointerLock();
+  }
+
+  // 휴대폰: 누른 곳에서 가장 가까운 선택지(베이스·갈 곳)를 고른다
+  private tapAt(x: number, y: number) {
+    if (this.mode === 'action' || !this.canChoose) return;
+    const v = new THREE.Vector3();
+    let best: DecisionDef | null = null;
+    let bestDist = TAP_RADIUS;
+    for (const d of this.defs) {
+      if (!d.pos) continue;
+      v.copy(d.pos).setY(0.3).project(this.camera);
+      if (v.z > 1) continue;
+      const dist = Math.hypot(((v.x + 1) / 2) * window.innerWidth - x, ((1 - v.y) / 2) * window.innerHeight - y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = d;
+      }
+    }
+    if (best) this.input(best.value);
   }
 
   private pickByGaze() {
