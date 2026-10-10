@@ -57,7 +57,7 @@ type Phase = 'menu' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 're
 
 const EYE_HEIGHT = 1.62;
 const PICK_ANGLE = 0.3; // 시선으로 고를 때 허용 각도 (rad)
-const TOUCH_LOOK = 1.8; // 휴대폰: 화면을 끄는 거리 대비 시점 회전 (마우스 감도의 배수)
+const TOUCH_LOOK = 2.7; // 휴대폰: 화면을 끄는 거리 대비 시점 회전 (마우스 감도의 배수)
 const TAP_RADIUS = 70; // 휴대폰: 베이스를 이 거리(px) 안에서 누르면 그곳을 고른다
 const REPLAY_SPEED = 0.6;
 const FOLLOW_WINDOW = 1.5; // 직접 밟은 뒤 이어 던질 곳을 고르는 시간 (게임 시간)
