@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RUN, THROW, VALUE } from './config';
-import { BASES, BASE_LABEL, P, type BaseId } from './coords';
+import { BASES, BASE_LABEL, P, bagSpot, type BaseId } from './coords';
+import { fieldersOf } from './scenarios';
 
 export type FielderId = 'P' | 'C' | '1B' | '2B' | 'SS' | '3B' | 'LF' | 'CF' | 'RF';
 export type PositionId = '1B' | '2B' | 'SS' | '3B';
@@ -55,6 +56,7 @@ export interface ThrowScenario extends ScenarioBase {
   selfBases?: BaseId[]; // 던지지 않고 직접 밟으러 가는 베이스
   runnerActs?: Partial<Record<Base3, 'advance' | 'hold'>>; // 안 밀리는 주자가 뛸지 (땅볼일 때)
   hitAndRun?: boolean; // 투구 때 주자가 미리 스타트했는지
+  runnerJump?: boolean; // 번트: 밀려 뛰는 주자의 스타트가 빠르다
   generated?: boolean; // 상황 생성기로 만든 상황 (랜덤 연습에만 나온다)
 }
 
@@ -164,7 +166,7 @@ export function planRunners(scn: ThrowScenario): RunnerPlan[] {
     if (advance) {
       const start = forced
         ? bunt
-          ? RUN.buntRunnerStartDelay
+          ? RUN.buntRunnerStartDelay - (scn.runnerJump ? RUN.buntJump : 0)
           : RUN.runnerStartDelay
         : s.outs === 2
           ? RUN.runnerStartDelay
@@ -198,6 +200,7 @@ const BASE_NUM: Record<BaseId, string> = { home: '홈', first: '1루', second: '
 // 공을 잡는 순간 동료가 외쳐주는 콜. 안 밀리는 주자가 뛰는지 멈췄는지 알려준다.
 export function runnerCalls(scn: ThrowScenario): string[] {
   const calls: string[] = [];
+  if (scn.runnerJump) calls.push('주자 스타트 빨라요!');
   for (const r of planRunners(scn)) {
     if (r.id === 'batter' || r.kind === 'force' || r.kind === 'return') continue;
     if (r.kind === 'advance') calls.push(`${BASE_NUM[r.origin]} 주자 ${r.target === 'home' ? '홈으로' : `${BASE_NUM[r.target]}로`} 뛴다!`);
@@ -214,6 +217,7 @@ export interface BallSegment {
   arc: number;
   thrower?: FielderId;
   carry?: boolean; // 공을 들고 직접 밟으러 감
+  waited?: number; // 커버가 들어올 때까지 기다렸다 던진 시간
 }
 
 export interface PlayEvent {
@@ -253,6 +257,28 @@ function flight(from: THREE.Vector3, to: THREE.Vector3) {
 
 export function isCarry(scn: ThrowScenario, base: BaseId) {
   return scn.selfBases?.includes(base) ?? false;
+}
+
+// 커버 들어가는 수비수의 경로. 판정과 화면이 같은 경로를 쓴다.
+// 플레이 시작 때 따로 움직이는 곳(fielderMoves)이 있으면 거기를 거쳐 베이스로 간다.
+export function coverPath(scn: ThrowScenario, base: BaseId): { id: FielderId; waypoints: THREE.Vector3[]; startTime: number } | null {
+  const id = scn.covers[base];
+  if (!id || id === scn.position) return null;
+  const bag = bagSpot(base);
+  const waypoints = [fieldersOf(scn)[id].clone()];
+  const via = scn.fielderMoves?.[id];
+  if (via && via.distanceTo(bag) > 0.5) waypoints.push(via.clone());
+  waypoints.push(bag);
+  return { id, waypoints, startTime: scn.batted.type === 'bunt' ? RUN.buntCoverStart : RUN.coverStart };
+}
+
+// 커버가 베이스에 도착하는 시간. 받을 사람이 없거나 내가 받는 곳이면 -Infinity.
+export function coverArrival(scn: ThrowScenario, base: BaseId): number {
+  const path = coverPath(scn, base);
+  if (!path) return -Infinity;
+  let dist = 0;
+  for (let i = 1; i < path.waypoints.length; i++) dist += path.waypoints[i - 1].distanceTo(path.waypoints[i]);
+  return path.startTime + dist / RUN.fielderSpeed;
 }
 
 // 결정까지 걸린 시간(게임 시간)이 d일 때 선택지별 결과를 계산한다.
@@ -326,10 +352,12 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
       } else {
         const from = exec?.releasePos ? exec.releasePos.clone().setY(GLOVE) : catchPos;
         const f = flight(from, at(choice));
-        const t0 = exec?.releaseT ?? catchT + d + THROW.transferTime;
+        const ready = exec?.releaseT ?? catchT + d + THROW.transferTime;
+        // 커버가 아직 안 들어왔으면 들어올 때까지 기다렸다 던진다
+        const t0 = Math.max(ready, coverArrival(scn, choice) - f.time);
         arrive = t0 + f.time;
         thrown += f.dist;
-        segments.push({ from, to: at(choice), t0, t1: arrive, arc: f.arc, thrower: scn.position });
+        segments.push({ from, to: at(choice), t0, t1: arrive, arc: f.arc, thrower: scn.position, waited: t0 > ready + 0.01 ? t0 - ready : undefined });
       }
       const out = playAt(choice, arrive);
 
@@ -340,9 +368,10 @@ export function evaluate(scn: ThrowScenario, choice: Choice, d: number, timedOut
       const forceOut = out && !events[events.length - 1].tag;
       if (forceOut && choice !== 'first' && batter && outsNow < 3 && scn.covers.first && relayer) {
         const f = flight(at(choice), at('first'));
-        const t0 = arrive + THROW.pivotTime;
+        const ready = arrive + THROW.pivotTime;
+        const t0 = Math.max(ready, coverArrival(scn, 'first') - f.time);
         thrown += f.dist;
-        segments.push({ from: at(choice), to: at('first'), t0, t1: t0 + f.time, arc: f.arc, thrower: relayer });
+        segments.push({ from: at(choice), to: at('first'), t0, t1: t0 + f.time, arc: f.arc, thrower: relayer, waited: t0 > ready + 0.01 ? t0 - ready : undefined });
         playAt('first', t0 + f.time);
       }
     }
@@ -463,11 +492,43 @@ export function altExec(exec?: ThrowExec): ThrowExec | undefined {
 }
 
 // 상황의 정답: 공을 잡자마자 결정했을 때의 최선. 판단 속도와 상관없이 상황마다 고정이다.
-export function throwAnswers(scn: ThrowScenario): { answers: Choice[]; ideal: Outcome } {
-  const all = THROW_CHOICES.map((c) => evaluate(scn, c, 0));
-  const ideal = all.reduce((a, b) => (b.value > a.value ? b : a));
-  const answers = all.filter((o) => o.outsMade > 0 && o.value >= ideal.value - VALUE.bestTolerance).map((o) => o.choice);
-  return { answers, ideal };
+// 공이 주자보다 몇 초 먼저 도착하는지 (음수면 늦음). 고른 베이스의 첫 플레이 기준.
+export function playMargin(o: Outcome): number | null {
+  const e = o.events[0];
+  if (!e) return null;
+  return e.runnerTime - e.ballTime - (e.tag ? THROW.tagTime : 0);
+}
+
+export interface CloseCall {
+  lead: Outcome; // 점수로는 최선이지만 아슬아슬한 플레이
+  safe: Outcome; // 여유 있게 잡는 쪽
+  margin: number; // lead의 여유 (초)
+}
+
+export interface ThrowAnswers {
+  answers: Choice[];
+  ideal: Outcome;
+  immediate: Outcome[]; // 잡자마자 결정했을 때 선택지별 결과
+  close?: CloseCall;
+}
+
+export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
+  const immediate = THROW_CHOICES.map((c) => evaluate(scn, c, 0));
+  const best = (xs: Outcome[]) => xs.reduce((a, b) => (b.value > a.value ? b : a));
+  const ideal = best(immediate);
+  const answers = immediate.filter((o) => o.outsMade > 0 && o.value >= ideal.value - VALUE.bestTolerance).map((o) => o.choice);
+  // 최선이 잡자마자 던져도 아슬아슬하면, 여유 있게 아웃을 잡는 쪽도 정답으로 인정한다
+  let close: CloseCall | undefined;
+  const margin = playMargin(ideal);
+  if (ideal.outsMade > 0 && margin !== null && margin < VALUE.closeMargin) {
+    const safeOnes = immediate.filter((o) => o.outsMade > 0 && (playMargin(o) ?? -1) >= VALUE.closeMargin);
+    if (safeOnes.length) {
+      const safe = best(safeOnes);
+      for (const o of safeOnes) if (o.value >= safe.value - VALUE.bestTolerance && !answers.includes(o.choice)) answers.push(o.choice);
+      close = { lead: ideal, safe, margin };
+    }
+  }
+  return { answers, ideal, immediate, close };
 }
 
 // ideal: 정답을 제때 고름 / late: 정답이지만 늦어서 아웃이 줄었음
@@ -480,16 +541,18 @@ export interface ThrowGrade {
   answers: Choice[];
   ideal: Outcome; // 정답을 바로 골랐을 때의 결과
   bestNow: Outcome; // 내 판단 시간 기준으로 가장 나은 결과
+  immediate: Outcome[];
+  close?: CloseCall;
 }
 
 export function gradeThrow(scn: ThrowScenario, outcome: Outcome, exec?: ThrowExec, missed = false): ThrowGrade {
-  const { answers, ideal } = throwAnswers(scn);
-  if (missed) return { grade: 'bad', verdict: 'miss', answers, ideal, bestNow: ideal };
+  const { answers, ideal, immediate, close } = throwAnswers(scn);
+  if (missed) return { grade: 'bad', verdict: 'miss', answers, ideal, bestNow: ideal, immediate, close };
   // 내 판단 시간 기준 최선: 액션 모드면 실제로 잡은 위치와 던진 시점에서 다른 곳으로 던졌다고 친다
   const alt = altExec(exec);
   const bestNow = THROW_CHOICES.map((c) => evaluate(scn, c, outcome.decisionDelay, false, alt)).reduce((a, b) => (b.value > a.value ? b : a));
   const gotOut = outcome.outsMade > 0;
-  const base = { answers, ideal, bestNow };
+  const base = { answers, ideal, bestNow, immediate, close };
   if (outcome.timedOut) return { ...base, grade: 'bad', verdict: 'timeout' };
   if (answers.includes(outcome.choice)) {
     const planned = evaluate(scn, outcome.choice, 0).outsMade;

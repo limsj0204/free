@@ -37,3 +37,10 @@ export function fencePoint(angle: number, extra = 0): THREE.Vector3 {
   const r = fenceDistance(angle) + extra;
   return P(Math.sin(angle) * r, Math.cos(angle) * r);
 }
+
+// 베이스 바로 안쪽 (내야 중심 방향으로 0.5m). 커버 들어간 수비수가 서는 곳.
+export function bagSpot(base: BaseId) {
+  const center = P(0, 19.4);
+  const b = BASES[base];
+  return b.clone().add(center.clone().sub(b).setY(0).normalize().multiplyScalar(0.5));
+}

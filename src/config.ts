@@ -29,6 +29,9 @@ export const RUN = {
   leadOff: 3.0, // 주자 리드 거리
   hitAndRunExtra: 4.0, // 히트 앤드 런으로 투구 때 미리 뛰어나간 거리
   reaction: 0.15, // 위치 판단 후 첫발을 떼기까지
+  coverStart: 0.2, // 타격 후 커버 들어가는 수비수가 움직이기 시작하기까지
+  buntCoverStart: -0.5, // 번트 수비는 투구와 함께 움직인다 (타격 0.5초 전)
+  buntJump: 0.5, // 스타트가 빠른 주자는 번트 때 이만큼 일찍 뛴다
 };
 
 export const THROW = {
@@ -50,6 +53,7 @@ export const VALUE = {
   tagPlay: 3, // 태그가 필요한 아웃은 실패 위험이 커서 감점
   perMeterThrown: 0.02, // 송구 거리가 길수록 실책 위험이 커서 감점
   bestTolerance: 0.3, // 최선과 이 정도 차이(송구 거리 약 15m)면 똑같이 최선으로 인정
+  closeMargin: 0.2, // 정답 플레이가 잡자마자 던져도 이 시간 차이보다 아슬아슬하면, 확실한 아웃 쪽도 정답으로 인정
 };
 
 // 결정 순간의 슬로모션 배율. 1이면 실제 속도.

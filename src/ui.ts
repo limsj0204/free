@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { ACTION, DIFFICULTIES, RUN, type DifficultyId } from './config';
-import { BASE_LABEL, P, type BaseId } from './coords';
+import { ACTION, DIFFICULTIES, RUN, VALUE, type DifficultyId } from './config';
+import { BASES, BASE_LABEL, P, type BaseId } from './coords';
 import { josa } from './explain';
 import { generatedFor } from './generated';
 import { getHideBall, getIncludeGenerated, getMode, getRecord, setHideBall, setIncludeGenerated } from './progress';
@@ -10,6 +10,7 @@ import {
   RUNNER_NAME,
   isCarry,
   planRunners,
+  playMargin,
   latestDecision,
   type Choice,
   type ChoiceScenario,
@@ -84,6 +85,12 @@ function throwLabel(scn: ThrowScenario, c: Choice) {
   const tag = isTagBase(scn, c);
   if (isCarry(scn, c)) return `${BASE_LABEL[c]} ${tag ? '주자 직접 태그' : '직접 밟기'}`;
   return `${BASE_LABEL[c]} 송구${tag ? ' (태그 플레이)' : ''}`;
+}
+
+// 공이 주자보다 얼마나 먼저/늦게 도착하는지
+function marginText(m: number) {
+  if (m < 0) return `주자보다 <b>${(-m).toFixed(2)}초</b> 늦음`;
+  return `주자보다 <b>${m.toFixed(2)}초</b> 먼저${m < VALUE.closeMargin ? ' (아슬아슬)' : ''}`;
 }
 
 // 그 베이스로 오는 주자가 포스 상태가 아니라서 태그해야 하는가
@@ -539,6 +546,18 @@ export class UI {
       })
       .join('');
 
+    // 판단 기준: 잡자마자 던졌을 때 베이스마다 공이 주자보다 얼마나 먼저 도착하는지
+    const basis = v.immediate
+      .filter((a) => a.choice !== 'hold' && a.events.length)
+      .map((a) => {
+        const m = playMargin(a)!;
+        return `<div class="alt">
+          <span class="alt-name">${throwLabel(scn, a.choice)}${v.answers.includes(a.choice) ? '<span class="badge">정답</span>' : ''}</span>
+          <span class="alt-res">${marginText(m)} · ${a.resultState}</span>
+        </div>`;
+      })
+      .join('');
+
     // 판단 시간 안내 (실제 경기 속도 기준)
     const ideal = v.ideal;
     const notes: string[] = [];
@@ -554,6 +573,18 @@ export class UI {
     if (ideal.outsMade > 0) {
       const w = latestDecision(scn, ideal.choice, ideal.outsMade);
       if (w !== null) notes.push(`<b>${josa(throwLabel(scn, ideal.choice), '으로', '로')}</b> ${ideal.outsMade + ideal.autoOuts >= 2 ? '병살을' : '아웃을'} 잡으려면 공을 잡고 <b>${sec(w)}</b> 안에 결정해야 해요.`);
+    }
+    if (v.close) {
+      const { lead, safe, margin } = v.close;
+      notes.push(
+        `<b>${josa(throwLabel(scn, lead.choice), '은', '는')}</b> 잡자마자 던져도 여유가 <b>${sec(margin)}</b>뿐이라 아슬아슬해요. 그래서 <b>${throwLabel(scn, safe.choice)}</b>도 정답이에요. ` +
+          `(${throwLabel(scn, lead.choice)}: ${lead.resultState} / ${throwLabel(scn, safe.choice)}: ${safe.resultState})`,
+      );
+    }
+    for (const g of o.segments) {
+      if (!g.waited) continue;
+      const base = (Object.keys(BASES) as BaseId[]).find((b) => BASES[b].distanceTo(g.to.clone().setY(0)) < 1);
+      if (base) notes.push(`${BASE_LABEL[base]} 커버가 늦게 들어와서 <b>${sec(g.waited)}</b> 기다렸다 던졌어요.`);
     }
     const anyOut = Math.max(0, ...(['first', 'second', 'third', 'home'] as Choice[]).map((c) => latestDecision(scn, c, 1) ?? 0));
     if (anyOut > 0) notes.push(`<b>${sec(anyOut)}</b>가 지나면 어디로 던져도 아웃을 잡을 수 없어요.`);
@@ -576,6 +607,7 @@ export class UI {
         <tr><th>베이스</th><th>주자</th><th>공 도착</th><th>주자 도착</th><th>판정</th></tr>
         ${timingRows}
       </table></div>
+      ${basis ? `<h2>판단 기준: 잡자마자 던졌다면</h2>${basis}` : ''}
       <h2>내 판단 시간(${sec(o.decisionDelay)}) 그대로 다른 곳에 던졌다면</h2>
       ${alts}
       <h2>해설</h2>

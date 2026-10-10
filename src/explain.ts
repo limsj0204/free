@@ -5,6 +5,8 @@ import {
   isCarry,
   latestDecision,
   planRunners,
+  playMargin,
+  throwAnswers,
   type Choice,
   type Outcome,
   type ThrowScenario,
@@ -36,6 +38,9 @@ export function josa(word: string, withFinal: string, withoutFinal: string) {
 export function explainThrow(scn: ThrowScenario): string {
   const out: string[] = [];
   const runners = planRunners(scn).filter((r) => r.id !== 'batter');
+  const bunt = scn.batted.type === 'bunt';
+
+  if (bunt) out.push('번트는 공격 팀이 아웃 하나를 내주고 주자를 보내려는 작전이에요. 앞 주자는 확실할 때만 노리고, 애매하면 1루에서 아웃 하나를 챙겨요.');
 
   // 1. 주자 상황
   const forced = runners.filter((r) => r.kind === 'force');
@@ -84,6 +89,21 @@ export function explainThrow(scn: ThrowScenario): string {
         ? '다른 베이스에서도 아웃을 노릴 수는 있지만 태그가 필요해서 위험해요. 확실한 1루 아웃을 챙기세요.'
         : '확실하게 잡을 수 있는 1루로 던지세요.',
     );
+  }
+  const { close, immediate } = throwAnswers(scn);
+  if (close) {
+    out.push(
+      `다만 ${josa(choiceLabel(scn, close.lead.choice), '은', '는')} 잡자마자 던져도 ${close.margin.toFixed(2)}초 차이로 아슬아슬해서, 확실한 ${choiceLabel(scn, close.safe.choice)}도 정답이에요.`,
+    );
+  }
+  if (bunt && best.choice === 'first') {
+    // 앞 주자를 왜 못 잡는지: 잡자마자 던져도 늦거나 아슬아슬하다
+    const lead = immediate.filter((o) => o.choice !== 'first' && o.events.length).map((o) => ({ o, m: playMargin(o)! }));
+    const late = lead.find((x) => x.m < 0);
+    if (late) out.push(`${josa(NUM[late.o.choice as BaseId], '은', '는')} 잡자마자 던져도 주자보다 ${(-late.m).toFixed(2)}초 늦어요.`);
+  }
+  if (bunt && scn.runnerJump) {
+    out.push(best.choice === 'first' ? '주자 스타트가 빨라서 앞 주자를 잡기 어려워요.' : '주자 스타트가 빨랐지만 공을 빨리 잡아서 앞 주자도 잡을 수 있어요.');
   }
   if (best.choice !== 'hold' && isCarry(scn, best.choice)) {
     out.push('베이스가 가까우니 던지지 않고 직접 밟는 게 가장 빠르고 확실해요.');

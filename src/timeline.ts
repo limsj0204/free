@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { PITCH, RUN, THROW } from './config';
-import { BASES, P, fencePoint, type BaseId } from './coords';
+import { BASES, P, bagSpot, fencePoint, type BaseId } from './coords';
 import { fieldersOf } from './scenarios';
 import {
   batterBox,
+  coverPath,
   decisionDeadline,
   planRunners,
   type ChoiceScenario,
@@ -201,13 +202,6 @@ export function movePosition(start: THREE.Vector3, moves: Move[], t: number, out
   return out;
 }
 
-function bagSpot(base: BaseId) {
-  // 베이스 바로 안쪽 (내야 중심 방향으로 0.5m)
-  const center = P(0, 19.4);
-  const b = BASES[base];
-  return b.clone().add(center.clone().sub(b).setY(0).normalize().multiplyScalar(0.5));
-}
-
 function walk(from: THREE.Vector3, to: THREE.Vector3, startTime: number, speed = RUN.fielderSpeed): Path {
   return { waypoints: [from.clone(), to.clone()], startTime, speed };
 }
@@ -245,12 +239,13 @@ export function buildThrowTimeline(scn: ThrowScenario, pitchFlight: number, outc
   }
 
   const moves: Partial<Record<FielderId, Path>> = {};
-  for (const [base, id] of Object.entries(scn.covers) as [BaseId, FielderId][]) {
-    if (!id || id === scn.position || base === 'home') continue;
-    moves[id] = walk(fielders[id], bagSpot(base), bunt ? tRelease : 0.2);
+  // 커버는 판정과 같은 경로로 움직인다 (fielderMoves를 거쳐 가는 경우 포함)
+  for (const base of Object.keys(scn.covers) as BaseId[]) {
+    const path = base === 'home' ? null : coverPath(scn, base);
+    if (path) moves[path.id] = { waypoints: path.waypoints, startTime: path.startTime, speed: RUN.fielderSpeed };
   }
   for (const [id, to] of Object.entries(scn.fielderMoves ?? {}) as [FielderId, THREE.Vector3][]) {
-    moves[id] = walk(fielders[id], to, bunt ? tRelease : 0.1);
+    if (!moves[id]) moves[id] = walk(fielders[id], to, bunt ? tRelease : 0.1);
   }
 
   const playerStart = fielders[scn.position];
