@@ -123,7 +123,7 @@ function build(): ThrowScenario[] {
               kind: 'throw',
               generated: true,
               // 주자가 뛸지는 공을 잡는 순간 콜로만 알려주므로 제목에 넣지 않는다
-              title: `${outsText(outs)} ${runnersText(set)}, ${ball.name}`,
+              title: `${outsText(outs)} ${runnersText(set)} / ${ball.name}`,
               event: ball.name,
               position,
               situation,
@@ -221,7 +221,7 @@ function buildBunts(): ThrowScenario[] {
             id: `gen-${position}-bunt-${ball.key}-${set.map((b) => SHORT[b]).join('')}-${outs}`,
             kind: 'throw',
             generated: true,
-            title: `${outsText(outs)} ${runnersText(set)}, ${name}`,
+            title: `${outsText(outs)} ${runnersText(set)} / ${name}`,
             event: name,
             position,
             situation: {
