@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { P, type BaseId } from './coords';
 import { explainThrow } from './explain';
 import {
+  POSITIONS,
   THROW_CHOICES,
   evaluate,
   type Base3,
@@ -12,7 +13,7 @@ import {
 
 // 상황 생성기: 포지션별 대표 타구 × 주자 배치 × 아웃 카운트 × 안 밀리는 주자의 행동(뛴다/멈춘다)을 조합한다.
 // 정답은 판정 엔진이 계산하고, 해설은 explain.ts가 규칙으로 쓴다. 랜덤 연습에만 쓴다.
-// 1루수·3루수에는 번트 상황도 따로 만든다 (buildBunts).
+// 투수·1루수·3루수에는 번트 상황도 따로 만든다 (buildBunts).
 
 interface Ball {
   key: string;
@@ -24,6 +25,12 @@ interface Ball {
 }
 
 const BALLS: Record<PositionId, Ball[]> = {
+  // 투수는 공을 던진 직후라 타구가 아주 빨리 온다
+  P: [
+    { key: 'front', name: '투수 정면 강습 땅볼', type: 'grounder', catchPoint: P(0.3, 16.3), travelTime: 0.6 },
+    { key: 'left', name: '투수 왼쪽(3루 쪽) 땅볼', type: 'grounder', catchPoint: P(-3, 15.5), travelTime: 0.85 },
+    { key: 'right', name: '투수 오른쪽(1루 쪽) 땅볼', type: 'grounder', catchPoint: P(3, 15.5), travelTime: 0.85 },
+  ],
   SS: [
     { key: 'front', name: '정면 땅볼', type: 'grounder', catchPoint: P(-8.5, 31.5), travelTime: 1.45 },
     { key: 'hole', name: '3루 쪽 깊은 땅볼', type: 'grounder', catchPoint: P(-15, 28), travelTime: 1.5 },
@@ -60,8 +67,9 @@ function outsText(outs: number) {
   return outs === 0 ? '무사' : `${outs}사`;
 }
 
-// 공을 잡지 않은 쪽 키스톤 수비수가 2루를 커버한다
+// 공을 잡지 않은 쪽 키스톤 수비수가 2루를 커버한다. 투수 앞 땅볼은 유격수가 2루에 들어간다.
 function coversFor(position: PositionId): Partial<Record<BaseId, FielderId>> {
+  if (position === 'P') return { first: '1B', second: 'SS', third: '3B', home: 'C' };
   const leftSide = position === 'SS' || position === '3B';
   const covers: Partial<Record<BaseId, FielderId>> = {
     first: position === '1B' ? 'P' : '1B',
@@ -98,7 +106,7 @@ function variantsFor(set: Base3[]): Partial<Record<Base3, 'advance' | 'hold'>>[]
 
 function build(): ThrowScenario[] {
   const list: ThrowScenario[] = [];
-  for (const position of ['1B', '2B', 'SS', '3B'] as PositionId[]) {
+  for (const position of POSITIONS) {
     for (const ball of BALLS[position]) {
       for (const set of RUNNER_SETS) {
         for (let outs = 0; outs < 3; outs++) {
@@ -152,6 +160,13 @@ interface Bunt {
 }
 
 const BUNT_SIDE: Partial<Record<PositionId, { side: string; balls: Bunt[] }>> = {
+  P: {
+    side: '투수 앞',
+    balls: [
+      { key: 'hard', name: '강한 번트', catchPoint: P(0.5, 12), travelTime: 1.2 },
+      { key: 'soft', name: '느린 번트', catchPoint: P(0.8, 6.5), travelTime: 2.9 },
+    ],
+  },
   '3B': {
     side: '3루 쪽',
     balls: [
@@ -180,9 +195,11 @@ function buntDefense(position: PositionId, set: Base3[]) {
   };
   const fielderMoves: Partial<Record<FielderId, THREE.Vector3>> = {};
   const covers: Partial<Record<BaseId, FielderId>> = { first: '2B', home: 'C' };
-  if (position === '3B') {
+  if (position === '3B' || position === 'P') {
     // 3루수가 대시하면 1루수도 대시하고, 2루 주자가 있으면 유격수가 3루를 커버한다 (2루는 빈다)
+    // 투수가 잡는 번트도 1루수·3루수가 둘 다 대시한 뒤라 같은 대형이다
     fielderMoves['1B'] = P(8, 12);
+    if (position === 'P') fielderMoves['3B'] = P(-8, 12);
     if (set.includes('second')) covers.third = 'SS';
     else covers.second = 'SS';
   } else {

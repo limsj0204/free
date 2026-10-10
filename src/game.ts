@@ -793,7 +793,7 @@ export class Game {
   private updateCamera() {
     this.glove.visible = !this.overhead;
     if (this.overhead) {
-      const wide = this.scn.kind === 'choice' && (this.scn.setup === 'gap' || this.scn.setup === 'cutoff');
+      const wide = this.scn.kind === 'choice' && (this.scn.setup === 'gap' || this.scn.setup === 'cutoff' || this.scn.setup === 'backup');
       this.camera.position.copy(wide ? P(0, -22, 42) : P(0, -12, 20));
       this.camera.lookAt(wide ? P(0, 50) : P(0, 26));
       return;
@@ -950,6 +950,8 @@ export class Game {
   private ballPosition(t: number): THREE.Vector3 {
     const tl = this.tl;
     const pos = new THREE.Vector3();
+    // 내가 투수면 던지기 전까지 공은 내 글러브 안에 있다
+    if (this.scn.position === 'P' && tl.pitch && t < tl.tRelease && !this.overhead) return this.pocket.getWorldPosition(pos);
     const hit = tl.actionHit;
     if (hit && t >= 0 && (hit.caughtAt === null || t < hit.caughtAt)) return actionBallPos(hit, t, pos);
     if (tl.gloveHold && t >= tl.gloveHold[0] && t < tl.gloveHold[1]) {

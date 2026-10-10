@@ -4,12 +4,12 @@ import { BASES, BASE_LABEL, P, bagSpot, type BaseId } from './coords';
 import { fieldersOf } from './scenarios';
 
 export type FielderId = 'P' | 'C' | '1B' | '2B' | 'SS' | '3B' | 'LF' | 'CF' | 'RF';
-export type PositionId = '1B' | '2B' | 'SS' | '3B';
+export type PositionId = 'P' | '1B' | '2B' | 'SS' | '3B';
 export type RunnerId = 'batter' | 'r1' | 'r2' | 'r3';
 export type Base3 = 'first' | 'second' | 'third';
 export type Grade = 'best' | 'ok' | 'bad';
 
-export const POSITIONS: PositionId[] = ['1B', '2B', 'SS', '3B'];
+export const POSITIONS: PositionId[] = ['P', '1B', '2B', 'SS', '3B'];
 
 export const FIELDER_NAME: Record<FielderId, string> = {
   P: '투수',
@@ -72,10 +72,12 @@ export interface ChoiceOption {
 // 공이 나에게 오지 않을 때 어디로 움직일지 고르는 상황. 선택지별 결과가 정해져 있다.
 export interface ChoiceScenario extends ScenarioBase {
   kind: 'choice';
-  setup: 'steal' | 'gap' | 'cutoff' | 'pickoff' | 'bunt' | 'cover';
+  setup: 'steal' | 'gap' | 'cutoff' | 'pickoff' | 'bunt' | 'cover' | 'backup';
   side?: 'left' | 'right'; // gap: 좌중간/우중간
   // cover: 다른 수비수가 공을 잡아 base로 던질 때 내가 그 베이스를 커버하는지
   play?: { fielder: FielderId; catchPoint: THREE.Vector3; travelTime: number; base: BaseId; batted: 'grounder' | 'bunt' };
+  // backup: 외야수가 안타를 잡아 base로 던지고, 그 송구가 뒤로 빠질 때 내가 뒤를 받쳐 주는지
+  backup?: { fielder: FielderId; field: THREE.Vector3; travelTime: number; base: 'home' | 'third' };
   otherCovers?: boolean; // steal: 다른 수비수가 2루 커버를 들어가는지
   prompt: string;
   options: ChoiceOption[];

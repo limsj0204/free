@@ -28,6 +28,197 @@ const NO_RUNNERS = { first: false, second: false, third: false };
 const ON_FIRST = { first: true, second: false, third: false };
 
 export const SCENARIOS: Scenario[] = [
+  // ---------------- 투수 ----------------
+  {
+    id: 'p-dp',
+    kind: 'throw',
+    title: '1사 1루, 투수 앞 땅볼',
+    event: '투수 정면 강습 땅볼',
+    position: 'P',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '병살 대형이에요. 공을 던지고 나면 바로 수비수예요. 투수 앞 땅볼이면 유격수가 2루 커버를 들어가요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'grounder', catchPoint: P(0.3, 16.3), travelTime: 0.6 },
+    covers: { first: '1B', second: 'SS', third: '3B', home: 'C' },
+    explanation:
+      '투수 앞 땅볼은 공이 아주 빨리 오는 대신, 잡고 나면 시간이 넉넉해요. 1루 주자는 밀려서 뛰어야 하니 2루로 던져 앞 주자를 잡고, 유격수가 1루로 이어 던지면 병살(1-6-3)이에요. ' +
+      '공이 오기 전에 미리 2루로 정해 두는 게 요령이에요. 투수 앞 땅볼은 생각할 틈 없이 오니까요. 여유가 있다고 2루 쪽으로 몸을 너무 돌리다 송구가 빗나가는 것만 조심하세요.',
+  },
+  {
+    id: 'p-loaded',
+    kind: 'throw',
+    title: '1사 만루, 투수 앞 땅볼',
+    event: '투수 정면 땅볼',
+    position: 'P',
+    situation: { outs: 1, runners: { first: true, second: true, third: true }, batter: 'R' },
+    brief: '만루라 모든 주자가 밀려서 뛰어요. 내야는 병살 대형이에요.',
+    fielders: { ...DP },
+    batted: { type: 'grounder', catchPoint: P(0.6, 15.8), travelTime: 0.75 },
+    covers: { first: '1B', second: 'SS', third: '3B', home: 'C' },
+    explanation:
+      '만루에서는 홈도 포스 상황이라 포수가 홈 베이스만 밟으면 아웃이에요. 투수 자리에서 홈은 가장 가까운 베이스이기도 해요. ' +
+      '홈에서 3루 주자를 잡고 포수가 1루로 이어 던지면 병살(1-2-3)로 실점 없이 이닝이 끝나요. 2루를 거치는 병살(1-6-3)도 정답이에요. 다만 병살이 안 되면 3루 주자의 득점이 인정되니, 가까운 홈에서 실점부터 막는 쪽이 더 안전해요.',
+  },
+  {
+    id: 'p-third',
+    kind: 'throw',
+    title: '1사 3루, 투수 앞 땅볼',
+    event: '투수 오른쪽 땅볼',
+    position: 'P',
+    situation: { outs: 1, runners: { first: false, second: false, third: true }, batter: 'R' },
+    brief: '내야는 보통 수비 위치예요. 3루 주자가 홈을 노릴 수 있는 상황이에요.',
+    batted: { type: 'grounder', catchPoint: P(3, 15.5), travelTime: 0.85 },
+    covers: { first: '1B', second: '2B', third: '3B', home: 'C' },
+    runnerActs: { third: 'hold' },
+    explanation:
+      '투수 앞 땅볼이면 3루 주자는 공이 투수에게 가는 걸 보고 대부분 3루에 멈춰요. 3루 주자는 밀려서 뛰는 게 아니라서, 멈춰 있으면 홈으로 던져도 잡을 주자가 없어요. ' +
+      '잡으면 먼저 3루 주자를 한 번 쳐다봐서 묶어 두고, 1루로 던져 타자를 잡으세요. 주자가 뛰었다면 그때는 홈으로 던져 태그 승부예요.',
+  },
+  {
+    id: 'p-bunt',
+    kind: 'throw',
+    title: '무사 1루, 투수 앞 번트',
+    event: '투수 앞 강한 번트',
+    position: 'P',
+    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
+    brief: '번트 수비 대형이에요. 1루수와 3루수가 대시하고, 2루수가 1루, 유격수가 2루를 커버해요. 투수도 공을 던지자마자 앞으로 나와요.',
+    fielders: { ...DP, '1B': P(19.5, 19), '3B': P(-18.5, 20) },
+    fielderMoves: { '1B': P(8, 12), '3B': P(-8, 12) },
+    batted: { type: 'bunt', catchPoint: P(0.5, 12), travelTime: 1.2 },
+    covers: { first: '2B', second: 'SS', home: 'C' },
+    explanation:
+      '번트가 투수 정면으로 강하게 왔어요. 투수는 홈 쪽으로 내려오면서 잡기 때문에 2루가 몸 정면이라 던지기 편해요. 2루에서 앞 주자를 잡고 유격수가 1루로 이어 던지면 병살까지 노릴 수 있어요. ' +
+      '번트가 느렸다면 앞으로 많이 뛰어나와 잡게 되니, 그때는 무리하지 말고 1루로 던지세요.',
+  },
+  {
+    id: 'p-cover-1b',
+    kind: 'choice',
+    setup: 'cover',
+    title: '주자 없음, 1루수 쪽 땅볼',
+    event: '1루수 오른쪽 땅볼',
+    position: 'P',
+    situation: { outs: 0, runners: NO_RUNNERS, batter: 'R' },
+    brief: '보통 수비 위치예요. 공을 던진 뒤 타구가 어디로 가는지 보고 바로 움직여야 해요.',
+    play: { fielder: '1B', catchPoint: P(11.5, 31.5), travelTime: 2.6, base: 'first', batted: 'grounder' },
+    prompt: '1루수 쪽 땅볼! 어디로?',
+    options: [
+      {
+        label: '1루 베이스 커버',
+        moveTo: P(19.0, 19.6),
+        grade: 'best',
+        takes: true,
+        headline: '1루 아웃',
+        result: '1아웃 주자 없음',
+        feedback: '1루수가 공을 잡으러 2루 쪽으로 멀리 갔어요. 바로 1루로 달려가서 1루수의 송구를 받았어요.',
+      },
+      {
+        label: '공 쪽으로 대시',
+        moveTo: P(8, 26),
+        grade: 'bad',
+        headline: '1루가 비었어요',
+        result: '무사 2루',
+        feedback: '공은 1루수가 잡아요. 투수까지 공을 쫓으면 1루에 아무도 없어서, 1루수가 던질 곳이 없어요.',
+      },
+      {
+        label: '제자리',
+        moveTo: P(0, 18.44),
+        grade: 'bad',
+        headline: '1루가 비었어요',
+        result: '무사 2루',
+        feedback: '1루수는 공을 잡으러 갔고 1루에는 아무도 없어서, 송구가 빠졌어요.',
+      },
+    ],
+    explanation:
+      '1루수 쪽으로 땅볼이 가면 투수는 무조건 1루로 달려가요. 1루수가 공을 잡으러 베이스에서 멀어지면, 1루를 지킬 사람은 투수뿐이거든요. ' +
+      '공을 던지자마자 1루 쪽 땅볼이 보이면 "내가 1루"라고 생각하고 바로 출발하세요. 투수 수비에서 가장 많이 까먹는 플레이예요. 베이스 쪽으로 곧장 가기보다 1루 라인 안쪽으로 비스듬히 들어가면 1루수와 부딪히지 않아요.',
+  },
+  {
+    id: 'p-backup-home',
+    kind: 'choice',
+    setup: 'backup',
+    title: '1사 2루, 중전 안타',
+    event: '중전 안타',
+    position: 'P',
+    situation: { outs: 1, runners: { first: false, second: true, third: false }, batter: 'R' },
+    brief: '보통 수비 위치예요. 2루 주자는 안타가 나오면 홈을 노려요.',
+    fielderMoves: { '1B': P(1.5, 14) },
+    backup: { fielder: 'CF', field: P(0.8, 57.5), travelTime: 2.8, base: 'home' },
+    prompt: '중견수 앞 안타! 어디로?',
+    options: [
+      {
+        label: '홈 뒤 백업',
+        moveTo: P(0, -7),
+        grade: 'best',
+        takes: true,
+        headline: '송구가 빠졌지만 백업으로 막았어요',
+        result: '1아웃 1루 (1점 실점)',
+        feedback: '중견수의 홈 송구가 포수 뒤로 빠졌지만, 홈 뒤에 있던 투수가 막아서 타자 주자는 1루에서 멈췄어요.',
+      },
+      {
+        label: '마운드와 홈 사이 커트',
+        moveTo: P(-1.5, 12),
+        grade: 'bad',
+        headline: '홈 뒤가 비었어요',
+        result: '1아웃 3루 (1점 실점)',
+        feedback: '커트는 1루수 몫이에요. 투수까지 커트 자리에 가면 홈 뒤를 받칠 사람이 없어서, 송구가 빠지자 공이 백네트까지 굴러갔어요.',
+      },
+      {
+        label: '제자리',
+        moveTo: P(0, 18.44),
+        grade: 'bad',
+        headline: '홈 뒤가 비었어요',
+        result: '1아웃 3루 (1점 실점)',
+        feedback: '송구가 포수 뒤로 빠졌는데 아무도 없어서, 공이 백네트까지 굴러가는 사이 타자 주자가 3루까지 갔어요.',
+      },
+    ],
+    explanation:
+      '주자가 홈을 노리는 안타가 나오면 외야수는 홈으로 던지고, 투수는 홈 뒤로 달려가 백업해요. 송구가 빠지거나 포수가 놓쳐도 공이 멀리 굴러가지 않게 막는 거예요. ' +
+      '커트는 1루수가 맡으니 투수는 망설이지 말고 홈 뒤 파울 지역으로 가세요. 안타를 맞으면 아쉬운 마음에 마운드에 서 있기 쉬운데, 그게 가장 흔한 실수예요.',
+  },
+  {
+    id: 'p-backup-third',
+    kind: 'choice',
+    setup: 'backup',
+    title: '1사 1루, 우전 안타',
+    event: '우전 안타',
+    position: 'P',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '보통 수비 위치예요. 1루 주자는 안타가 나오면 3루까지 노려요.',
+    fielderMoves: { '3B': P(-18.9, 19.9), SS: P(-6, 30) },
+    backup: { fielder: 'RF', field: P(22, 52), travelTime: 2.4, base: 'third' },
+    prompt: '우익수 앞 안타! 어디로?',
+    options: [
+      {
+        label: '3루 뒤 백업',
+        moveTo: P(-26.5, 13.8),
+        grade: 'best',
+        takes: true,
+        headline: '송구가 빠졌지만 백업으로 막았어요',
+        result: '1아웃 1, 3루',
+        feedback: '우익수의 3루 송구가 3루수 뒤로 빠졌지만, 3루 뒤에 있던 투수가 막아서 주자는 3루에서 멈췄어요.',
+      },
+      {
+        label: '1루 커버',
+        moveTo: P(19.0, 19.6),
+        grade: 'bad',
+        headline: '3루 뒤가 비었어요',
+        result: '1아웃 2루 (1점 실점)',
+        feedback: '타자 주자는 이미 1루를 돌았어요. 3루 뒤를 받칠 사람이 없어서 송구가 빠지자 1루 주자는 홈까지 들어왔어요.',
+      },
+      {
+        label: '제자리',
+        moveTo: P(0, 18.44),
+        grade: 'bad',
+        headline: '3루 뒤가 비었어요',
+        result: '1아웃 2루 (1점 실점)',
+        feedback: '송구가 3루수 뒤로 빠졌는데 아무도 없어서, 1루 주자는 홈까지 들어오고 타자 주자는 2루까지 갔어요.',
+      },
+    ],
+    explanation:
+      '주자 1루에서 우전 안타가 나오면 1루 주자는 3루까지 노리고, 우익수는 3루로 던져요. 이 송구는 가장 긴 송구라 빠지기도 쉬워요. ' +
+      '그래서 투수는 3루 뒤 파울 지역으로 달려가 백업해요. "공이 가는 베이스의 뒤"가 투수의 자리라고 기억하면 쉬워요. 홈으로 던지면 홈 뒤, 3루로 던지면 3루 뒤예요.',
+  },
+
   // ---------------- 1루수 ----------------
   {
     id: '1b-hold',

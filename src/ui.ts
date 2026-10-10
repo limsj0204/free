@@ -445,8 +445,13 @@ export class UI {
       if (!visible) return;
       v.copy(d.pos!).setY(1.4).project(camera);
       // 카메라 뒤에 있으면 투영 결과가 뒤집히므로 되돌린다
-      if (v.z > 1) v.multiplyScalar(-1);
-      const onScreen = v.z <= 1 && Math.abs(v.x) <= 0.92 && Math.abs(v.y) <= 0.85;
+      const behind = v.z > 1;
+      if (behind) {
+        v.multiplyScalar(-1);
+        // 바로 등 뒤(투수에게 2루)면 방향이 안 잡히니, 돌아볼 쪽 가장자리에 붙인다 (아래는 결정 패널에 가린다)
+        if (Math.hypot(v.x, v.y) < 0.3) v.set(v.x > 0 ? 1 : -1, 0, v.z);
+      }
+      const onScreen = !behind && Math.abs(v.x) <= 0.92 && Math.abs(v.y) <= 0.85;
       let x = v.x;
       let y = v.y;
       let arrow = '';

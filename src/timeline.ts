@@ -215,6 +215,7 @@ function outTime(e: PlayEvent) {
   return e.at ? t : Math.max(t, e.runnerTime - TAG_REACH / RUN.speed);
 }
 const TAG_REACH = 1.5; // 베이스 앞 이 거리에서 태그된다
+const BACKUP_ROLL = 12; // 뒤로 빠진 송구가 굴러가는 속도
 
 export function buildThrowTimeline(scn: ThrowScenario, pitchFlight: number, outcome?: Outcome): Timeline {
   const { tRelease, tWindup, start } = pitchTimes(pitchFlight);
@@ -556,6 +557,56 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
         tl.ball.push({ from, to: firstTo, t0: throwT0, t1, arc: 0.8, thrower: 'P' });
         tl.calls.push({ t: pathEnd(batterPath), pos: BASES.first, text: '세이프', good: false });
         tl.end = t1 + 1.5;
+      }
+      break;
+    }
+
+    case 'backup': {
+      // 외야수가 안타를 잡아 base로 던지고, 그 송구가 뒤로 빠진다. 백업 자리에 있으면 막는다.
+      const b = scn.backup!;
+      tl.batter = 'swing';
+      tl.ball.push({ from: releasePoint(), to: CONTACT_POINT, t0: tRelease, t1: 0, arc: 0.15 });
+      tl.ball.push({ from: CONTACT_POINT, to: b.field.clone().setY(0.1), t0: 0, t1: b.travelTime, arc: 0.9, bounces: 4 });
+      tl.fielders[b.fielder] = walk(fielders[b.fielder], b.field.clone().add(P(0, 0.8)), 0.1);
+      fielderMovesFrom(0.3);
+      decide(0.6, 1.6);
+      const throwT0 = b.travelTime + 0.3;
+      const from = b.field.clone().setY(1.6);
+      const baseAt = BASES[b.base].clone().setY(1.0);
+      const t1 = throwT0 + from.distanceTo(baseAt) / THROW.outfieldSpeed;
+      const spot = scn.options.find((o) => o.takes)!.moveTo.clone().setY(0.3);
+      deadline = t1 + baseAt.distanceTo(spot) / BACKUP_ROLL;
+      arrival = movePlayer();
+      late = !!opt?.takes && arrival > deadline;
+      const received = !!opt?.takes && !late;
+      // 홈 승부면 2루 주자, 3루 승부면 1루 주자가 그 베이스까지 뛴다
+      const leadId: RunnerId = b.base === 'home' ? 'r2' : 'r1';
+      const origin = b.base === 'home' ? BASES.second : BASES.first;
+      const via = b.base === 'home' ? BASES.third : BASES.second;
+      const lead = origin.clone().add(via.clone().sub(origin).normalize().multiplyScalar(RUN.leadOff));
+      const leadPath: Path = { waypoints: [lead, via.clone(), BASES[b.base].clone()], startTime: RUN.runnerStartDelay, speed: RUN.speed };
+      tl.runners.set(leadId, leadPath);
+      const box = batterBox(scn);
+      if (!input) {
+        tl.runners.set('batter', { waypoints: [box, BASES.first.clone()], startTime: RUN.batterStartDelay, speed: RUN.speed });
+        break;
+      }
+      tl.ball.push({ from, to: baseAt, t0: throwT0, t1, arc: 2.5, thrower: b.fielder });
+      tl.calls.push({ t: t1 + 0.1, pos: BASES[b.base], text: '빠졌다!', good: false });
+      if (received) {
+        tl.ball.push({ from: baseAt, to: spot, t0: t1, t1: deadline, arc: 0.3, bounces: 2 });
+        tl.runners.set('batter', { waypoints: [box, BASES.first.clone(), P(23, 23.5)], startTime: RUN.batterStartDelay, speed: RUN.speed });
+        tl.calls.push({ t: deadline, pos: opt!.moveTo, text: '백업!', good: true });
+        tl.end = deadline + 2;
+      } else {
+        const dir = baseAt.clone().sub(from).setY(0).normalize();
+        const past = BASES[b.base].clone().addScaledVector(dir, 16).setY(0.1);
+        tl.ball.push({ from: baseAt, to: past, t0: t1, t1: t1 + 2.2, arc: 0.4, bounces: 3 });
+        // 공이 빠진 사이 한 베이스씩 더 간다
+        if (b.base === 'third') leadPath.waypoints.push(BASES.home.clone());
+        const extra = b.base === 'home' ? [BASES.second.clone(), BASES.third.clone()] : [BASES.second.clone()];
+        tl.runners.set('batter', { waypoints: [box, BASES.first.clone(), ...extra], startTime: RUN.batterStartDelay, speed: RUN.speed });
+        tl.end = t1 + 4;
       }
       break;
     }
