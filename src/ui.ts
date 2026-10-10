@@ -22,7 +22,7 @@ import {
   type ThrowScenario,
   type ThrowVerdict,
 } from './scenario';
-import { SCENARIOS, fieldersOf, scenariosFor } from './scenarios';
+import { fieldersOf, scenariosFor } from './scenarios';
 import type { ChoiceResult } from './timeline';
 
 export interface DecisionDef {
@@ -216,9 +216,6 @@ export class UI {
       })
       .join('');
 
-    const total = SCENARIOS.length;
-    const cleared = SCENARIOS.filter((s) => done(s.id)).length;
-
     // 조작법: 지금 고른 모드 기준으로 보여준다
     const controls =
       mode === 'action'
@@ -245,7 +242,7 @@ export class UI {
           <div class="menu-side">
             <div class="eyebrow">VR 야구 대비 · 내야 수비</div>
             <h1>내야 수비 시뮬레이터</h1>
-            <p class="note">포지션과 상황을 고르세요. 모든 상황은 오른손 타자 기준이에요. 최선의 판단을 한 상황 <b>${cleared}/${total}</b></p>
+            <p class="note">처음엔 <b>판단 모드</b>로 판단부터 익히는 걸 추천해요. 수비에 자신이 생기면 <b>액션 모드</b>도 해 보세요.</p>
             <div class="modes">
               <button class="${mode === 'judge' ? 'selected' : ''}" data-mode="judge" id="mode-judge"><b>판단 모드</b><span>키보드·클릭으로 던질 곳, 갈 곳 고르기</span></button>
               <button class="${mode === 'action' ? 'selected' : ''}" data-mode="action" id="mode-action"><b>액션 모드</b><span>WASD로 직접 움직여 잡고, 좌클릭으로 송구</span></button>
