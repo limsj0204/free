@@ -788,13 +788,21 @@ button:focus-visible {
 
 .random-row {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 4px;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.random-row .random-desc {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
 }
 
 .random-row button {
-  flex: 1 1 180px;
+  flex: 0 0 auto;
   padding: 11px 14px;
   border-radius: 8px;
   font-size: 15px;

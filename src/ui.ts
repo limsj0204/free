@@ -261,15 +261,15 @@ export class UI {
           <div class="menu-main">
             <div class="tabs" role="tablist">${tabs}</div>
             <div class="items">
+              ${items}
               <div class="random-row">
                 <button class="primary" id="random-pos">${FIELDER_NAME[this.tab]} 랜덤 연습</button>
-                <button class="secondary" id="random-all">전체 포지션 랜덤</button>
+                <span class="random-desc">${FIELDER_NAME[this.tab]} 상황이 무작위로 계속 나와요. 결과 화면에서 <kbd>N</kbd>을 누르면 다음 상황으로 넘어가요.</span>
               </div>
               <label class="gen-toggle" for="gen-toggle">
                 <input type="checkbox" id="gen-toggle" ${getIncludeGenerated() ? 'checked' : ''} />
-                <span>랜덤 연습에 자동 생성 상황도 섞기 <small>(${FIELDER_NAME[this.tab]} ${generatedFor(this.tab).length}개 · 같은 타구라도 아웃 카운트, 주자, 주자 움직임이 다른 상황)</small></span>
+                <span>자동 생성 상황도 섞기 <small>(위의 기본 상황 ${scenariosFor(this.tab).length}개 + 자동 생성 ${generatedFor(this.tab).length}개 · 같은 타구라도 아웃 카운트, 주자, 주자 움직임이 다른 상황)</small></span>
               </label>
-              ${items}
             </div>
           </div>
         </div>
@@ -290,7 +290,6 @@ export class UI {
       }),
     );
     $('random-pos').addEventListener('click', () => this.onRandom(this.tab));
-    $('random-all').addEventListener('click', () => this.onRandom('all'));
     this.menu.querySelectorAll<HTMLButtonElement>('[data-scenario]').forEach((b) =>
       b.addEventListener('click', () => this.onPickScenario(b.dataset.scenario!)),
     );
