@@ -73,14 +73,6 @@ const GRADE_SHORT: Record<Grade, string> = { best: '최선', ok: '아쉬움', ba
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const sec = (s: number) => `${s.toFixed(2)}초`;
 
-function situationText(scn: Scenario) {
-  const s = scn.situation;
-  const bases = (['first', 'second', 'third'] as const).filter((b) => s.runners[b]);
-  const runners =
-    bases.length === 3 ? '만루' : bases.length ? `주자 ${bases.map((b) => BASE_LABEL[b].replace('루', '')).join(', ')}루` : '주자 없음';
-  return `${s.outs === 0 ? '무사' : `${s.outs}아웃`} · ${runners} · ${s.batter === 'R' ? '우타자' : '좌타자'}`;
-}
-
 function throwLabel(scn: ThrowScenario, c: Choice) {
   if (c === 'hold') return '던지지 못함';
   const tag = isTagBase(scn, c);
@@ -206,7 +198,6 @@ export class UI {
         return `<button class="item" data-scenario="${s.id}" id="item-${s.id}">
           <span class="item-main">
             <b>${s.title}</b>
-            <small>${situationText(s)}</small>
           </span>
           <span class="item-side">
             <span class="kind">${s.kind === 'throw' ? '송구 판단' : '위치 판단'}</span>

@@ -64,6 +64,7 @@ export interface ChoiceResult {
   waited?: number; // 커버가 늦어서 공을 잡은 수비수가 기다린 시간
   throwReady?: number; // 커버: 공을 잡은 수비수가 던질 준비가 되는 시간
   flight?: number; // 커버: 송구가 베이스까지 날아가는 시간
+  relayAt?: number; // 커버로 받아서 아웃을 잡은 시간 (이어서 1루로 던질 수 있으면)
 }
 
 export interface Timeline {
@@ -323,6 +324,8 @@ export interface ChoiceInput {
   d: number; // 결정까지 걸린 게임 시간
   arrival?: number; // 액션 모드: 실제로 그 위치에 도착한 시간 (플레이어 움직임은 입력 기록을 쓴다)
   now?: number; // 액션 모드: 판정한 시각. 이보다 이른 송구는 이미 지나간 것이라 이 시각부터 던진다
+  // 커버로 받은 뒤 이어 던지기 (병살). null이면 아직 안 골랐고(받기까지만), 'none'이면 안 던졌다.
+  relay?: { to: BaseId | 'none' | null; d: number; releaseT?: number };
 }
 
 export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, input?: ChoiceInput): Timeline {
@@ -379,6 +382,8 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
   let waited: number | undefined;
   let throwReady: number | undefined;
   let closeBy: number | undefined;
+  let relayAt: number | undefined;
+  let relayResult: 'dp' | 'safe' | 'none' | undefined;
   let coverFlight: number | undefined;
 
   switch (scn.setup) {
@@ -710,6 +715,27 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
           tl.calls.push({ t: t1, pos: BASES[c.base], text: callText('force', true), good: true });
           tl.plays.push({ t: t1, base: c.base, runner: c.base === 'first' ? 'batter' : 'r1', kind: 'force', out: true, receiver: 'player' });
           tl.end = t1 + 1.5;
+          // 2루에서 받아 앞 주자를 잡았으면 1루로 이어 던져 병살을 노린다 (내가 던지는 거라 내가 고른다)
+          if (c.base !== 'first' && scn.situation.outs + 1 < 3) {
+            relayAt = t1;
+            const r = input.relay;
+            tl.gloveHold = [t1, Infinity];
+            if (r?.to === 'none') relayResult = 'none';
+            else if (r?.to) {
+              const dest = bagSpot(r.to).setY(GLOVE);
+              const t2s = r.releaseT ?? t1 + THROW.pivotTime + r.d;
+              const t2 = t2s + to.distanceTo(dest) / THROW.speed;
+              tl.gloveHold = [t1, t2s];
+              tl.ball.push({ from: to, to: dest, t0: t2s, t1: t2, arc: 0.8, thrower: scn.position });
+              const batterArrive = pathEnd(batterPath);
+              const out2 = r.to === 'first' && t2 < batterArrive;
+              if (out2) batterPath.stopAt = t2;
+              tl.calls.push({ t: out2 ? t2 : batterArrive, pos: BASES[r.to], text: callText('force', out2), good: out2 });
+              tl.plays.push({ t: out2 ? t2 : batterArrive, base: r.to, runner: 'batter', kind: 'force', out: out2, receiver: r.to === 'first' ? '1B' : 'player' });
+              tl.end = Math.max(t2, batterArrive) + 1.5;
+              relayResult = out2 ? 'dp' : 'safe';
+            }
+          }
         } else {
           // 커버가 너무 늦어서 공을 들고 있는 사이 주자가 먼저 들어갔다
           tl.calls.push({ t: runnerArrive, pos: BASES[c.base], text: '세이프', good: false });
@@ -744,6 +770,18 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
           ? `${base.label}가 맞아요. 하지만 너무 늦게 들어가서, ${FIELDER_NAME[scn.play!.fielder]}가 기다리는 사이 주자가 먼저 들어갔어요. 상황을 보자마자 바로 움직여야 해요.`
           : `${base.label}가 맞아요. 하지만 늦게 출발해서 공보다 늦게 도착했어요. 상황을 보자마자 바로 움직여야 해요.`;
       result = scn.options.find((o) => !o.takes && o.grade === 'bad')?.result ?? result;
+    } else if (base && relayResult === 'dp' && waited === undefined) {
+      const outs = scn.situation.outs + 2;
+      headline = '병살 성공!';
+      result = outs >= 3 ? '3아웃, 이닝 종료' : `${outs}아웃 주자 없음`;
+      feedback = `${base.label} 후 바로 1루로 이어 던져서 병살을 완성했어요.`;
+    } else if (base && (relayResult === 'safe' || relayResult === 'none')) {
+      grade = 'ok';
+      headline = relayResult === 'safe' ? '병살은 놓쳤어요' : '2루 아웃만 잡았어요';
+      feedback =
+        relayResult === 'safe'
+          ? `${base.label}는 맞아요. 다만 1루 송구가 늦어서 병살은 놓쳤어요. 받자마자 몸을 빼면서 1루로 던지세요.`
+          : `${base.label}는 맞아요. 다만 받은 다음 1루로 이어 던져야 병살이에요.`;
     } else if (waited !== undefined && base) {
       grade = 'ok';
       headline = '아웃은 잡았지만 커버가 늦었어요';
@@ -751,12 +789,17 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
         scn.play!.coverMargin !== undefined
           ? `${base.label}가 맞아요. 다만 늦게 들어가서 주자보다 ${(closeBy ?? 0).toFixed(2)}초 먼저, 아슬아슬하게 아웃이 됐어요. 바로 출발하면 여유 있게 잡아요.`
           : `${base.label}가 맞아요. 다만 늦게 들어가서 ${FIELDER_NAME[scn.play!.fielder]}가 ${waited.toFixed(2)}초 기다렸다 던졌어요. 주자가 조금만 빨랐으면 세이프예요. 바로 출발하면 여유 있게 잡아요.`;
+      if (relayResult === 'dp') {
+        const outs = scn.situation.outs + 2;
+        headline = '병살은 됐지만 커버가 늦었어요';
+        result = outs >= 3 ? '3아웃, 이닝 종료' : `${outs}아웃 주자 없음`;
+      }
     }
     if (!base) {
       // 시간 초과면 제자리에 있었던 것과 같다
       tl.end = Math.max(tl.end === Infinity ? 0 : tl.end, tl.decisionAt + tl.window + 2);
     }
-    tl.choice = { index: input.index, grade, headline, result, feedback, late, playerArrival: arrival, deadline, lastChance, waited, throwReady, flight: coverFlight };
+    tl.choice = { index: input.index, grade, headline, result, feedback, late, playerArrival: arrival, deadline, lastChance, waited, throwReady, flight: coverFlight, relayAt };
   }
   return tl;
 }
