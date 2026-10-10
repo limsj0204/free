@@ -154,7 +154,7 @@ export class UI {
       <div class="card menu-card">
         <div class="eyebrow">VR 야구 대비 · 내야 수비</div>
         <h1>내야 수비 판단 훈련</h1>
-        <p class="note">포지션을 고르고 상황을 선택하세요. 공을 잡거나 상황이 벌어지는 순간 화면이 느려지지만, 주자는 계속 뛰어요. 최선의 판단을 한 상황 ${cleared}/${total}</p>
+        <p class="note">포지션을 고르고 상황을 선택하세요. 공을 잡거나 상황이 벌어지는 순간 화면이 느려지지만, 주자는 계속 뛰어요. 모든 상황은 오른손 타자 기준이에요. 최선의 판단을 한 상황 ${cleared}/${total}</p>
         <div class="tabs" role="tablist">${tabs}</div>
         <div class="items">${items}</div>
         <h2>난이도 (판단 순간의 슬로모션 속도)</h2>
