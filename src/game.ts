@@ -358,7 +358,8 @@ export class Game {
       // 맞는 위치에 제때 도착했는지는 공(송구)이 그곳에 가는 시점의 위치로 판정한다
       const bestIdx = Math.max(0, scn.options.findIndex((o) => o.grade === 'best'));
       const pre = buildChoiceTimeline(scn, this.pitchFlight, { index: bestIdx, d: 0 });
-      const dl = pre.choice!.deadline;
+      // 커버는 조금 늦어도 공을 잡은 수비수가 기다려 주니, 주자가 들어오기 전까지의 위치로 판정한다
+      const dl = pre.choice!.lastChance ?? pre.choice!.deadline;
       this.act.evalT = Number.isFinite(dl) ? dl : scn.setup === 'pickoff' ? pre.decisionAt + pre.window : 1.8;
     }
     this.camera.position.copy(this.tl.playerStart).setY(EYE_HEIGHT);

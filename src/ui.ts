@@ -624,10 +624,12 @@ export class UI {
     const c = r.result;
     const correct = scn.options.find((o) => o.grade === 'best')!;
     let allowed: number | null = null;
+    let lastAllowed: number | null = null;
     if (correct.takes && Number.isFinite(c.deadline)) {
       // 맞는 위치에 제때 도착하려면 몇 초 안에 움직이기 시작해야 하는지
       const travel = fieldersOf(scn)[scn.position].distanceTo(correct.moveTo) / RUN.fielderSpeed;
       allowed = c.deadline - r.decisionAt - RUN.reaction - travel;
+      if (c.lastChance !== undefined) lastAllowed = c.lastChance - r.decisionAt - RUN.reaction - travel;
     }
 
     const alts = scn.options
@@ -648,7 +650,7 @@ export class UI {
         <div class="stat"><small>실제 경기 기준 판단 시간</small><b>${c.index === null ? '시간 초과' : sec(r.decisionDelay)}</b></div>
         <div class="stat"><small>화면에서 고민한 시간 (슬로모션 ${r.timeScale}배)</small><b>${sec(r.reactionReal)}</b></div>
       </div>
-      <p class="note">${c.feedback}${allowed !== null && allowed > 0 ? `<br/>제때 도착하려면 <b>${sec(allowed)}</b> 안에 움직이기 시작해야 해요.` : ''}</p>
+      <p class="note">${c.feedback}${allowed !== null && allowed > 0 ? `<br/>제때 도착하려면 <b>${sec(allowed)}</b> 안에 움직이기 시작해야 해요.` : ''}${lastAllowed !== null && allowed !== null && lastAllowed > allowed ? ` 늦어도 <b>${sec(lastAllowed)}</b> 안에 출발하면 기다렸다 던져 줘서 아웃은 돼요.` : ''}</p>
       <h2>선택지별 설명</h2>
       ${alts}
       <h2>해설</h2>

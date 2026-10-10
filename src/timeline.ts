@@ -6,6 +6,7 @@ import {
   batterBox,
   coverPath,
   decisionDeadline,
+  FIELDER_NAME,
   planRunners,
   type ChoiceScenario,
   type FielderId,
@@ -59,6 +60,8 @@ export interface ChoiceResult {
   late: boolean;
   playerArrival: number;
   deadline: number; // 이 시간까지 도착해야 제때
+  lastChance?: number; // 커버: 이 시간까지만 도착하면 기다렸다 던져 줘서 아웃은 된다
+  waited?: number; // 커버가 늦어서 공을 잡은 수비수가 기다린 시간
 }
 
 export interface Timeline {
@@ -359,6 +362,8 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
   let arrival = Infinity;
   let deadline = Infinity;
   let late = false;
+  let lastChance: number | undefined;
+  let waited: number | undefined;
 
   switch (scn.setup) {
     case 'steal': {
@@ -656,22 +661,36 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       const to = bagSpot(c.base).setY(GLOVE);
       const dist = from.distanceTo(to);
       const toss = dist <= THROW.tossMaxDistance;
-      const throwT0 = c.travelTime + 0.5;
-      const t1 = throwT0 + dist / (toss ? THROW.tossSpeed : THROW.speed);
-      deadline = t1;
-      arrival = movePlayer();
-      late = !!opt?.takes && arrival > deadline;
-      if (!input) break;
-      // 커버가 있든 없든 공은 베이스로 던진다
-      tl.ball.push({ from, to, t0: throwT0, t1, arc: toss ? 0.6 : 0.8, thrower: c.fielder });
+      const flight = dist / (toss ? THROW.tossSpeed : THROW.speed);
+      const ready = c.travelTime + 0.5;
       const runnerArrive = pathEnd(target);
-      if (opt?.takes && !late) {
+      // 커버가 제때 들어오면 바로 던진다. 늦으면 들어오는 타이밍에 맞춰(도착하기 직전에) 던지고,
+      // 그래도 주자보다 늦으면 던지지 않는다.
+      deadline = ready + flight;
+      lastChance = runnerArrive;
+      arrival = movePlayer();
+      if (!input) break;
+      if (opt?.takes) {
+        const throwT0 = Math.max(ready, arrival - flight);
+        const t1 = throwT0 + flight;
         const out = t1 < runnerArrive;
-        if (out) target.stopAt = t1;
-        tl.calls.push({ t: out ? t1 : runnerArrive, pos: BASES[c.base], text: callText('force', out), good: out });
-        tl.plays.push({ t: out ? t1 : runnerArrive, base: c.base, runner: c.base === 'first' ? 'batter' : 'r1', kind: 'force', out, receiver: 'player' });
-        tl.end = Math.max(t1, runnerArrive) + 1.5;
+        late = !out;
+        if (out) {
+          if (throwT0 > ready + 0.01) waited = throwT0 - ready;
+          tl.ball.push({ from, to, t0: throwT0, t1, arc: toss ? 0.6 : 0.8, thrower: c.fielder });
+          target.stopAt = t1;
+          tl.calls.push({ t: t1, pos: BASES[c.base], text: callText('force', true), good: true });
+          tl.plays.push({ t: t1, base: c.base, runner: c.base === 'first' ? 'batter' : 'r1', kind: 'force', out: true, receiver: 'player' });
+          tl.end = t1 + 1.5;
+        } else {
+          // 커버가 너무 늦어서 공을 들고 있는 사이 주자가 먼저 들어갔다
+          tl.calls.push({ t: runnerArrive, pos: BASES[c.base], text: '세이프', good: false });
+          tl.end = runnerArrive + 1.5;
+        }
       } else {
+        // 커버가 없으니 정해진 때에 던진 공이 빠진다
+        const t1 = ready + flight;
+        tl.ball.push({ from, to, t0: ready, t1, arc: toss ? 0.6 : 0.8, thrower: c.fielder });
         const past = to.clone().add(to.clone().sub(from).setY(0).normalize().multiplyScalar(14)).setY(0.1);
         tl.ball.push({ from: to, to: past, t0: t1, t1: t1 + 1.3, arc: 0.5, bounces: 3 });
         target.waypoints.push(BASES[c.base === 'first' ? 'second' : 'third'].clone());
@@ -691,14 +710,21 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
     if (late && base) {
       grade = 'bad';
       headline = '맞는 위치였지만 늦었어요';
-      feedback = `${base.label}가 맞아요. 하지만 늦게 출발해서 공보다 늦게 도착했어요. 상황을 보자마자 바로 움직여야 해요.`;
+      feedback =
+        scn.setup === 'cover'
+          ? `${base.label}가 맞아요. 하지만 너무 늦게 들어가서, ${FIELDER_NAME[scn.play!.fielder]}가 기다리는 사이 주자가 먼저 들어갔어요. 상황을 보자마자 바로 움직여야 해요.`
+          : `${base.label}가 맞아요. 하지만 늦게 출발해서 공보다 늦게 도착했어요. 상황을 보자마자 바로 움직여야 해요.`;
       result = scn.options.find((o) => !o.takes && o.grade === 'bad')?.result ?? result;
+    } else if (waited !== undefined && base) {
+      grade = 'ok';
+      headline = '아웃은 잡았지만 커버가 늦었어요';
+      feedback = `${base.label}가 맞아요. 다만 늦게 들어가서 ${FIELDER_NAME[scn.play!.fielder]}가 ${waited.toFixed(2)}초 기다렸다 던졌어요. 주자가 조금만 빨랐으면 세이프예요. 바로 출발하면 여유 있게 잡아요.`;
     }
     if (!base) {
       // 시간 초과면 제자리에 있었던 것과 같다
       tl.end = Math.max(tl.end === Infinity ? 0 : tl.end, tl.decisionAt + tl.window + 2);
     }
-    tl.choice = { index: input.index, grade, headline, result, feedback, late, playerArrival: arrival, deadline };
+    tl.choice = { index: input.index, grade, headline, result, feedback, late, playerArrival: arrival, deadline, lastChance, waited };
   }
   return tl;
 }
