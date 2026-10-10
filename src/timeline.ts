@@ -378,6 +378,7 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
   let lastChance: number | undefined;
   let waited: number | undefined;
   let throwReady: number | undefined;
+  let closeBy: number | undefined;
   let coverFlight: number | undefined;
 
   switch (scn.setup) {
@@ -686,7 +687,7 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       const runnerArrive = pathEnd(target);
       // 커버가 제때 들어오면 바로 던진다. 늦으면 들어오는 타이밍에 맞춰(도착하기 직전에) 던지고,
       // 그래도 주자보다 늦으면 던지지 않는다.
-      deadline = ready + flight;
+      deadline = c.coverMargin !== undefined ? Math.max(ready + flight, runnerArrive - c.coverMargin) : ready + flight;
       lastChance = runnerArrive;
       throwReady = ready;
       coverFlight = flight;
@@ -698,8 +699,12 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
         const out = t1 < runnerArrive;
         late = !out;
         if (out) {
-          // 제때(deadline)보다 늦게 들어온 만큼 기다린 것 (액션 모드의 프레임 오차는 빼고 내 도착 시간 기준)
-          if (arrival > deadline + 0.01) waited = arrival - deadline;
+          // 제때(deadline)보다 늦게 들어왔다 (액션 모드의 프레임 오차는 빼고 내 도착 시간 기준).
+          // waited는 공을 잡은 수비수가 실제로 기다린 시간, closeBy는 주자와의 차이
+          if (arrival > deadline + 0.01) {
+            waited = Math.max(0, arrival - flight - ready);
+            closeBy = runnerArrive - t1;
+          }
           tl.ball.push({ from, to, t0: throwT0, t1, arc: toss ? 0.6 : 0.8, thrower: c.fielder });
           target.stopAt = t1;
           tl.calls.push({ t: t1, pos: BASES[c.base], text: callText('force', true), good: true });
@@ -742,7 +747,10 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
     } else if (waited !== undefined && base) {
       grade = 'ok';
       headline = '아웃은 잡았지만 커버가 늦었어요';
-      feedback = `${base.label}가 맞아요. 다만 늦게 들어가서 ${FIELDER_NAME[scn.play!.fielder]}가 ${waited.toFixed(2)}초 기다렸다 던졌어요. 주자가 조금만 빨랐으면 세이프예요. 바로 출발하면 여유 있게 잡아요.`;
+      feedback =
+        scn.play!.coverMargin !== undefined
+          ? `${base.label}가 맞아요. 다만 늦게 들어가서 주자보다 ${(closeBy ?? 0).toFixed(2)}초 먼저, 아슬아슬하게 아웃이 됐어요. 바로 출발하면 여유 있게 잡아요.`
+          : `${base.label}가 맞아요. 다만 늦게 들어가서 ${FIELDER_NAME[scn.play!.fielder]}가 ${waited.toFixed(2)}초 기다렸다 던졌어요. 주자가 조금만 빨랐으면 세이프예요. 바로 출발하면 여유 있게 잡아요.`;
     }
     if (!base) {
       // 시간 초과면 제자리에 있었던 것과 같다

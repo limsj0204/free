@@ -75,7 +75,15 @@ export interface ChoiceScenario extends ScenarioBase {
   setup: 'steal' | 'gap' | 'cutoff' | 'pickoff' | 'bunt' | 'cover' | 'backup';
   side?: 'left' | 'right'; // gap: 좌중간/우중간
   // cover: 다른 수비수가 공을 잡아 base로 던질 때 내가 그 베이스를 커버하는지
-  play?: { fielder: FielderId; catchPoint: THREE.Vector3; travelTime: number; base: BaseId; batted: 'grounder' | 'bunt' };
+  play?: {
+    fielder: FielderId;
+    catchPoint: THREE.Vector3;
+    travelTime: number;
+    base: BaseId;
+    batted: 'grounder' | 'bunt';
+    // 이 값이 있으면 '공을 잡은 수비수보다 먼저'가 아니라 '주자보다 이만큼 먼저 들어가면' 최선 (투수 1루 커버처럼 원래 토스를 맞춰 주는 플레이)
+    coverMargin?: number;
+  };
   // backup: 외야수가 안타를 잡아 base로 던지고, 그 송구가 뒤로 빠질 때 내가 뒤를 받쳐 주는지
   backup?: { fielder: FielderId; field: THREE.Vector3; travelTime: number; base: 'home' | 'third' };
   otherCovers?: boolean; // steal: 다른 수비수가 2루 커버를 들어가는지

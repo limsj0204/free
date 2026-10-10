@@ -99,7 +99,7 @@ export const SCENARIOS: Scenario[] = [
     position: 'P',
     situation: { outs: 0, runners: NO_RUNNERS, batter: 'R' },
     brief: '보통 수비 위치예요. 공을 던진 뒤 타구가 어디로 가는지 보고 바로 움직여야 해요.',
-    play: { fielder: '1B', catchPoint: P(11.5, 31.5), travelTime: 2.6, base: 'first', batted: 'grounder' },
+    play: { fielder: '1B', catchPoint: P(13, 30), travelTime: 1.6, base: 'first', batted: 'grounder', coverMargin: 0.6 },
     prompt: '1, 2루간 땅볼! 어디로?',
     options: [
       {
