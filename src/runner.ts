@@ -136,7 +136,7 @@ export const evText = (st: BaseState) => `${stateLabel(st)} <small>(기대 ${exp
 
 export interface StepOption {
   id: string;
-  key: 'W' | 'S' | 'D';
+  key: 'A' | 'S' | 'D'; // A: 뒤로(멈춤·귀루), S: 하프웨이, D: 앞으로(간다·진루)
   label: string;
   short: string; // 3D 표시에 쓰는 짧은 이름
   pos: THREE.Vector3 | null; // 화면에 표시할 곳 (지금 서 있는 베이스면 null)

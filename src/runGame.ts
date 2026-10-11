@@ -25,7 +25,8 @@ const TAP_RADIUS = 70;
 const REPLAY_SPEED = 0.6;
 const FIELDER_IDS: FielderId[] = ['P', 'C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'];
 const OTHER_COUNT = 3; // 나 말고 화면에 나오는 주자 (타자 포함)
-const KEY_CODES: Record<string, string[]> = { W: ['KeyW', 'ArrowUp'], S: ['KeyS', 'ArrowDown'], D: ['KeyD', 'ArrowRight'] };
+// A는 뒤로(멈춤·베이스로·귀루), S는 하프웨이, D는 앞으로(간다·스타트·진루). 화살표 ← ↓ →도 같다.
+const KEY_CODES: Record<string, string[]> = { A: ['KeyA', 'ArrowLeft'], S: ['KeyS', 'ArrowDown'], D: ['KeyD', 'ArrowRight'] };
 const RANK: Record<Grade, number> = { best: 2, ok: 1, bad: 0 };
 
 const tvView = new URLSearchParams(location.search).get('view') === 'tv';

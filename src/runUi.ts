@@ -11,14 +11,14 @@ const $ = (id: string) => document.getElementById(id)!;
 const sec = (s: number) => `${s.toFixed(2)}초`;
 
 const KEY_HELP: Record<RunScenario['kind'], string> = {
-  extra: '<kbd>W</kbd> 간다, <kbd>S</kbd> 멈춘다',
-  fly: '<kbd>W</kbd> 스타트, <kbd>D</kbd> 하프웨이, <kbd>S</kbd> 베이스로(태그업 준비). 잡히면 태그업 판단이 이어져요: <kbd>W</kbd> 뛴다, <kbd>S</kbd> 머문다',
-  ground: '<kbd>W</kbd> 진루, <kbd>S</kbd> 귀루',
+  extra: '<kbd>A</kbd> 멈춘다, <kbd>D</kbd> 간다',
+  fly: '<kbd>A</kbd> 베이스로(태그업 준비), <kbd>S</kbd> 하프웨이, <kbd>D</kbd> 스타트. 잡히면 태그업 판단이 이어져요: <kbd>A</kbd> 머문다, <kbd>D</kbd> 뛴다',
+  ground: '<kbd>A</kbd> 귀루, <kbd>D</kbd> 진루',
 };
 
 export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null) {
   ui.hideAll();
-  ui.setHelp('마우스: 고개 돌리기 · W: 간다 · D: 하프웨이 · S: 멈춘다/베이스로 · 클릭: 바라보는 곳 · Esc: 마우스 풀기');
+  ui.setHelp('마우스: 고개 돌리기 · A: 뒤로(멈춤·베이스로) · S: 하프웨이 · D: 앞으로(간다) · 클릭: 바라보는 곳 · Esc: 마우스 풀기');
   document.getElementById('hud')!.classList.remove('hidden');
   const sit = scn.situation;
   const outsLabel = sit.outs === 0 ? '무사' : `${sit.outs}아웃`;

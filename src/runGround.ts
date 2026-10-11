@@ -140,8 +140,8 @@ export function groundStep(scn: RunScenario): Step {
     prompt: '땅볼! 진루할까?',
     urgent: '지금 정하세요! 진루할까?',
     options: [
-      { id: 'go', key: 'W', label: groundLabel(scn, 'go'), short: groundLabel(scn, 'go'), pos: BASES[NEXT3[b]] },
-      { id: 'back', key: 'S', label: groundLabel(scn, 'back'), short: groundLabel(scn, 'back'), pos: BASES[b] },
+      { id: 'back', key: 'A', label: groundLabel(scn, 'back'), short: groundLabel(scn, 'back'), pos: BASES[b] },
+      { id: 'go', key: 'D', label: groundLabel(scn, 'go'), short: groundLabel(scn, 'go'), pos: BASES[NEXT3[b]] },
     ],
     decisionAt: RUNNER.groundRead,
     deadline: Math.max(RUNNER.groundRead + 0.4, Math.min(RUNNER.groundRead + RUNNER.groundWindow, travel + 0.1)),

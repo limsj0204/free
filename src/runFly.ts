@@ -128,8 +128,8 @@ export function tagupStep(scn: RunScenario): Step {
     prompt: `잡혔다! ${baseLabelTo(b.next)} 뛸까?`,
     urgent: `잡혔다! ${baseLabelTo(b.next)} 뛸까?`,
     options: [
-      { id: 'go', key: 'W', label: tagupLabel(scn, 'go'), short: tagupLabel(scn, 'go'), pos: BASES[b.next] },
-      { id: 'stop', key: 'S', label: tagupLabel(scn, 'stop'), short: tagupLabel(scn, 'stop'), pos: null },
+      { id: 'stop', key: 'A', label: tagupLabel(scn, 'stop'), short: tagupLabel(scn, 'stop'), pos: null },
+      { id: 'go', key: 'D', label: tagupLabel(scn, 'go'), short: tagupLabel(scn, 'go'), pos: BASES[b.next] },
     ],
     decisionAt: T,
     deadline: T + RUNNER.tagupWindow,
@@ -260,9 +260,10 @@ export function readStep(scn: RunScenario): Step {
     prompt: '플라이! 어떻게 할까?',
     urgent: '지금 정하세요! 플라이를 보고 어떻게 할까?',
     options: [
-      { id: 'go', key: 'W', label: labels.go, short: '스타트', pos: BASES[b.next] },
-      { id: 'half', key: 'D', label: labels.half, short: '하프웨이', pos: along(b.origin, RUNNER.halfway * BASE_PATH) },
-      { id: 'tag', key: 'S', label: labels.tag, short: '베이스로', pos: BASES[b.origin] },
+      { id: 'tag', key: 'A', label: labels.tag, short: '베이스로', pos: BASES[b.origin] },
+      // 하프웨이 자리는 스타트(다음 베이스)와 같은 방향이라 화면 표시가 겹쳐서 표시하지 않는다 (버튼과 S키로 고른다)
+      { id: 'half', key: 'S', label: labels.half, short: '하프웨이', pos: null },
+      { id: 'go', key: 'D', label: labels.go, short: '스타트', pos: BASES[b.next] },
     ],
     decisionAt: RUNNER.flyRead,
     deadline: RUNNER.flyRead + RUNNER.flyWindow,

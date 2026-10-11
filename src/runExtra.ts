@@ -123,8 +123,8 @@ export function extraStep(scn: RunScenario): Step {
     prompt,
     urgent: `지금 정하세요! ${prompt}`,
     options: [
-      { id: 'go', key: 'W', label: extraLabel(scn, 'go'), short: extraLabel(scn, 'go'), pos: BASES[r.target] },
-      { id: 'stop', key: 'S', label: extraLabel(scn, 'stop'), short: extraLabel(scn, 'stop'), pos: BASES[r.mid] },
+      { id: 'stop', key: 'A', label: extraLabel(scn, 'stop'), short: extraLabel(scn, 'stop'), pos: BASES[r.mid] },
+      { id: 'go', key: 'D', label: extraLabel(scn, 'go'), short: extraLabel(scn, 'go'), pos: BASES[r.target] },
     ],
     decisionAt: tm.decisionAt,
     deadline: tm.deadline,
