@@ -15,7 +15,7 @@ function audio(): AudioContext | null {
       ctx = new AC();
       master = ctx.createGain();
       master.connect(ctx.destination);
-      // 1초짜리 백색 소음: 타격음·관중 소리 재료
+      // 1초짜리 백색 소음: 타격음·포구음·송구 소리 재료
       noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const d = noise.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -106,13 +106,12 @@ export const sfx = {
     src.start(t, Math.random() * 0.5);
     src.stop(t + 0.25);
   },
-  // 아웃: 높은 신호음 두 번 + 관중 환호
+  // 아웃: 높은 신호음 두 번
   out() {
     const c = audio();
     if (!c) return;
     tone(c, { freq: 880, gain: 0.18, decay: 0.12, type: 'square' });
     tone(c, { freq: 1320, gain: 0.16, decay: 0.18, type: 'square', delay: 0.11 });
-    burst(c, { type: 'bandpass', freq: 1000, q: 0.6, gain: 0.22, decay: 1.4, attack: 0.25, delay: 0.05 });
   },
   // 세이프·빠짐: 낮게 떨어지는 신호음
   safe() {
