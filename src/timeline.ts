@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PITCH, RUN, THROW } from './config';
+import { PITCH, RUN, THROW, VALUE } from './config';
 import { BASES, P, bagSpot, fencePoint, type BaseId } from './coords';
 import { fieldersOf } from './scenarios';
 import {
@@ -705,6 +705,14 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       // 커버가 제때 들어오면 바로 던진다. 늦으면 들어오는 타이밍에 맞춰(도착하기 직전에) 던지고,
       // 그래도 주자보다 늦으면 던지지 않는다.
       deadline = c.coverMargin !== undefined ? Math.max(ready + flight, runnerArrive - c.coverMargin) : ready + flight;
+      // 2루 커버는 병살이 목적이라, 받자마자 1루로 던져 여유 있게 병살이 되는 시각까지만 들어가면 제때다
+      // (공을 잡은 수비수가 조금 기다리는 건 괜찮다. 투수 땅볼처럼 공을 빨리 잡으면 기다리는 게 보통이다)
+      const dpPossible = c.base === 'second' && scn.situation.outs + 1 < 3;
+      if (dpPossible) {
+        const relayFlight = bagSpot('second').distanceTo(bagSpot('first')) / THROW.speed;
+        const dpBy = pathEnd(batterPath) - VALUE.closeMargin - THROW.pivotTime - relayFlight;
+        deadline = Math.max(deadline, Math.min(dpBy, runnerArrive));
+      }
       lastChance = runnerArrive;
       throwReady = ready;
       coverFlight = flight;
@@ -719,7 +727,7 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
           // 제때(deadline)보다 늦게 들어왔다 (액션 모드의 프레임 오차는 빼고 내 도착 시간 기준).
           // waited는 공을 잡은 수비수가 실제로 기다린 시간, closeBy는 주자와의 차이
           if (arrival > deadline + 0.01) {
-            waited = Math.max(0, arrival - flight - ready);
+            waited = Math.max(0.01, arrival - flight - ready);
             closeBy = runnerArrive - t1;
           }
           tl.ball.push({ from, to, t0: throwT0, t1, arc: toss ? 0.6 : 0.8, thrower: c.fielder });
@@ -794,14 +802,18 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       grade = 'ok';
       headline = relayResult === 'safe' ? '병살은 놓쳤어요' : '2루 아웃만 잡았어요';
       feedback =
-        relayResult === 'safe'
+        relayResult === 'safe' && waited !== undefined
+          ? `${base.label}는 맞아요. 다만 2루에 늦게 들어가서 1루 송구도 늦었고, 병살은 놓쳤어요. 바로 출발하면 병살을 잡아요.`
+          : relayResult === 'safe'
           ? `${base.label}는 맞아요. 다만 1루 송구가 늦어서 병살은 놓쳤어요. 받자마자 몸을 빼면서 1루로 던지세요.`
           : `${base.label}는 맞아요. 다만 받은 다음 1루로 이어 던져야 병살이에요.`;
     } else if (waited !== undefined && base) {
       grade = 'ok';
       headline = '아웃은 잡았지만 커버가 늦었어요';
       feedback =
-        scn.play!.coverMargin !== undefined
+        scn.play!.base === 'second' && scn.situation.outs + 1 < 3
+          ? `${base.label}가 맞아요. 다만 늦게 들어가서, 받자마자 1루로 던져도 병살이 될까 말까 한 타이밍이었어요. 바로 출발하면 여유 있게 병살을 잡아요.`
+          : scn.play!.coverMargin !== undefined
           ? `${base.label}가 맞아요. 다만 늦게 들어가서 주자보다 ${(closeBy ?? 0).toFixed(2)}초 먼저, 아슬아슬하게 아웃이 됐어요. 바로 출발하면 여유 있게 잡아요.`
           : `${base.label}가 맞아요. 다만 늦게 들어가서 ${FIELDER_NAME[scn.play!.fielder]}가 ${waited.toFixed(2)}초 기다렸다 던졌어요. 주자가 조금만 빨랐으면 세이프예요. 바로 출발하면 여유 있게 잡아요.`;
       if (relayResult === 'dp') {
