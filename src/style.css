@@ -563,6 +563,7 @@ button {
 .menu-card {
   width: min(1180px, 100%);
   padding: 18px 26px;
+  word-break: keep-all;
 }
 
 /* 넓은 화면에서는 왼쪽에 설정·조작법, 오른쪽에 상황 목록을 둬서 스크롤 없이 보이게 한다 */

@@ -280,7 +280,7 @@ export class UI {
             <span><kbd>좌클릭</kbd></span><span>바라보는 베이스로 송구 · 바라보는 선택지 고르기</span>
             <span><kbd>마우스</kbd></span><span>시점 돌리기 (화면을 클릭하면 마우스가 잠겨요)</span>
           </div>
-          <p class="controls-note">선택지는 타격 순간부터 떠 있어서 공을 잡기 전에 미리 고를 수 있어요.</p>`;
+          <p class="controls-note">선택지는 타격 순간부터 떠 있어서 공을 잡기 전에 미리 고를 수 있어요.<br />송구는 A·S·D 키와 좌클릭 모두로 할 수 있어요.</p>`;
 
     this.menu.innerHTML = `
       <div class="card menu-card">
@@ -290,8 +290,8 @@ export class UI {
             <h1>내야 수비 시뮬레이터</h1>
             <p class="note">처음엔 <b>판단 모드</b>로 판단부터 익히는 걸 추천해요. 수비에 자신이 생기면 <b>액션 모드</b>도 해 보세요.</p>
             <div class="modes">
-              <button class="${mode === 'judge' ? 'selected' : ''}" data-mode="judge" id="mode-judge"><b>판단 모드</b><span>키보드·클릭으로 던질 곳, 갈 곳 고르기</span></button>
-              <button class="${mode === 'action' ? 'selected' : ''}" data-mode="action" id="mode-action"><b>액션 모드</b><span>WASD로 직접 움직여 잡고, 좌클릭으로 송구</span></button>
+              <button class="${mode === 'judge' ? 'selected' : ''}" data-mode="judge" id="mode-judge"><b>판단 모드</b><span>키보드·클릭으로 던질 곳, 갈 곳 고르기 (권장)</span></button>
+              <button class="${mode === 'action' ? 'selected' : ''}" data-mode="action" id="mode-action"><b>액션 모드</b><span>WASD로 직접 움직여 잡고, 좌클릭으로 송구 (심화)</span></button>
             </div>
             <h2>${mode === 'action' ? '난이도 (플레이 전체 속도)' : '난이도 (판단 순간의 슬로모션)'}</h2>
             <div class="difficulties">
@@ -305,7 +305,7 @@ export class UI {
             <div class="setting-row">
               <label class="gen-toggle" for="hide-ball">
                 <input type="checkbox" id="hide-ball" ${getHideBall() ? 'checked' : ''} />
-                <span>타구 숨기기 <small>브리핑에서 타구를 가리고, 공이 맞는 순간 공개해요</small></span>
+                <span>타구 숨기기 <small>어떤 타구가 날아올지 모르는 상태로 시작해요.</small></span>
               </label>
               <div class="sound-ctl">
                 <label class="gen-toggle" for="sound-on">
