@@ -2,18 +2,23 @@ import * as THREE from 'three';
 import { P, type BaseId } from './coords';
 import { explainThrow } from './explain';
 import {
+  FIELDER_NAME,
   POSITIONS,
   THROW_CHOICES,
+  coverResult,
   evaluate,
   type Base3,
+  type ChoiceScenario,
   type FielderId,
   type PositionId,
+  type Scenario,
   type ThrowScenario,
 } from './scenario';
 
 // 상황 생성기: 포지션별 대표 타구 × 주자 배치 × 아웃 카운트 × 안 밀리는 주자의 행동(뛴다/멈춘다)을 조합한다.
 // 최선은 판정 엔진이 계산하고, 해설은 explain.ts가 규칙으로 쓴다. 랜덤 연습에만 쓴다.
 // 투수·1루수·3루수에는 번트 상황도 따로 만든다 (buildBunts).
+// 2루수·유격수에는 다른 키스톤이 땅볼을 잡을 때 2루를 커버하는 상황도 만든다 (buildCovers).
 
 interface Ball {
   key: string;
@@ -246,11 +251,122 @@ function buildBunts(): ThrowScenario[] {
   return list;
 }
 
-let cache: ThrowScenario[] | null = null;
+// ---------- 키스톤 2루 커버 ----------
+// 다른 키스톤 수비수가 땅볼을 잡으면 공을 잡지 않은 쪽이 2루에 들어가 받고, 1루로 이어 던져 병살을 노린다.
+
+const COVER_BALLS: Record<'2B' | 'SS', { key: string; name: string; catchPoint: THREE.Vector3; travelTime: number; note: string }[]> = {
+  // 2루수가 할 때는 유격수가 잡는 타구
+  '2B': [
+    { key: 'front', name: '정면 땅볼', catchPoint: P(-8.5, 31.5), travelTime: 1.45, note: '' },
+    { key: 'hole', name: '3루 쪽 깊은 땅볼', catchPoint: P(-15, 28), travelTime: 1.5, note: '깊은 곳에서 잡으면 송구가 길어서 조금 여유가 있지만, 그만큼 병살을 위한 시간도 줄어요. 2루에 빨리 들어가 기다리고 있어야 해요. ' },
+    { key: 'middle', name: '2루 쪽 땅볼', catchPoint: P(-5, 35), travelTime: 1.4, note: '2루 가까이서 잡으면 짧은 토스가 금방 와요. 평소보다 더 빨리 들어가야 해요. ' },
+  ],
+  // 유격수가 할 때는 2루수가 잡는 타구
+  SS: [
+    { key: 'front', name: '정면 땅볼', catchPoint: P(8.5, 31.5), travelTime: 1.45, note: '' },
+    { key: 'right', name: '1루 쪽 땅볼', catchPoint: P(14.5, 29), travelTime: 1.5, note: '1루 쪽 깊은 곳에서 잡으면 2루수는 몸을 돌려 던져야 해서 조금 여유가 있지만, 그만큼 병살을 위한 시간도 줄어요. 2루에 빨리 들어가 기다리고 있어야 해요. ' },
+    { key: 'middle', name: '2루 쪽 땅볼', catchPoint: P(5, 35), travelTime: 1.4, note: '2루 가까이서 잡으면 짧은 토스가 금방 와요. 평소보다 더 빨리 들어가야 해요. ' },
+  ],
+};
+
+const COVER_SETS: Base3[][] = [['first'], ['first', 'second'], ['first', 'third'], ['first', 'second', 'third']];
+
+function buildCovers(): ChoiceScenario[] {
+  const list: ChoiceScenario[] = [];
+  for (const position of ['2B', 'SS'] as const) {
+    const fielder: FielderId = position === '2B' ? 'SS' : '2B';
+    const fname = FIELDER_NAME[fielder];
+    const me = FIELDER_NAME[position];
+    const sgn = position === '2B' ? 1 : -1;
+    const dpCode = position === '2B' ? '6-4-3' : '4-6-3';
+    for (const ball of COVER_BALLS[position]) {
+      for (const set of COVER_SETS) {
+        for (let outs = 0; outs < 2; outs++) {
+          // 직접 만든 상황(1사 1루 정면)과 겹치는 건 뺀다. 무사 만루는 홈 송구도 좋은 판단이라 커버 연습으로는 뺀다
+          if (ball.key === 'front' && set.length === 1 && outs === 1) continue;
+          if (set.length === 3 && outs === 0) continue;
+          const situation = {
+            outs,
+            runners: { first: true, second: set.includes('second'), third: set.includes('third') },
+            batter: 'R' as const,
+          };
+          const past = coverResult(situation, 'past');
+          const extra =
+            `${set.includes('second') && outs === 0 ? '2루 주자는 3루까지 가지만, 병살이면 위기가 크게 줄어요. ' : ''}` +
+            (set.includes('third')
+              ? outs === 1
+                ? '1사라 병살이면 바로 이닝이 끝나요. 3루 주자가 먼저 들어와도 포스 아웃으로 끝난 이닝이라 점수가 인정되지 않아요. '
+                : '3루 주자는 들어오지만, 1점을 주고 아웃 2개를 잡는 게 병살 대형의 계산이에요. '
+              : outs === 1
+                ? '1사라 병살이면 바로 이닝이 끝나요. '
+                : '');
+          const name = `${fname} ${ball.name}`;
+          list.push({
+            id: `gen-${position}-cover-${ball.key}-${set.map((b) => SHORT[b]).join('')}-${outs}`,
+            kind: 'choice',
+            setup: 'cover',
+            generated: true,
+            title: `${outsText(outs)} ${runnersText(set)} / ${name}`,
+            event: name,
+            position,
+            situation,
+            brief: '병살 대형이에요. 타구가 어디로 가는지 보고 바로 움직여야 해요.',
+            fielders: { '2B': P(9.5, 34), SS: P(-9, 34), '1B': P(20.2, 18.4) },
+            play: { fielder, catchPoint: ball.catchPoint, travelTime: ball.travelTime, base: 'second', batted: 'grounder' },
+            prompt: `${fname} 쪽 땅볼! 어디로?`,
+            options: [
+              {
+                label: '2루 커버',
+                moveTo: P(sgn * 0.6, 38.4),
+                grade: 'best',
+                takes: true,
+                headline: '2루 포스아웃',
+                result: coverResult(situation, 'force'),
+                feedback: `${fname} 송구를 2루에서 받아 1루 주자를 잡았어요. 바로 1루로 이어 던지면 병살(${dpCode})까지 노릴 수 있어요.`,
+              },
+              {
+                label: '2루 뒤 백업',
+                moveTo: P(sgn * 3, 44),
+                grade: 'bad',
+                headline: '2루가 비었어요',
+                result: past,
+                feedback: `${fname}가 공을 잡았으니 2루에 들어갈 사람은 ${me}뿐이에요. 송구를 받을 사람이 없어서 공이 빠졌어요.`,
+              },
+              position === '2B'
+                ? {
+                    label: '1루 커버',
+                    moveTo: P(19.0, 19.6),
+                    grade: 'bad',
+                    headline: '2루가 비었어요',
+                    result: past,
+                    feedback: '1루는 1루수가 지켜요. 2루에 아무도 없어서 유격수 송구가 빠졌고, 주자들이 한 베이스씩 더 갔어요.',
+                  }
+                : {
+                    label: '제자리',
+                    moveTo: P(-9, 34),
+                    grade: 'bad',
+                    headline: '2루가 비었어요',
+                    result: past,
+                    feedback: '2루에 아무도 없어서 2루수 송구가 빠졌고, 주자들이 한 베이스씩 더 갔어요.',
+                  },
+            ],
+            explanation:
+              `${fname} 쪽 땅볼이면 공을 잡지 않은 ${me}가 2루 커버를 들어가요. "공을 잡지 않은 쪽이 2루로 간다"고 기억하면 쉬워요. ` +
+              ball.note +
+              (`받은 다음에는 바로 1루로 이어 던져야 병살(${dpCode})이 완성돼요. ` + extra).trim(),
+          });
+        }
+      }
+    }
+  }
+  return list;
+}
+
+let cache: Scenario[] | null = null;
 
 // 처음 쓸 때 한 번만 만든다
-export function generatedScenarios(): ThrowScenario[] {
-  cache ??= [...build(), ...buildBunts()];
+export function generatedScenarios(): Scenario[] {
+  cache ??= [...build(), ...buildBunts(), ...buildCovers()];
   return cache;
 }
 

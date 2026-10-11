@@ -5,6 +5,7 @@ import { fieldersOf } from './scenarios';
 import {
   batterBox,
   coverPath,
+  coverResult,
   decisionDeadline,
   FIELDER_NAME,
   planRunners,
@@ -682,6 +683,17 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
         };
         tl.runners.set('r1', r1Path);
       }
+      // 앞 주자가 있으면 밀려서 뛴다. 3루 주자는 땅볼에 바로 홈으로 들어온다 (병살 대형은 1점을 주고 아웃을 노린다)
+      let r2Path: Path | undefined;
+      if (scn.situation.runners.second && scn.situation.runners.first) {
+        const lead2 = BASES.second.clone().add(BASES.third.clone().sub(BASES.second).normalize().multiplyScalar(RUN.leadOff));
+        r2Path = { waypoints: [lead2, BASES.third.clone()], startTime: RUN.runnerStartDelay, speed: RUN.speed };
+        tl.runners.set('r2', r2Path);
+      }
+      if (scn.situation.runners.third) {
+        const lead3 = BASES.third.clone().add(BASES.home.clone().sub(BASES.third).normalize().multiplyScalar(RUN.leadOff * 0.6));
+        tl.runners.set('r3', { waypoints: [lead3, BASES.home.clone()], startTime: RUN.runnerStartDelay, speed: RUN.speed });
+      }
       const target = c.base === 'first' ? batterPath : r1Path!;
       const from = c.catchPoint.clone().setY(GLOVE);
       const to = bagSpot(c.base).setY(GLOVE);
@@ -749,6 +761,7 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
         const past = to.clone().add(to.clone().sub(from).setY(0).normalize().multiplyScalar(14)).setY(0.1);
         tl.ball.push({ from: to, to: past, t0: t1, t1: t1 + 1.3, arc: 0.5, bounces: 3 });
         target.waypoints.push(BASES[c.base === 'first' ? 'second' : 'third'].clone());
+        r2Path?.waypoints.push(BASES.home.clone());
         tl.calls.push({ t: t1 + 0.1, pos: BASES[c.base], text: '빠졌다!', good: false });
         tl.end = t1 + 3;
       }
@@ -769,11 +782,13 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
         scn.setup === 'cover'
           ? `${base.label}가 맞아요. 하지만 너무 늦게 들어가서, ${FIELDER_NAME[scn.play!.fielder]}가 기다리는 사이 주자가 먼저 들어갔어요. 상황을 보자마자 바로 움직여야 해요.`
           : `${base.label}가 맞아요. 하지만 늦게 출발해서 공보다 늦게 도착했어요. 상황을 보자마자 바로 움직여야 해요.`;
-      result = scn.options.find((o) => !o.takes && o.grade === 'bad')?.result ?? result;
+      result =
+        scn.setup === 'cover' && scn.play!.base === 'second'
+          ? coverResult(scn.situation, 'safe')
+          : (scn.options.find((o) => !o.takes && o.grade === 'bad')?.result ?? result);
     } else if (base && relayResult === 'dp' && waited === undefined) {
-      const outs = scn.situation.outs + 2;
       headline = '병살 성공!';
-      result = outs >= 3 ? '3아웃, 이닝 종료' : `${outs}아웃 주자 없음`;
+      result = coverResult(scn.situation, 'dp');
       feedback = `${base.label} 후 바로 1루로 이어 던져서 병살을 완성했어요.`;
     } else if (base && (relayResult === 'safe' || relayResult === 'none')) {
       grade = 'ok';
@@ -790,9 +805,8 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
           ? `${base.label}가 맞아요. 다만 늦게 들어가서 주자보다 ${(closeBy ?? 0).toFixed(2)}초 먼저, 아슬아슬하게 아웃이 됐어요. 바로 출발하면 여유 있게 잡아요.`
           : `${base.label}가 맞아요. 다만 늦게 들어가서 ${FIELDER_NAME[scn.play!.fielder]}가 ${waited.toFixed(2)}초 기다렸다 던졌어요. 주자가 조금만 빨랐으면 세이프예요. 바로 출발하면 여유 있게 잡아요.`;
       if (relayResult === 'dp') {
-        const outs = scn.situation.outs + 2;
         headline = '병살은 됐지만 커버가 늦었어요';
-        result = outs >= 3 ? '3아웃, 이닝 종료' : `${outs}아웃 주자 없음`;
+        result = coverResult(scn.situation, 'dp');
       }
     }
     if (!base) {

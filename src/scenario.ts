@@ -46,6 +46,7 @@ interface ScenarioBase {
   explanation: string; // 결과 화면의 해설
   fielders?: Partial<Record<FielderId, THREE.Vector3>>; // 기본 수비 위치에서 바꿀 것만
   fielderMoves?: Partial<Record<FielderId, THREE.Vector3>>; // 플레이가 시작되면 이동할 위치
+  generated?: boolean; // 상황 생성기로 만든 상황 (랜덤 연습에만 나온다)
 }
 
 // 공을 잡은 뒤 어디로 던질지 고르는 상황. 결과는 시간 계산으로 판정한다.
@@ -56,7 +57,6 @@ export interface ThrowScenario extends ScenarioBase {
   selfBases?: BaseId[]; // 던지지 않고 직접 밟으러 가는 베이스
   runnerActs?: Partial<Record<Base3, 'advance' | 'hold'>>; // 안 밀리는 주자가 뛸지 (땅볼일 때)
   hitAndRun?: boolean; // 투구 때 주자가 미리 스타트했는지
-  generated?: boolean; // 상황 생성기로 만든 상황 (랜덤 연습에만 나온다)
 }
 
 export interface ChoiceOption {
@@ -92,6 +92,18 @@ export interface ChoiceScenario extends ScenarioBase {
 }
 
 export type Scenario = ThrowScenario | ChoiceScenario;
+
+// 2루 커버 플레이(1루 주자 포스)가 끝난 뒤 상황. 앞 주자는 한 베이스씩 밀리고 3루 주자는 들어온다.
+// dp: 2루·1루 둘 다 아웃, force: 2루만 아웃, safe: 2루도 세이프, past: 2루 송구가 빠졌다
+export function coverResult(s: Situation, kind: 'dp' | 'force' | 'safe' | 'past'): string {
+  const outs = s.outs + (kind === 'dp' ? 2 : kind === 'force' ? 1 : 0);
+  if (outs >= 3) return '3아웃, 이닝 종료';
+  const r = s.runners;
+  const on = [kind !== 'dp' ? '1' : '', kind === 'safe' ? '2' : '', kind === 'past' || r.second ? '3' : ''].filter(Boolean);
+  const runs = (r.third ? 1 : 0) + (kind === 'past' && r.second ? 1 : 0);
+  const bases = on.length === 3 ? '만루' : on.length ? `${on.join(', ')}루` : '주자 없음';
+  return `${outs === 0 ? '무사' : `${outs}아웃`} ${bases}${runs ? `, ${runs}점 내줌` : ''}`;
+}
 
 // ---------- 송구 판정 엔진 ----------
 
