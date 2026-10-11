@@ -252,35 +252,80 @@ function buildBunts(): ThrowScenario[] {
 }
 
 // ---------- 키스톤 2루 커버 ----------
-// 다른 키스톤 수비수가 땅볼을 잡으면 공을 잡지 않은 쪽이 2루에 들어가 받고, 1루로 이어 던져 병살을 노린다.
+// 1루 주자가 있을 때 다른 수비수가 땅볼을 잡으면, 2루 왼쪽(3루수·유격수) 타구는 2루수가, 2루 오른쪽(1루수·2루수) 타구와
+// 투수 땅볼은 유격수가 2루에 들어가 받고 1루로 이어 던져 병살을 노린다.
 
-const COVER_BALLS: Record<'2B' | 'SS', { key: string; name: string; catchPoint: THREE.Vector3; travelTime: number; note: string }[]> = {
-  // 2루수가 할 때는 유격수가 잡는 타구
+interface CoverBall {
+  key: string;
+  fielder: FielderId; // 공을 잡는 수비수
+  name: string;
+  catchPoint: THREE.Vector3;
+  travelTime: number;
+  note: string; // 타구별 요령
+  noSecond?: boolean; // 2루 주자가 있으면 3루수가 3루를 직접 밟는 타구라 뺀다
+}
+
+const DEEP = '깊은 곳에서 잡으면 송구가 길어서 조금 여유가 있지만, 그만큼 병살을 위한 시간도 줄어요. 2루에 빨리 들어가 기다리고 있어야 해요. ';
+const NEAR = '2루 가까이서 잡으면 짧은 토스가 금방 와요. 평소보다 더 빨리 들어가야 해요. ';
+const THIRD =
+  '3루수 송구는 멀리서 와서 시간 여유는 조금 있어요. 대신 받고 나서 1루로 던질 때 1루 주자가 슬라이딩해 들어오는 쪽을 등지게 되니, 베이스를 밟고 빠지면서 던지세요. ';
+
+const COVER_BALLS: Record<'2B' | 'SS', CoverBall[]> = {
   '2B': [
-    { key: 'front', name: '정면 땅볼', catchPoint: P(-8.5, 31.5), travelTime: 1.45, note: '' },
-    { key: 'hole', name: '3루 쪽 깊은 땅볼', catchPoint: P(-15, 28), travelTime: 1.5, note: '깊은 곳에서 잡으면 송구가 길어서 조금 여유가 있지만, 그만큼 병살을 위한 시간도 줄어요. 2루에 빨리 들어가 기다리고 있어야 해요. ' },
-    { key: 'middle', name: '2루 쪽 땅볼', catchPoint: P(-5, 35), travelTime: 1.4, note: '2루 가까이서 잡으면 짧은 토스가 금방 와요. 평소보다 더 빨리 들어가야 해요. ' },
+    { key: 'front', fielder: 'SS', name: '정면 땅볼', catchPoint: P(-8.5, 31.5), travelTime: 1.45, note: '' },
+    { key: 'hole', fielder: 'SS', name: '3루 쪽 깊은 땅볼', catchPoint: P(-15, 28), travelTime: 1.5, note: DEEP },
+    { key: 'middle', fielder: 'SS', name: '2루 쪽 땅볼', catchPoint: P(-5, 35), travelTime: 1.4, note: NEAR },
+    { key: '3b-front', fielder: '3B', name: '정면 땅볼', catchPoint: P(-20, 25.5), travelTime: 1.25, note: THIRD },
+    { key: '3b-line', fielder: '3B', name: '3루 베이스 근처 땅볼', catchPoint: P(-20, 22), travelTime: 1.2, note: THIRD, noSecond: true },
   ],
-  // 유격수가 할 때는 2루수가 잡는 타구
   SS: [
-    { key: 'front', name: '정면 땅볼', catchPoint: P(8.5, 31.5), travelTime: 1.45, note: '' },
-    { key: 'right', name: '1루 쪽 땅볼', catchPoint: P(14.5, 29), travelTime: 1.5, note: '1루 쪽 깊은 곳에서 잡으면 2루수는 몸을 돌려 던져야 해서 조금 여유가 있지만, 그만큼 병살을 위한 시간도 줄어요. 2루에 빨리 들어가 기다리고 있어야 해요. ' },
-    { key: 'middle', name: '2루 쪽 땅볼', catchPoint: P(5, 35), travelTime: 1.4, note: '2루 가까이서 잡으면 짧은 토스가 금방 와요. 평소보다 더 빨리 들어가야 해요. ' },
+    { key: 'front', fielder: '2B', name: '정면 땅볼', catchPoint: P(8.5, 31.5), travelTime: 1.45, note: '' },
+    { key: 'right', fielder: '2B', name: '1루 쪽 땅볼', catchPoint: P(14.5, 29), travelTime: 1.5, note: DEEP },
+    { key: 'middle', fielder: '2B', name: '2루 쪽 땅볼', catchPoint: P(5, 35), travelTime: 1.4, note: NEAR },
+    {
+      key: '1b-front',
+      fielder: '1B',
+      name: '정면 땅볼',
+      catchPoint: P(18.5, 24.5),
+      travelTime: 1.3,
+      note: '1루수가 공을 잡으러 나가면 1루는 투수가 커버해요. 받자마자 1루로 던지면 투수가 받아 병살이 돼요. ',
+    },
+    {
+      key: 'p-front',
+      fielder: 'P',
+      name: '정면 땅볼',
+      catchPoint: P(0.3, 16.3),
+      travelTime: 0.6,
+      note: '투수 앞 타구는 아주 빨리 와서 송구도 금방 와요. 타구를 보자마자 출발해야 해요. ',
+    },
   ],
 };
+
+const DP_CODE: Partial<Record<FielderId, string>> = { SS: '6-4-3', '3B': '5-4-3', '2B': '4-6-3', '1B': '3-6-3', P: '1-6-3' };
+
+// 왜 내가 2루에 들어가는지
+function coverWhy(fielder: FielderId, me: string) {
+  const fname = FIELDER_NAME[fielder];
+  if (fielder === 'SS' || fielder === '2B')
+    return `${fname} 쪽 땅볼이면 공을 잡지 않은 ${me}가 2루 커버를 들어가요. "공을 잡지 않은 쪽이 2루로 간다"고 기억하면 쉬워요. `;
+  if (fielder === '3B') return '3루수 땅볼이면 유격수는 3루수 뒤를 받치러 움직이니, 2루는 2루수가 들어가요. 2루 왼쪽 타구는 2루수, 오른쪽 타구는 유격수가 커버해요. ';
+  if (fielder === '1B') return '1루수 땅볼이면 2루수는 1루 쪽으로 움직이니, 2루는 유격수가 들어가요. 2루 오른쪽 타구는 유격수, 왼쪽 타구는 2루수가 커버해요. ';
+  return '투수 땅볼은 보통 유격수가 2루에 들어가요. 팀 약속에 따라 2루수가 들어가기도 하지만, 유격수가 들어가는 게 기본이에요. ';
+}
 
 const COVER_SETS: Base3[][] = [['first'], ['first', 'second'], ['first', 'third'], ['first', 'second', 'third']];
 
 function buildCovers(): ChoiceScenario[] {
   const list: ChoiceScenario[] = [];
   for (const position of ['2B', 'SS'] as const) {
-    const fielder: FielderId = position === '2B' ? 'SS' : '2B';
-    const fname = FIELDER_NAME[fielder];
     const me = FIELDER_NAME[position];
     const sgn = position === '2B' ? 1 : -1;
-    const dpCode = position === '2B' ? '6-4-3' : '4-6-3';
     for (const ball of COVER_BALLS[position]) {
+      const fielder = ball.fielder;
+      const fname = FIELDER_NAME[fielder];
+      const dpCode = DP_CODE[fielder]!;
       for (const set of COVER_SETS) {
+        if (ball.noSecond && set.includes('second')) continue;
         for (let outs = 0; outs < 2; outs++) {
           // 직접 만든 상황(1사 1루 정면)과 겹치는 건 뺀다. 무사 만루는 홈 송구도 좋은 판단이라 커버 연습으로는 뺀다
           if (ball.key === 'front' && set.length === 1 && outs === 1) continue;
@@ -301,6 +346,10 @@ function buildCovers(): ChoiceScenario[] {
                 ? '1사라 병살이면 바로 이닝이 끝나요. '
                 : '');
           const name = `${fname} ${ball.name}`;
+          const whoText =
+            fielder === 'SS' || fielder === '2B'
+              ? `${fname}가 공을 잡았으니 2루에 들어갈 사람은 ${me}뿐이에요.`
+              : `${fname} 땅볼에는 ${me}가 2루에 들어가야 해요.`;
           list.push({
             id: `gen-${position}-cover-${ball.key}-${set.map((b) => SHORT[b]).join('')}-${outs}`,
             kind: 'choice',
@@ -312,6 +361,8 @@ function buildCovers(): ChoiceScenario[] {
             situation,
             brief: '병살 대형이에요. 타구가 어디로 가는지 보고 바로 움직여야 해요.',
             fielders: { '2B': P(9.5, 34), SS: P(-9, 34), '1B': P(20.2, 18.4) },
+            // 1루수가 공을 잡으면 투수가 1루를 커버한다
+            fielderMoves: fielder === '1B' ? { P: P(18.6, 19.9) } : undefined,
             play: { fielder, catchPoint: ball.catchPoint, travelTime: ball.travelTime, base: 'second', batted: 'grounder' },
             prompt: `${fname} 쪽 땅볼! 어디로?`,
             options: [
@@ -330,7 +381,7 @@ function buildCovers(): ChoiceScenario[] {
                 grade: 'bad',
                 headline: '2루가 비었어요',
                 result: past,
-                feedback: `${fname}가 공을 잡았으니 2루에 들어갈 사람은 ${me}뿐이에요. 송구를 받을 사람이 없어서 공이 빠졌어요.`,
+                feedback: `${whoText} 송구를 받을 사람이 없어서 공이 빠졌어요.`,
               },
               position === '2B'
                 ? {
@@ -339,7 +390,7 @@ function buildCovers(): ChoiceScenario[] {
                     grade: 'bad',
                     headline: '2루가 비었어요',
                     result: past,
-                    feedback: '1루는 1루수가 지켜요. 2루에 아무도 없어서 유격수 송구가 빠졌고, 주자들이 한 베이스씩 더 갔어요.',
+                    feedback: `1루는 1루수가 지켜요. 2루에 아무도 없어서 ${fname} 송구가 빠졌고, 주자들이 한 베이스씩 더 갔어요.`,
                   }
                 : {
                     label: '제자리',
@@ -347,13 +398,10 @@ function buildCovers(): ChoiceScenario[] {
                     grade: 'bad',
                     headline: '2루가 비었어요',
                     result: past,
-                    feedback: '2루에 아무도 없어서 2루수 송구가 빠졌고, 주자들이 한 베이스씩 더 갔어요.',
+                    feedback: `${whoText} 2루에 아무도 없어서 ${fname} 송구가 빠졌고, 주자들이 한 베이스씩 더 갔어요.`,
                   },
             ],
-            explanation:
-              `${fname} 쪽 땅볼이면 공을 잡지 않은 ${me}가 2루 커버를 들어가요. "공을 잡지 않은 쪽이 2루로 간다"고 기억하면 쉬워요. ` +
-              ball.note +
-              (`받은 다음에는 바로 1루로 이어 던져야 병살(${dpCode})이 완성돼요. ` + extra).trim(),
+            explanation: (coverWhy(fielder, me) + ball.note + `받은 다음에는 바로 1루로 이어 던져야 병살(${dpCode})이 완성돼요. ` + extra).trim(),
           });
         }
       }

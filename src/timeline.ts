@@ -743,7 +743,7 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
               const out2 = r.to === 'first' && t2 < batterArrive;
               if (out2) batterPath.stopAt = t2;
               tl.calls.push({ t: out2 ? t2 : batterArrive, pos: BASES[r.to], text: callText('force', out2), good: out2 });
-              tl.plays.push({ t: out2 ? t2 : batterArrive, base: r.to, runner: 'batter', kind: 'force', out: out2, receiver: r.to === 'first' ? '1B' : 'player' });
+              tl.plays.push({ t: out2 ? t2 : batterArrive, base: r.to, runner: 'batter', kind: 'force', out: out2, receiver: r.to === 'first' ? (c.fielder === '1B' ? 'P' : '1B') : 'player' });
               tl.end = Math.max(t2, batterArrive) + 1.5;
               relayResult = out2 ? 'dp' : 'safe';
             }
