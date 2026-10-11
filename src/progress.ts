@@ -16,6 +16,7 @@ interface Saved {
   mode?: 'judge' | 'action';
   soundOn?: boolean;
   volume?: number; // 0~1
+  skipIntro?: boolean; // 시작 화면(소개) 건너뛰기
 }
 
 const KEY = 'infield-iq-progress-v1';
@@ -111,5 +112,14 @@ export function getVolume(): number {
 
 export function setVolume(v: number) {
   saved.volume = v;
+  persist();
+}
+
+export function getSkipIntro(): boolean {
+  return saved.skipIntro ?? false;
+}
+
+export function setSkipIntro(on: boolean) {
+  saved.skipIntro = on;
   persist();
 }

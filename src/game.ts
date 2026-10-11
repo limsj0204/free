@@ -17,7 +17,7 @@ import {
   type Mannequin,
 } from './players';
 import { generatedFor, generatedScenarios } from './generated';
-import { addResult, getDifficulty, getIncludeGenerated, getMode, getRecord, setDifficulty, setMode } from './progress';
+import { addResult, getDifficulty, getIncludeGenerated, getMode, getRecord, getSkipIntro, setDifficulty, setMode } from './progress';
 import {
   THROW_CHOICES,
   altExec,
@@ -218,6 +218,7 @@ export class Game {
     this.bindInput();
     this.prepare(this.scn);
     this.openMenu();
+    if (!getSkipIntro()) this.ui.showIntro();
   }
 
   // ---------- 입력 ----------

@@ -1100,6 +1100,109 @@ button:focus-visible {
   background: #e62117;
 }
 
+/* 시작 화면 (소개) */
+.intro {
+  background: rgba(5, 8, 16, 0.82);
+  z-index: 5;
+}
+
+.intro-card {
+  width: min(560px, 100%);
+  padding: 32px 32px 22px;
+  text-align: center;
+  word-break: keep-all;
+}
+
+@media (max-width: 480px) {
+  .intro-card {
+    padding: 24px 18px 18px;
+  }
+
+  .intro-card h1 {
+    font-size: 25px;
+  }
+}
+
+@media (pointer: coarse) {
+  .intro-start kbd {
+    display: none;
+  }
+}
+
+.intro-card h1 {
+  font-size: 30px;
+}
+
+.card .intro-lead {
+  margin: 14px 0 18px;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.intro-points {
+  margin: 0 0 24px;
+  padding: 14px 18px 14px 34px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  line-height: 1.6;
+  font-size: 14.5px;
+  color: var(--muted);
+}
+
+.intro-points li + li {
+  margin-top: 6px;
+}
+
+.intro-points b {
+  color: var(--text);
+}
+
+.intro-start {
+  width: 100%;
+}
+
+.intro-skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.intro-channels {
+  justify-content: center;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.intro-channels .channel {
+  padding: 5px 11px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.intro-link {
+  margin-right: auto;
+  padding: 7px 4px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.intro-link:hover,
+.intro-link:focus-visible {
+  color: var(--text);
+  outline: none;
+}
+
 /* 휴대폰(터치): 결정 패널의 빈 곳을 눌러도 그 뒤의 베이스를 고를 수 있게 패널은 버튼만 터치를 받는다 */
 @media (pointer: coarse) {
   .decision {

@@ -3,7 +3,20 @@ import { ACTION, DIFFICULTIES, RUN, VALUE, type DifficultyId } from './config';
 import { BASES, BASE_LABEL, P, type BaseId } from './coords';
 import { BUNT_RULE, josa } from './explain';
 import { generatedFor } from './generated';
-import { getHideBall, getIncludeGenerated, getMode, getRecord, getSoundOn, getVolume, setHideBall, setIncludeGenerated, setSoundOn, setVolume } from './progress';
+import {
+  getHideBall,
+  getIncludeGenerated,
+  getMode,
+  getRecord,
+  getSkipIntro,
+  getSoundOn,
+  getVolume,
+  setHideBall,
+  setIncludeGenerated,
+  setSkipIntro,
+  setSoundOn,
+  setVolume,
+} from './progress';
 import { sfx } from './sound';
 import {
   FIELDER_NAME,
@@ -143,6 +156,7 @@ export class UI {
   randomLabel: string | null = null; // 랜덤 연습 중이면 "유격수 랜덤" 같은 이름
 
   private menu = $('menu');
+  private intro = $('intro');
   private briefing = $('briefing');
   private result = $('result');
   private decision = $('decision');
@@ -170,6 +184,47 @@ export class UI {
     });
     $('hud-batter').textContent = scn.situation.batter === 'R' ? '우타' : '좌타';
     $('hud-speed').textContent = String(kmh);
+  }
+
+  // ---------- 시작 화면 ----------
+
+  // 처음 들어오면 목록 위에 소개를 띄운다. 시작하기(또는 Enter)로 닫는다
+  showIntro() {
+    this.intro.innerHTML = `
+      <div class="card intro-card">
+        <div class="eyebrow">VR 야구 대비 · 내야 수비</div>
+        <h1>내야 수비 시뮬레이터</h1>
+        <p class="intro-lead">SBO 대회를 준비하는 스트리머들의 수비 판단력에 도움을 주기 위한 시뮬레이터예요.</p>
+        <ul class="intro-points">
+          <li>타구와 주자 상황을 보고 <b>어디로 던지고, 어디로 움직일지</b> 판단을 반복해서 연습해요.</li>
+          <li>실제 VR 야구의 <b>이동 속도와 송구 속도</b>와는 다소 차이가 있을 수 있어요.</li>
+          <li>결과와 해설은 하나의 기준이에요. 실제 경기에서는 <b>팀 약속과 상황</b>에 따라 달라질 수 있어요.</li>
+        </ul>
+        <button class="primary intro-start" id="intro-start">시작하기 <kbd>Enter</kbd></button>
+        <label class="intro-skip" for="intro-skip">
+          <input type="checkbox" id="intro-skip" ${getSkipIntro() ? 'checked' : ''} />
+          <span>다음부터 이 화면 건너뛰기</span>
+        </label>
+        <div class="channel-links intro-channels">
+          <a class="channel soop" href="https://www.sooplive.com/station/yangdoki" target="_blank" rel="noopener noreferrer"><b>SOOP</b>양도끼 방송국</a>
+          <a class="channel youtube" href="https://www.youtube.com/@%EC%96%91%EB%8F%84%EB%81%BC" target="_blank" rel="noopener noreferrer"><b>YouTube</b>양도끼</a>
+        </div>
+      </div>`;
+    const close = () => {
+      setSkipIntro($<HTMLInputElement>('intro-skip').checked);
+      this.intro.classList.add('hidden');
+      document.removeEventListener('keydown', onKey);
+      sfx.click();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+        e.preventDefault();
+        close();
+      }
+    };
+    $('intro-start').addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    this.intro.classList.remove('hidden');
   }
 
   // ---------- 목록 ----------
@@ -277,6 +332,7 @@ export class UI {
               </label>
             </div>
             <div class="channel-links">
+              <button class="intro-link" id="intro-btn">ⓘ 소개</button>
               <a class="channel soop" href="https://www.sooplive.com/station/yangdoki" target="_blank" rel="noopener noreferrer"><b>SOOP</b>양도끼 방송국</a>
               <a class="channel youtube" href="https://www.youtube.com/@%EC%96%91%EB%8F%84%EB%81%BC" target="_blank" rel="noopener noreferrer"><b>YouTube</b>양도끼</a>
             </div>
@@ -310,6 +366,7 @@ export class UI {
       }),
     );
     $('random-pos').addEventListener('click', () => this.onRandom(this.tab));
+    $('intro-btn').addEventListener('click', () => this.showIntro());
     this.menu.querySelectorAll<HTMLButtonElement>('[data-scenario]').forEach((b) =>
       b.addEventListener('click', () => this.onPickScenario(b.dataset.scenario!)),
     );
