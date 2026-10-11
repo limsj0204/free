@@ -3,7 +3,8 @@ import { ACTION, DIFFICULTIES, RUN, VALUE, type DifficultyId } from './config';
 import { BASES, BASE_LABEL, P, type BaseId } from './coords';
 import { BUNT_RULE, josa } from './explain';
 import { generatedFor } from './generated';
-import { getHideBall, getIncludeGenerated, getMode, getRecord, setHideBall, setIncludeGenerated } from './progress';
+import { getHideBall, getIncludeGenerated, getMode, getRecord, getSoundOn, getVolume, setHideBall, setIncludeGenerated, setSoundOn, setVolume } from './progress';
+import { sfx } from './sound';
 import {
   FIELDER_NAME,
   POSITIONS,
@@ -246,10 +247,19 @@ export class UI {
                   }</span></button>`,
               ).join('')}
             </div>
-            <label class="gen-toggle" for="hide-ball">
-              <input type="checkbox" id="hide-ball" ${getHideBall() ? 'checked' : ''} />
-              <span>타구 숨기기 <small>브리핑에서 타구를 가리고, 공이 맞는 순간 공개해요</small></span>
-            </label>
+            <div class="setting-row">
+              <label class="gen-toggle" for="hide-ball">
+                <input type="checkbox" id="hide-ball" ${getHideBall() ? 'checked' : ''} />
+                <span>타구 숨기기 <small>브리핑에서 타구를 가리고, 공이 맞는 순간 공개해요</small></span>
+              </label>
+              <div class="sound-ctl">
+                <label class="gen-toggle" for="sound-on">
+                  <input type="checkbox" id="sound-on" ${getSoundOn() ? 'checked' : ''} />
+                  <span>소리</span>
+                </label>
+                <input type="range" id="volume" min="0" max="1" step="0.05" value="${getVolume()}" aria-label="음량" ${getSoundOn() ? '' : 'disabled'} />
+              </div>
+            </div>
             <h2>조작법</h2>
             ${controls}
           </div>
@@ -282,6 +292,17 @@ export class UI {
     );
     $<HTMLInputElement>('gen-toggle').addEventListener('change', (e) => setIncludeGenerated((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('hide-ball').addEventListener('change', (e) => setHideBall((e.target as HTMLInputElement).checked));
+    $<HTMLInputElement>('sound-on').addEventListener('change', (e) => {
+      const on = (e.target as HTMLInputElement).checked;
+      setSoundOn(on);
+      $<HTMLInputElement>('volume').disabled = !on;
+      if (on) sfx.glove();
+    });
+    // 음량을 바꾸면 바로 들어볼 수 있게 짧게 소리를 낸다
+    $<HTMLInputElement>('volume').addEventListener('change', (e) => {
+      setVolume(Number((e.target as HTMLInputElement).value));
+      sfx.bat();
+    });
     this.menu.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) =>
       b.addEventListener('click', () => {
         this.onMode(b.dataset.mode as 'judge' | 'action');

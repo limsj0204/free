@@ -51,6 +51,7 @@ import {
   type BasePlay,
   type Timeline,
 } from './timeline';
+import { sfx, unlockAudio } from './sound';
 import { recordId, type DecisionDef, type UI } from './ui';
 
 type Phase = 'menu' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 'replay';
@@ -122,6 +123,7 @@ export class Game {
   private reactionReal = 0;
   private decisionDelay = 0;
   private outcome: Outcome | null = null;
+  private soundT = -Infinity; // 효과음: 지난 프레임의 시간 (이 사이에 지나간 순간의 소리를 낸다)
   // 판단 모드: 직접 밟기를 골랐을 때, 밟은 뒤 이어 던질 곳을 고르는 두 번째 판단
   // kind 'cover': 위치 판단에서 커버로 받은 뒤 1루로 이어 던지기
   private follow: { kind: 'throw' | 'cover'; choice: Choice; index?: number; d: number; stepT: number; pending: Choice | null; pendingReal: number } | null = null;
@@ -219,6 +221,8 @@ export class Game {
   // ---------- 입력 ----------
 
   private bindInput() {
+    // 브라우저는 사용자가 한 번 누르기 전에는 소리를 막는다
+    for (const ev of ['pointerdown', 'keydown', 'touchstart']) document.addEventListener(ev, () => unlockAudio(), { passive: true });
     const look = (dx: number, dy: number) => {
       this.yaw -= dx * 0.0022;
       this.pitch = THREE.MathUtils.clamp(this.pitch - dy * 0.0022, -1.2, 1.0);
@@ -354,6 +358,7 @@ export class Game {
 
   // 공을 잡기 전이면 미리 골라두고(잡는 순간 바로 실행), 잡은 뒤면 바로 결정한다
   private input(value: Choice | number) {
+    sfx.click();
     if (this.follow) {
       // 이어 던질 곳: 밟은 뒤면 바로, 밟기 전이면 미리 골라둔다
       if (this.phase === 'decision') this.resolveFollow(value as Choice);
@@ -434,6 +439,7 @@ export class Game {
           : buildThrowTimeline(scn, this.pitchFlight)
         : buildChoiceTimeline(scn, this.pitchFlight);
     this.t = this.tl.start;
+    this.soundT = this.t;
     this.keys.clear();
     this.act = newAct(this.tl.playerStart);
     if (action && scn.kind === 'choice') {
@@ -624,7 +630,10 @@ export class Game {
       const o = this.outcome!;
       const exec = action ? this.act.exec : undefined;
       const g = gradeThrow(scn, o, exec, action && this.act.missed);
-      if (record) addResult(recordId(scn.id), g.grade, o.decisionDelay);
+      if (record) {
+        addResult(recordId(scn.id), g.grade, o.decisionDelay);
+        sfx.result(g.grade === 'best');
+      }
       this.ui.showThrowResult({
         scenario: scn,
         outcome: o,
@@ -635,7 +644,10 @@ export class Game {
       });
     } else {
       const c = this.tl.choice!;
-      if (record) addResult(recordId(scn.id), c.grade, this.decisionDelay);
+      if (record) {
+        addResult(recordId(scn.id), c.grade, this.decisionDelay);
+        sfx.result(c.grade === 'best');
+      }
       this.ui.showChoiceResult({ scenario: scn, result: c, decisionAt: this.tl.decisionAt, decisionDelay: this.decisionDelay, reactionReal: this.reactionReal, timeScale });
     }
   }
@@ -649,6 +661,7 @@ export class Game {
     if (this.scn.kind === 'choice' && (this.scn.setup === 'pickoff' || this.scn.setup === 'bunt')) {
       this.t = this.tl.decisionAt - 0.3;
     }
+    this.soundT = this.t;
   }
 
   private endReplay() {
@@ -727,6 +740,7 @@ export class Game {
     }
     if (this.phase === 'play' && !this.follow && !this.act.relay && this.t >= this.tl.end) this.finish();
 
+    this.playSounds();
     this.animate(realDt);
     this.updateCamera();
     this.ui.updateTags(this.camera, this.tagsVisible ? this.defs : null);
@@ -794,6 +808,7 @@ export class Game {
         // 잡았다
         act.caughtT = t;
         act.caughtPos = act.pos.clone();
+        sfx.glove();
         hit.caughtAt = t;
         this.tl.gloveHold = [t, Infinity];
         this.phase = 'decision';
@@ -1174,6 +1189,30 @@ export class Game {
     return this.tl.plays.find((p) => p.receiver === receiver && t > p.t - (p.kind === 'tag' ? 0.3 : 0.2) && t < p.t + 0.45);
   }
 
+  // 지난 프레임과 이번 프레임 사이에 지나간 순간(타격, 송구, 포구)의 소리를 낸다
+  private playSounds() {
+    const a = this.soundT;
+    const b = this.t;
+    this.soundT = b;
+    if (!(this.playing || this.phase === 'replay') || b <= a) return;
+    const tl = this.tl;
+    const crossed = (x: number) => a < x && x <= b;
+    if (crossed(0)) {
+      if (tl.batter === 'swing') sfx.bat();
+      else if (tl.batter === 'bunt') sfx.bat(true);
+      else if (tl.pitch) sfx.glove(); // 타자가 안 치면 포수 미트에
+    }
+    for (const s of tl.ball) {
+      if (!s.thrower) continue;
+      if (crossed(s.t0)) sfx.whoosh();
+      // 받는 사람 없이 뒤로 빠지는 공은 글러브 소리가 나지 않는다
+      const passed = tl.ball.some((n) => !n.thrower && Math.abs(n.t0 - s.t1) < 0.01 && n.from.distanceTo(s.to) < 0.5);
+      if (crossed(s.t1) && !passed) sfx.glove();
+    }
+    // 판단 모드에서 내가 타구를 잡는 순간 (액션 모드는 실제로 잡을 때 따로 낸다)
+    if (this.scn.kind === 'throw' && this.mode !== 'action' && crossed(tl.decisionAt) && tl.decisionAt > 0) sfx.glove();
+  }
+
   private poseBatter(m: Mannequin, t: number) {
     const box = P(this.scn.situation.batter === 'R' ? -0.9 : 0.9, 0);
     m.root.position.copy(box);
@@ -1228,6 +1267,8 @@ export class Game {
       this.scene.add(sprite);
       this.calls.push(sprite);
       if (this.phase !== 'replay') this.ui.toast(c.text, c.good);
+      if (c.good && c.text.includes('아웃')) sfx.out();
+      else if (!c.good) sfx.safe();
     });
   }
 }

@@ -1131,3 +1131,32 @@ button:focus-visible {
     display: none;
   }
 }
+
+/* 첫 화면: 타구 숨기기 옆에 소리 설정 */
+.setting-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.setting-row .gen-toggle {
+  margin-top: 0 !important;
+}
+
+.setting-row > .gen-toggle {
+  flex: 1;
+}
+
+.sound-ctl {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sound-ctl input[type='range'] {
+  width: 110px;
+  accent-color: var(--accent);
+}

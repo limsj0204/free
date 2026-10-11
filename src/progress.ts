@@ -14,6 +14,8 @@ interface Saved {
   includeGenerated?: boolean;
   hideBall?: boolean;
   mode?: 'judge' | 'action';
+  soundOn?: boolean;
+  volume?: number; // 0~1
 }
 
 const KEY = 'infield-iq-progress-v1';
@@ -91,5 +93,23 @@ export function setMode(m: 'judge' | 'action') {
 
 export function resetProgress() {
   saved = { records: {}, difficulty: saved.difficulty };
+  persist();
+}
+
+export function getSoundOn(): boolean {
+  return saved.soundOn ?? true;
+}
+
+export function setSoundOn(on: boolean) {
+  saved.soundOn = on;
+  persist();
+}
+
+export function getVolume(): number {
+  return saved.volume ?? 0.6;
+}
+
+export function setVolume(v: number) {
+  saved.volume = v;
   persist();
 }
