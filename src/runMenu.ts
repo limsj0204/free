@@ -12,7 +12,7 @@ const GRADE_SHORT: Record<Grade, string> = { best: '최선', ok: '아쉬움', ba
 
 const KIND_DESC: Record<RunKind, string> = {
   extra: '외야 안타 때 한 베이스 더 갈지 정해요.',
-  fly: '공이 뜨는 순간 스타트·하프웨이·태그업 준비 중에 고르고, 잡히면 태그업할지 정해요.',
+  fly: '공이 뜨는 순간 스타트·중간까지(하프웨이)·태그업 준비 중에 고르고, 잡히면 태그업할지 정해요.',
   ground: '땅볼에 진루할지 귀루할지 정해요. 포스(의무 진루)인지 먼저 생각하세요.',
 };
 
@@ -83,7 +83,7 @@ export class RunMenu {
             <h2>조작법</h2>
             <div class="controls">
               <span><kbd>A</kbd></span><span>뒤로: 멈춘다 · 베이스로 돌아간다 (태그업 준비, 귀루)</span>
-              <span><kbd>S</kbd></span><span>하프웨이 (플라이일 때)</span>
+              <span><kbd>S</kbd></span><span>중간까지 나가 있기 · 하프웨이 (플라이일 때)</span>
               <span><kbd>D</kbd></span><span>앞으로: 간다 (한 베이스 더, 스타트, 태그업, 진루)</span>
               <span><kbd>좌클릭</kbd></span><span>바라보는 곳 고르기</span>
               <span><kbd>마우스</kbd></span><span>고개 돌리기 (화면을 클릭하면 마우스가 잠겨요)</span>

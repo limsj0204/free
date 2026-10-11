@@ -51,7 +51,7 @@ export function flyBases(scn: RunScenario) {
 
 const READ_LABEL = (scn: RunScenario): Record<ReadChoice, string> => ({
   go: `스타트 (${BASE_LABEL[NEXT[ORIGIN[scn.me]]]} 쪽으로)`,
-  half: '하프웨이',
+  half: '중간까지 (하프웨이)',
   tag: '베이스로 (태그업 준비)',
 });
 
@@ -268,6 +268,15 @@ export function readStep(scn: RunScenario): Step {
       return { options, note: '<b>2아웃</b>이에요. 공이 잡히면 이닝이 끝나니, 타격과 동시에 무조건 스타트해요.' };
     }
     const note = `이 타구가 잡힐 확률은 <b>${pct(pc)}</b>예요. 잡혔을 때와 떨어졌을 때를 함께 따져서 정해요.`;
+    // 2아웃 전에는 잡히면 돌아오지 못해 더블아웃이라, 잡힐 수 있는 타구에 스타트는 답이 아니다 (떨어졌을 때 얻는 게 커 보여도)
+    {
+      const go = options.find((o) => o.id === 'go')!;
+      const other = Math.max(...options.filter((o) => o.id !== 'go').map((o) => o.ev));
+      if (go.ev > other - 0.15) {
+        go.ev = other - 0.15;
+        go.lines.push('2아웃 전에는 잡히면 돌아오지 못해 더블아웃이 돼요. 잡힐 수 있는 타구엔 스타트하지 말고 중간까지만 나가세요.');
+      }
+    }
     if (scn.me === 'r3') {
       // 3루 주자는 외야 플라이면 태그업 준비가 기본이다 (잡히면 홈을 노릴 수 있다). 기대 득점이 같아도 하프웨이는 한 단계 아래로 본다.
       const tag = options.find((o) => o.id === 'tag')!;
