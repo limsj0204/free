@@ -15,7 +15,7 @@ import {
 // 최선은 판정 엔진이 계산하고, 해설은 explain.ts가 규칙으로 쓴다. 랜덤 연습에만 쓴다.
 // 투수·1루수·3루수에는 번트 상황도 따로 만든다 (buildBunts).
 
-interface Ball {
+export interface Ball {
   key: string;
   name: string; // 제목에 쓰는 타구 이름
   type: 'grounder' | 'roller';
@@ -24,7 +24,7 @@ interface Ball {
   selfBases?: BaseId[];
 }
 
-const BALLS: Record<PositionId, Ball[]> = {
+export const BALLS: Record<PositionId, Ball[]> = {
   // 투수는 공을 던진 직후라 타구가 아주 빨리 온다
   P: [
     { key: 'front', name: '투수 정면 강습 땅볼', type: 'grounder', catchPoint: P(0.3, 16.3), travelTime: 0.6 },
@@ -68,7 +68,7 @@ function outsText(outs: number) {
 }
 
 // 공을 잡지 않은 쪽 키스톤 수비수가 2루를 커버한다. 투수 앞 땅볼은 유격수가 2루에 들어간다.
-function coversFor(position: PositionId): Partial<Record<BaseId, FielderId>> {
+export function coversFor(position: PositionId): Partial<Record<BaseId, FielderId>> {
   if (position === 'P') return { first: '1B', second: 'SS', third: '3B', home: 'C' };
   const leftSide = position === 'SS' || position === '3B';
   const covers: Partial<Record<BaseId, FielderId>> = {
@@ -81,7 +81,7 @@ function coversFor(position: PositionId): Partial<Record<BaseId, FielderId>> {
   return covers;
 }
 
-function fieldersFor(position: PositionId, set: Base3[], outs: number) {
+export function fieldersFor(position: PositionId, set: Base3[], outs: number) {
   const f: Partial<Record<FielderId, THREE.Vector3>> = {};
   if (set.includes('first') && outs < 2) {
     f['2B'] = P(9.5, 34);

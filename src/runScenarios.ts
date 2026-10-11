@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { P } from './coords';
 import type { Situation } from './scenario';
-import type { Arm, OutfielderId, RunMe, RunScenario } from './runner';
+import type { Arm, OutfieldHit, OutfielderId, RunMe, RunScenario } from './runner';
+import { generatedGroundScenarios, groundBasic } from './runGround';
 
-// 주루 판단 상황. 기본 상황은 해설을 직접 쓰고, 생성 상황은 타구 × 아웃 카운트 × 외야수 어깨를 조합한다.
-// 최선은 판정 엔진(runner.ts)이 기대 득점으로 계산한다.
+// 주루 판단 상황. 기본 상황은 해설을 직접 쓰고, 생성 상황은 타구 × 아웃 카운트 × 외야수 어깨(땅볼은 타구 × 주자 × 아웃)를 조합한다.
+// 최선은 판정 엔진이 기대 득점으로 계산한다.
 
-type Hit = RunScenario['hit'];
+type Hit = OutfieldHit;
 
 interface Profile {
   key: string;
@@ -23,7 +24,15 @@ const liner = (land: THREE.Vector3, landT: number, field: THREE.Vector3, fieldT:
   fieldT,
   release,
 });
-const fly = (field: THREE.Vector3, fieldT: number, release: Hit['release']): Hit => ({ type: 'fly', field, fieldT, release });
+// 뜬공: 잡힐 확률과, 안 잡히면 외야수가 공을 줍는 곳·시간 (기본: 조금 뒤로 튄 공을 1초 뒤에 줍는다)
+const fly = (field: THREE.Vector3, fieldT: number, release: Hit['release'], catchProb = 0.97, drop?: { field: THREE.Vector3; t: number }): Hit => ({
+  type: 'fly',
+  field,
+  fieldT,
+  release,
+  catchProb,
+  drop: drop ?? { field: field.clone().add(field.clone().setY(0).normalize().multiplyScalar(4)), t: fieldT + 1.0 },
+});
 
 // 단타: 1루 주자는 3루까지, 2루 주자는 홈까지 노린다
 const SINGLES: Profile[] = [
@@ -60,6 +69,12 @@ const FLIES_HOME: Profile[] = [
   { key: 'rf-short', name: '얕은 우익수 플라이', fielder: 'RF', hit: fly(P(20, 55), 3.5, 'charging') },
   { key: 'rf-mid', name: '우익수 플라이', fielder: 'RF', hit: fly(P(24, 64), 3.9, 'standing') },
   { key: 'rf-deep', name: '우익수 깊은 플라이', fielder: 'RF', hit: fly(P(30, 82), 4.5, 'back') },
+  // 잡힐지 모르는 타구: 외야수 앞에 떨어지는 빗맞은 타구, 외야 사이로 깊게 뻗는 타구
+  { key: 'lf-bloop', name: '좌익수 앞 빗맞은 타구', fielder: 'LF', hit: fly(P(-16, 47), 3.0, 'charging', 0.4, { field: P(-18, 52), t: 4.2 }) },
+  { key: 'cf-bloop', name: '중견수 앞 빗맞은 타구', fielder: 'CF', hit: fly(P(0, 50), 3.1, 'charging', 0.4, { field: P(0, 55), t: 4.3 }) },
+  { key: 'rf-bloop', name: '우익수 앞 빗맞은 타구', fielder: 'RF', hit: fly(P(16, 47), 3.0, 'charging', 0.4, { field: P(18, 52), t: 4.2 }) },
+  { key: 'lc-gap', name: '좌중간 깊은 타구', fielder: 'CF', hit: fly(P(-17, 84), 4.7, 'back', 0.5, { field: P(-22, 95), t: 7.0 }) },
+  { key: 'rc-gap', name: '우중간 깊은 타구', fielder: 'CF', hit: fly(P(17, 84), 4.7, 'back', 0.5, { field: P(22, 95), t: 7.0 }) },
 ];
 
 // 2루 주자 태그업 (3루 승부): 깊은 플라이만. 우익수 쪽일수록 3루까지 멀다.
@@ -84,10 +99,9 @@ function titleOf(me: RunMe, outs: number, name: string) {
 }
 
 function briefOf(kind: RunScenario['kind'], me: RunMe, outs: number) {
-  if (kind === 'tagup') {
-    return me === 'r3'
-      ? '3루 주자예요. 외야 플라이면 베이스를 밟고 있다가, 잡히는 순간 홈으로 뛸지(태그업) 정해요.'
-      : '2루 주자예요. 외야 플라이면 베이스를 밟고 있다가, 잡히는 순간 3루로 뛸지(태그업) 정해요.';
+  if (kind === 'fly') {
+    const base = me === 'r1' ? '1루' : me === 'r2' ? '2루' : '3루';
+    return `${base} 주자예요. 외야로 공이 뜨면 먼저 베이스로 돌아갈지(태그업 준비), 하프웨이로 나갈지, 스타트할지 정해요. 베이스를 밟고 있다가 공이 잡히면 태그업 판단이 이어져요.`;
   }
   if (me === 'batter') return '타자예요. 안타를 치고 1루를 돌면서 2루까지 갈지 정해요.';
   const run = me === 'r1' ? '2루를 돌면서 3루까지' : '3루를 돌면서 홈까지';
@@ -119,8 +133,15 @@ function buildGenerated(): RunScenario[] {
   for (const p of SINGLES) for (const o of [0, 1, 2]) for (const a of ARMS) out.push(make('extra', 'r1', o, a, p));
   for (const p of SINGLES) for (const o of [0, 1, 2]) for (const a of ARMS) out.push(make('extra', 'r2', o, a, p));
   for (const p of STRETCH) for (const o of [0, 1, 2]) for (const a of ARMS) out.push(make('extra', 'batter', o, a, p));
-  for (const p of FLIES_HOME) for (const o of [0, 1]) for (const a of ARMS) out.push(make('tagup', 'r3', o, a, p));
-  for (const p of FLIES_THIRD) for (const o of [0, 1]) for (const a of ARMS) out.push(make('tagup', 'r2', o, a, p));
+  for (const me of ['r1', 'r2', 'r3'] as RunMe[])
+    for (const p of FLIES_HOME)
+      for (const o of [0, 1, 2]) {
+        // 2아웃에 거의 잡히는 플라이는 무엇을 해도 결과가 같아서 뺀다
+        if (o === 2 && (p.hit.catchProb ?? 1) >= 0.9) continue;
+        for (const a of ARMS) out.push(make('fly', me, o, a, p));
+      }
+  for (const p of FLIES_THIRD) for (const o of [0, 1]) for (const a of ARMS) out.push({ ...make('fly', 'r2', o, a, p), id: `run-fly-r2-deep-${p.key}-${o}-${a}` });
+  out.push(...generatedGroundScenarios());
   return out;
 }
 
@@ -206,7 +227,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '1루를 돌 때 크게 돌아 두면 수비가 공을 더듬을 때 바로 2루로 갈 수 있어요.',
   },
   {
-    ...make('tagup', 'r3', 1, 'average', pick(FLIES_HOME, 'cf-mid')),
+    ...make('fly', 'r3', 1, 'average', pick(FLIES_HOME, 'cf-mid')),
     id: 'run-t3-1out',
     generated: false,
     explanation:
@@ -214,7 +235,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '그래서 1아웃 3루의 희생플라이는 세이프 확률이 낮아도 뛰는 게 이득이에요. 공이 글러브에 들어가는 순간 출발하세요.',
   },
   {
-    ...make('tagup', 'r3', 0, 'average', pick(FLIES_HOME, 'cf-mid')),
+    ...make('fly', 'r3', 0, 'average', pick(FLIES_HOME, 'cf-mid')),
     id: 'run-t3-0out',
     generated: false,
     explanation:
@@ -222,14 +243,14 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '홈에서 아웃되면 2사 주자 없음이 되니, 아슬아슬하면 3루에 머무는 게 나아요.',
   },
   {
-    ...make('tagup', 'r3', 0, 'strong', pick(FLIES_HOME, 'lf-short')),
+    ...make('fly', 'r3', 0, 'strong', pick(FLIES_HOME, 'lf-short')),
     id: 'run-t3-short',
     generated: false,
     explanation:
       '얕은 플라이는 외야수가 앞으로 뛰어오면서 잡아서, 그 기세로 바로 홈에 던져요. 홈까지 거리도 짧아서 태그업하면 거의 아웃이에요. 3루에 머무세요.',
   },
   {
-    ...make('tagup', 'r2', 0, 'average', pick(FLIES_THIRD, 'rf-mid')),
+    ...make('fly', 'r2', 0, 'average', pick(FLIES_THIRD, 'rf-mid')),
     id: 'run-t2-rf',
     generated: false,
     explanation:
@@ -237,11 +258,69 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '무사 2루가 1사 3루가 되면 다음 타자의 땅볼이나 플라이로도 점수가 나요.',
   },
   {
-    ...make('tagup', 'r2', 1, 'average', pick(FLIES_THIRD, 'cf-mid')),
+    ...make('fly', 'r2', 1, 'average', pick(FLIES_THIRD, 'cf-mid')),
     id: 'run-t2-1out',
     generated: false,
     explanation:
       '1아웃에서 잡히면 2아웃이에요. 2아웃 3루와 2아웃 2루는 거의 같아요. 2아웃이면 플라이로 점수가 안 나고, 어차피 안타가 나와야 하는데 2루 주자도 안타면 홈에 들어오니까요. ' +
       '얻는 건 거의 없는데 3루에서 아웃되면 이닝이 끝나요. 세이프가 거의 확실할 때만 가세요.',
   },
+  // ---------- 플라이: 타구 판단 ----------
+  {
+    ...make('fly', 'r1', 0, 'average', pick(FLIES_HOME, 'cf-mid')),
+    id: 'run-f1-half',
+    generated: false,
+    explanation:
+      '1루 주자는 외야 플라이에 태그업해도 2루까지 가기 어려워요(2루까지 멀고 외야수가 2루로 던지기 쉬워요). 그래서 하프웨이로 나가 있는 게 기본이에요. ' +
+      '잡히면 여유 있게 돌아오고, 떨어지면 2루까지 쉽게 가요. 베이스로 돌아가도 크게 손해는 아니지만, 스타트하면 잡혔을 때 돌아오지 못해 더블아웃이에요.',
+  },
+  {
+    ...make('fly', 'r1', 1, 'average', pick(FLIES_HOME, 'cf-bloop')),
+    id: 'run-f1-bloop',
+    generated: false,
+    explanation:
+      '빗맞은 타구가 외야수 앞으로 떨어질지 모를 때는 하프웨이예요. 이때 베이스로 돌아가 버리면, 공이 떨어졌을 때 타자가 1루로 오니 2루까지 가야 하는데(포스) 출발이 늦어서 2루에서 잡혀요. ' +
+      '1루 주자가 태그업을 하는 건 깊은 플라이일 때뿐이에요.',
+  },
+  {
+    ...make('fly', 'r2', 0, 'average', pick(FLIES_HOME, 'rc-gap')),
+    id: 'run-f2-gap0',
+    generated: false,
+    explanation:
+      '무사 2루에서 우중간 깊은 타구면 베이스로 돌아가 태그업을 준비해요. 잡히면 태그업으로 3루까지 가서 1사 3루를 만들고, 떨어져도 우중간을 가르는 장타라 홈까지 들어올 수 있어요.',
+  },
+  {
+    ...make('fly', 'r2', 1, 'average', pick(FLIES_HOME, 'rc-gap')),
+    id: 'run-f2-gap1',
+    generated: false,
+    explanation:
+      '바로 앞과 같은 타구인데 1아웃이에요. 잡히면 2아웃이 되니 태그업으로 3루에 가도 얻는 게 적어요(2아웃 3루와 2아웃 2루는 거의 같아요). ' +
+      '그래서 하프웨이로 나가 있다가, 떨어지면 홈까지 들어오는 게 이득이에요.',
+  },
+  {
+    ...make('fly', 'r2', 2, 'average', pick(FLIES_HOME, 'rc-gap')),
+    id: 'run-f2-2out',
+    generated: false,
+    explanation:
+      '2아웃이면 공이 잡히는 순간 이닝이 끝나서, 베이스로 돌아갈 이유가 없어요. 타격과 동시에 스타트하세요. 떨어지면 그만큼 한 베이스를 더 가요.',
+  },
+  // ---------- 땅볼: 진루 판단 ----------
+  groundBasic('run-g1-forced', 'SS', 'front', 'r1', ['first'], 0,
+    '1루 주자는 땅볼이 나오면 무조건 2루로 뛰어야 해요. 타자가 1루로 오니 1루를 비워 줘야 하거든요(포스, 의무 진루). ' +
+    '병살이 될 것 같아도 돌아갈 곳이 없어요. 최대한 빨리 2루로 가서 병살을 깨는 게 주자의 일이에요.'),
+  groundBasic('run-g12-forced', '3B', 'front', 'r2', ['first', 'second'], 1,
+    '1루에 주자가 있으면 2루 주자도 포스예요. 1루 주자가 2루로 오니 2루를 비워 줘야 해요. 타구가 내 앞(3루 쪽)으로 와도 3루로 뛰어야 해요. ' +
+    '포스인지는 "내 뒤 베이스가 다 차 있는지"로 판단해요.'),
+  groundBasic('run-g2-front', 'SS', 'front', 'r2', ['second'], 0,
+    '1루가 비어 있으면 2루 주자는 포스가 아니에요. 2루에 남아도 돼요. 타구가 내 앞(유격수·3루수 쪽)으로 오면 뛰는 순간 3루로 던져서 잡혀요. ' +
+    '공이 내야를 빠져나가거나 1루로 송구되는 걸 확인하고 움직이세요.'),
+  groundBasic('run-g2-behind', '1B', 'front', 'r2', ['second'], 0,
+    '타구가 내 뒤(1루수 쪽)로 가면 진루해요. 1루수는 1루를 밟거나 1루로 던지는 게 쉽고, 3루까지는 멀어요. ' +
+    '아웃 하나를 주고 주자를 3루로 보내는 진루타가 돼서, 무사 2루가 1사 3루로 바뀌어요.'),
+  groundBasic('run-g3-front', 'SS', 'front', 'r3', ['third'], 0,
+    '3루 주자도 1루가 비어 있으면 포스가 아니에요. 내야 정면 땅볼에 홈으로 뛰면 홈에서 잡혀요. 3루에 남아 다음 타자에게 기회를 넘기세요.'),
+  groundBasic('run-g13-dp', '2B', 'front', 'r3', ['first', 'third'], 0,
+    '무사 1, 3루에서 병살 코스 땅볼이면 3루 주자는 홈으로 뛰어요. 수비가 병살을 노리면 그 사이 1점이 들어와요(2아웃이 돼도 점수는 인정돼요). ' +
+    '남아 있으면 병살로 2사 3루가 되고 점수는 없어요.'),
 ];
+

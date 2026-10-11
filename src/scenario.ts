@@ -55,6 +55,7 @@ export interface ThrowScenario extends ScenarioBase {
   covers: Partial<Record<BaseId, FielderId>>; // 각 베이스에서 공을 받을 수비수
   selfBases?: BaseId[]; // 던지지 않고 직접 밟으러 가는 베이스
   runnerActs?: Partial<Record<Base3, 'advance' | 'hold'>>; // 안 밀리는 주자가 뛸지 (땅볼일 때)
+  runnerStart?: Partial<Record<Base3, number>>; // 주루 판단용: 그 베이스 주자가 움직이기 시작하는 시간 (없으면 기본값)
   hitAndRun?: boolean; // 투구 때 주자가 미리 스타트했는지
   generated?: boolean; // 상황 생성기로 만든 상황 (랜덤 연습에만 나온다)
 }
@@ -173,13 +174,13 @@ export function planRunners(scn: ThrowScenario): RunnerPlan[] {
     const act = scn.runnerActs?.[base] ?? (s.outs === 2 ? 'advance' : 'hold');
     const advance = forced || act === 'advance';
     if (advance) {
-      const start = forced
+      const start = scn.runnerStart?.[base] ?? (forced
         ? bunt
           ? RUN.buntRunnerStartDelay
           : RUN.runnerStartDelay
         : s.outs === 2
           ? RUN.runnerStartDelay
-          : RUN.advanceStartDelay;
+          : RUN.advanceStartDelay);
       plans.push({
         id,
         origin: base,
@@ -196,8 +197,8 @@ export function planRunners(scn: ThrowScenario): RunnerPlan[] {
         kind: 'hold',
         target: base,
         waypoints: [lead, BASES[base].clone()],
-        startTime: 0.4,
-        arrival: 0.4 + RUN.leadOff / RUN.speed,
+        startTime: scn.runnerStart?.[base] ?? 0.4,
+        arrival: (scn.runnerStart?.[base] ?? 0.4) + RUN.leadOff / RUN.speed,
       });
     }
   }

@@ -1,36 +1,35 @@
-import { BASE_LABEL } from './coords';
-import { josa } from './explain';
-import { ARM_LABEL, ME_NAME, OF_NAME, decisionLabel, route, stateLabel, expectancy, type BaseState, type RunDecision, type RunGrade, type RunScenario, type RunVerdict } from './runner';
+import { BASE_LABEL, type BaseId } from './coords';
+import type { Play, PlayResult } from './runPlay';
+import { ARM_LABEL, ME_NAME, OF_NAME, RUN_KIND_LABEL, stateLabel, type RunScenario, type RunVerdict, type StepGrade } from './runner';
 import { armsOf, explainRun } from './runExplain';
+import type { Grade } from './scenario';
 import type { UI } from './ui';
 
 // 주루 판단의 브리핑과 결과 화면. 수비 화면과 같은 카드·표 스타일을 쓴다.
 
 const $ = (id: string) => document.getElementById(id)!;
 const sec = (s: number) => `${s.toFixed(2)}초`;
-// 99.6%를 100%로 쓰면 '확실'처럼 보여서 양 끝은 따로 쓴다
-const pct = (p: number) => (p > 0.99 ? '99% 이상' : p < 0.01 ? '1% 미만' : `${Math.round(p * 100)}%`);
 
-export function runPrompt(scn: RunScenario) {
-  if (scn.kind === 'tagup') return `잡히면 ${josa(BASE_LABEL[route(scn).target], '으로', '로')} 뛸까?`;
-  const r = route(scn);
-  return r.target === 'home' ? '홈까지 갈까?' : `${BASE_LABEL[r.target]}까지 갈까?`;
-}
+const KEY_HELP: Record<RunScenario['kind'], string> = {
+  extra: '<kbd>W</kbd> 간다, <kbd>S</kbd> 멈춘다',
+  fly: '<kbd>W</kbd> 스타트, <kbd>D</kbd> 하프웨이, <kbd>S</kbd> 베이스로(태그업 준비). 잡히면 태그업 판단이 이어져요: <kbd>W</kbd> 뛴다, <kbd>S</kbd> 머문다',
+  ground: '<kbd>W</kbd> 진루, <kbd>S</kbd> 귀루',
+};
 
 export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null) {
   ui.hideAll();
-  ui.setHelp('마우스: 고개 돌리기 · W: 간다 · S: 멈춘다 · 클릭: 바라보는 베이스 · Esc: 마우스 풀기');
+  ui.setHelp('마우스: 고개 돌리기 · W: 간다 · D: 하프웨이 · S: 멈춘다/베이스로 · 클릭: 바라보는 곳 · Esc: 마우스 풀기');
   document.getElementById('hud')!.classList.remove('hidden');
   const sit = scn.situation;
   const outsLabel = sit.outs === 0 ? '무사' : `${sit.outs}아웃`;
   const bases = (['first', 'second', 'third'] as const).filter((b) => sit.runners[b]);
-  const runnersLabel = bases.length ? `주자 ${bases.map((b) => BASE_LABEL[b].replace('루', '')).join(', ')}루` : '주자 없음';
+  const runnersLabel = bases.length === 3 ? '만루' : bases.length ? `주자 ${bases.map((b) => BASE_LABEL[b].replace('루', '')).join(', ')}루` : '주자 없음';
   const arms = armsOf(scn);
-  const armRow = (['LF', 'CF', 'RF'] as const).map((f) => `${OF_NAME[f]} <b>${ARM_LABEL[arms[f]]}</b>`).join(' · ');
+  const armRow = arms ? (['LF', 'CF', 'RF'] as const).map((f) => `${OF_NAME[f]} <b>${ARM_LABEL[arms[f]]}</b>`).join(' · ') : '';
   const el = $('briefing');
   el.innerHTML = `
     <div class="card">
-      <div class="eyebrow">${[eyebrow, scn.kind === 'tagup' ? '태그업 판단' : '한 베이스 더'].filter(Boolean).join(' · ')}</div>
+      <div class="eyebrow">${[eyebrow, RUN_KIND_LABEL[scn.kind]].filter(Boolean).join(' · ')}</div>
       <div class="brief-grid">
         <section class="brief-box">
           <div class="brief-label">카운트 · 주자</div>
@@ -53,8 +52,8 @@ export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null
         </section>
       </div>
       <p>${scn.brief}</p>
-      <p class="arms">외야수 어깨: ${armRow}</p>
-      <p class="note">타격 순간부터 선택지가 떠요. <kbd>W</kbd> 간다, <kbd>S</kbd> 멈춘다. 미리 고르면 판단 순간 바로 실행되고, 안 고르면 판단 순간 화면이 느려져요.
+      ${armRow ? `<p class="arms">외야수 어깨: ${armRow}</p>` : ''}
+      <p class="note">타격 순간부터 선택지가 떠요. ${KEY_HELP[scn.kind]}. 미리 고르면 판단 순간 바로 실행되고, 안 고르면 판단 순간 화면이 느려져요.
         시점은 공을 따라가고, 마우스로 직접 돌리면 그때부터는 내가 보는 대로 둬요.</p>
       <div class="actions">
         <button class="secondary" id="brief-menu-btn">목록</button>
@@ -66,7 +65,7 @@ export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null
   el.classList.remove('hidden');
 }
 
-const VERDICT: Record<RunVerdict, (g: RunGrade) => string> = {
+const VERDICT: Record<RunVerdict, (g: StepGrade) => string> = {
   ideal: (g) => (g.best.length > 1 ? '좋은 판단' : '최선의 판단'),
   late: (g) => (g.grade === 'ok' ? '판단은 맞았지만 늦었어요' : '판단은 맞았지만 너무 늦었어요'),
   fallback: () => '최선은 아니지만, 늦은 시점에선 더 나은 선택',
@@ -74,116 +73,92 @@ const VERDICT: Record<RunVerdict, (g: RunGrade) => string> = {
   timeout: () => '시간 안에 정하지 못했어요',
 };
 
+const GRADE_HEAD: Record<Grade, string> = { best: '최선의 판단', ok: '아쉬운 판단이 있었어요', bad: '다시 생각해 봐요' };
+
 export interface RunResultData {
   scenario: RunScenario;
-  decision: RunDecision;
-  delay: number;
-  timedOut: boolean;
-  grade: RunGrade;
-  safe: boolean | null; // 갔을 때만 (세이프면 true)
-  noise: number; // 이번 송구 오차
-  arrival: number | null; // 갔을 때 내가 도착한 시간
-  tagAt: number; // 이번 송구로 태그한 시간
-  hesitated: number; // 늦게 정해서 베이스에서 머뭇거린 시간
-  reactionReal: number;
+  play: Play;
+  grades: StepGrade[];
+  grade: Grade;
+  result: PlayResult;
   timeScale: number;
 }
 
-const evText = (st: BaseState) => `${stateLabel(st)} <small>(기대 ${expectancy(st).toFixed(2)}점)</small>`;
+function stepBlock(g: StepGrade, multi: boolean) {
+  const im = g.immediate;
+  const labelOf = (id: string) => g.step.options.find((o) => o.id === id)!.label;
+  const rows = g.step.options
+    .map((o) => {
+      const v = im.options.find((x) => x.id === o.id)!;
+      const mine = o.id === g.choice && !g.timedOut;
+      const badge = g.best.includes(o.id) ? `<span class="badge">${g.best.length > 1 ? '좋은 판단' : '최선'}</span>` : '';
+      // 포스인데 귀루처럼 규칙상 답이 될 수 없는 선택은 평균 점수 대신 이유만 보여준다
+      const avg = v.invalid ? '' : `<br/>평균 <b>${v.ev.toFixed(2)}점</b>`;
+      return `<div class="alt col ${mine ? 'chosen' : ''}">
+        <span class="alt-name">${o.label}${mine ? ' (내 선택)' : ''}${badge}</span>
+        <span class="alt-res">${v.lines.join('<br/>')}${avg}</span>
+      </div>`;
+    })
+    .join('');
+  const notes: string[] = [];
+  if (g.verdict !== 'ideal') {
+    notes.push(g.best.length > 1 ? `<b>${g.best.map(labelOf).join('</b>, <b>')}</b> 모두 좋은 판단이에요.` : `최선은 <b>${labelOf(g.best[0])}</b>예요.`);
+  }
+  notes.push(im.note);
+  if (g.timedOut) notes.push(`정하지 못해서 <b>${labelOf(g.choice)}</b>로 처리했어요.`);
+  else if (g.delay > 0.01 && g.loss > 0.01 && g.best.includes(g.choice)) notes.push(`판단 순간보다 <b>${sec(g.delay)}</b> 늦게 정해서 손해를 봤어요.`);
+  return `
+    <h2>${multi ? `${g.step.name}: ` : '판단 기준: '}${VERDICT[g.verdict](g)}</h2>
+    <p class="note">${notes.join('<br/>')}</p>
+    ${rows}`;
+}
 
 export function showRunResult(ui: UI, r: RunResultData) {
   const scn = r.scenario;
-  const g = r.grade;
-  const rt = route(scn);
-  const im = g.immediate;
-  const label = (d: RunDecision) => decisionLabel(scn, d);
-  const actual = r.decision === 'go' ? (r.safe ? im.safe : im.out) : im.stay;
+  const res = r.result;
+  const first = r.play.decided[0];
+  const path = r.play.decided.map((d) => `${d.timedOut ? '(시간 초과) ' : ''}${d.step.options.find((o) => o.id === d.id)!.label}`).join(' → ');
+  const multi = r.grades.length > 1;
 
-  const headline =
-    r.decision === 'stop'
-      ? scn.kind === 'tagup'
-        ? `${BASE_LABEL[rt.stay]}에 머물렀어요`
-        : `${BASE_LABEL[rt.stay]}에서 멈췄어요`
-      : r.safe
-        ? rt.target === 'home'
-          ? '홈인! 득점'
-          : `${BASE_LABEL[rt.target]} 세이프!`
-        : `${BASE_LABEL[rt.target]}에서 태그아웃`;
+  const timing = res.timing
+    ? `<div class="table-wrap"><table class="timing">
+        <tr><th>베이스</th><th>내 도착</th><th>${res.timing.label}</th><th>판정</th></tr>
+        <tr><td>${BASE_LABEL[res.timing.base as BaseId]}</td><td>${sec(res.timing.arrival)}</td><td>${sec(res.timing.ball)}</td>
+        <td class="${res.timing.safe ? 'safe' : 'out'}">${res.timing.safe ? '세이프' : '아웃'} (${Math.abs(res.timing.ball - res.timing.arrival).toFixed(2)}초 ${res.timing.safe ? '먼저' : '늦게'})</td></tr>
+      </table></div>`
+    : '';
 
-  // 판단 근거와 이번 플레이
-  const bestLabels = g.best.map(label);
-  const notes: string[] = [];
-  notes.push(
-    g.best.length > 1
-      ? `<b>${bestLabels.join('</b>, <b>')}</b> 둘 다 좋은 판단이에요. 기대 득점 차이가 거의 없어요.`
-      : `최선은 <b>${bestLabels[0]}</b>예요.`,
-  );
-  notes.push(
-    `판단 순간 바로 정했다면 세이프 확률은 <b>${pct(im.pSafe)}</b>. 이 상황에선 <b>${pct(im.breakEven)}</b>보다 높아야 가는 게 이득이에요.`,
-  );
-  if (r.decision === 'go' && r.hesitated > 0.01) {
-    notes.push(
-      `늦게 정해서 ${scn.kind === 'tagup' ? '베이스를 늦게 떠났고' : `${BASE_LABEL[rt.stay]}에서 <b>${sec(r.hesitated)}</b> 머뭇거렸고`}, 세이프 확률이 <b>${pct(im.pSafe)}</b>에서 <b>${pct(g.mine.pSafe)}</b>로 떨어졌어요.`,
-    );
-  } else if (r.decision === 'go' && scn.kind === 'tagup' && r.delay > 0.01) {
-    notes.push(`포구 뒤 <b>${sec(r.delay)}</b> 늦게 출발해서 세이프 확률이 <b>${pct(im.pSafe)}</b>에서 <b>${pct(g.mine.pSafe)}</b>로 떨어졌어요.`);
-  }
-  if (r.decision === 'go' && r.safe !== null) {
-    if (r.safe && g.mine.pSafe < 0.5) notes.push('이번엔 송구가 늦어서 살았지만, 보통은 아웃되는 승부예요.');
-    if (!r.safe && g.mine.pSafe >= 0.5) notes.push('이번엔 송구가 좋아서 아웃됐지만, 확률로는 해볼 만한 승부였어요. 결과보다 판단을 보세요.');
-  }
-  if (r.timedOut) notes.push('정하지 못하면 멈춘 것으로 처리돼요. 공이 외야로 가는 순간부터 미리 생각해 두세요.');
-
+  const noise = r.play.noise;
   const throwNote =
-    r.noise > 0.15
-      ? `이번 송구는 빗나가서 평소보다 <b>${sec(r.noise)}</b> 늦었어요.`
-      : r.noise < -0.08
-        ? `이번 송구는 평소보다 <b>${sec(-r.noise)}</b> 빨랐어요.`
-        : '이번 송구는 평소 수준이었어요.';
+    scn.kind === 'ground' || !res.timing
+      ? ''
+      : `<p class="note">${noise > 0.15 ? `이번 송구는 빗나가서 평소보다 <b>${sec(noise)}</b> 늦었어요.` : noise < -0.08 ? `이번 송구는 평소보다 <b>${sec(-noise)}</b> 빨랐어요.` : '이번 송구는 평소 수준이었어요.'} (${OF_NAME[scn.fielder!]} 어깨: ${ARM_LABEL[scn.arm!]})</p>`;
 
-  const timing =
-    r.decision === 'go' && r.arrival !== null
-      ? `<div class="table-wrap"><table class="timing">
-          <tr><th>베이스</th><th>내 도착</th><th>태그</th><th>판정</th></tr>
-          <tr><td>${BASE_LABEL[rt.target]}</td><td>${sec(r.arrival)}</td><td>${sec(r.tagAt)}</td>
-          <td class="${r.safe ? 'safe' : 'out'}">${r.safe ? '세이프' : '아웃'} (${Math.abs(r.tagAt - r.arrival).toFixed(2)}초 ${r.safe ? '먼저' : '늦게'})</td></tr>
-        </table></div>`
-      : '';
-
-  const choiceRow = (d: RunDecision) => {
-    const mine = d === r.decision && !r.timedOut;
-    const isBest = g.best.includes(d);
-    const badge = isBest ? `<span class="badge">${g.best.length > 1 ? '좋은 판단' : '최선'}</span>` : '';
-    const body =
-      d === 'go'
-        ? `세이프 ${pct(im.pSafe)} → ${evText(im.safe)}<br/>아웃 ${pct(1 - im.pSafe)} → ${evText(im.out)}<br/>평균 <b>${im.evGo.toFixed(2)}점</b>`
-        : `${evText(im.stay)}<br/>평균 <b>${im.evStop.toFixed(2)}점</b>`;
-    return `<div class="alt col ${mine ? 'chosen' : ''}">
-      <span class="alt-name">${label(d)}${mine ? ' (내 선택)' : ''}${badge}</span>
-      <span class="alt-res">${body}</span>
-    </div>`;
-  };
+  // 결과가 판단과 엇갈렸을 때 (운)
+  const luck: string[] = [];
+  if (scn.kind === 'fly' && r.grades[0]) {
+    const pc = scn.hit!.catchProb ?? 1;
+    if (pc < 0.9) luck.push(r.play.caught ? `이 타구는 ${Math.round(pc * 100)}% 확률로 잡히는 타구였고, 이번엔 잡혔어요.` : `이 타구는 ${Math.round((1 - pc) * 100)}% 확률로 떨어지는 타구였고, 이번엔 떨어졌어요.`);
+  }
 
   ui.openResult(
     `
-    <span class="grade ${g.grade}">${VERDICT[g.verdict](g)}</span>
-    <h1>${headline}</h1>
-    <div class="result-state">${r.timedOut ? '시간 안에 정하지 못함 · ' : ''}${label(r.decision)} → ${stateLabel(actual)}</div>
+    <span class="grade ${r.grade}">${r.grades.length === 1 ? VERDICT[r.grades[0].verdict](r.grades[0]) : GRADE_HEAD[r.grade]}</span>
+    <h1>${res.headline}</h1>
+    <div class="result-state">${path} → ${stateLabel(res.state)}</div>
     <div class="stat-row">
-      <div class="stat"><small>실제 경기 기준 판단 시간</small><b>${r.timedOut ? '시간 초과' : sec(r.delay)}</b></div>
-      <div class="stat"><small>화면에서 고민한 시간 (슬로모션 ${r.timeScale}배)</small><b>${sec(r.reactionReal)}</b></div>
+      <div class="stat"><small>실제 경기 기준 판단 시간${multi ? ' (첫 판단)' : ''}</small><b>${first.timedOut ? '시간 초과' : sec(r.grades[0].delay)}</b></div>
+      <div class="stat"><small>화면에서 고민한 시간 (슬로모션 ${r.timeScale}배)</small><b>${sec(first.reactionReal)}</b></div>
     </div>
-    <p class="note">${notes.join('<br/>')}</p>
+    ${[...res.lines, ...luck].length ? `<p class="note">${[...res.lines, ...luck].join('<br/>')}</p>` : ''}
     ${timing}
-    <p class="note">${throwNote} (${OF_NAME[scn.fielder]} 어깨: ${ARM_LABEL[scn.arm]})</p>
-    <h2>판단 기준: 기대 득점 (판단 순간 바로 정했다면)</h2>
-    ${choiceRow('go')}
-    ${choiceRow('stop')}`,
+    ${throwNote}
+    ${r.grades.map((g) => stepBlock(g, multi)).join('')}`,
     `
     <h2>해설</h2>
     <p class="explain">${explainRun(scn)}</p>
     <h2>기대 득점이란?</h2>
-    <p class="explain">아웃 카운트와 주자 상황에서 이닝이 끝날 때까지 평균 몇 점이 나는지예요 (MLB 평균). 가서 세이프면 얻는 것과 아웃이면 잃는 것을 세이프 확률로 따져서, 평균이 더 높은 쪽이 최선이에요.
+    <p class="explain">아웃 카운트와 주자 상황에서 이닝이 끝날 때까지 평균 몇 점이 나는지예요 (MLB 평균). 선택마다 일어날 수 있는 결과를 확률로 따져서, 평균이 더 높은 쪽이 최선이에요.
     그래서 같은 타구라도 아웃 카운트에 따라 판단이 달라져요.</p>`,
   );
 }

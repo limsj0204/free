@@ -2,35 +2,42 @@ import * as THREE from 'three';
 import { PITCH, RUN, RUNNER, RUN_EXPECTANCY, THROW } from './config';
 import { BASES, BASE_LABEL, P, bagSpot, type BaseId } from './coords';
 import { josa } from './explain';
-import type { FielderId, Grade, Situation } from './scenario';
+import type { FielderId, Grade, Situation, ThrowScenario } from './scenario';
 import { DEFAULT_FIELDERS } from './scenarios';
 import { CONTACT_POINT, PRE_PITCH, grounderHops, releasePoint, type BallSeg, type Call, type Path } from './timeline';
 
-// 주루 판단 엔진. 외야수가 공을 잡아 던지는 시간과 주자가 베이스에 도착하는 시간을 비교해서 세이프 확률을 내고,
-// 아웃 카운트·주자 상황별 기대 득점(RUN_EXPECTANCY)으로 '가는 게 이득인지'를 판정한다.
-// 수비 판단과 달리 송구에는 오차가 있어서, 결과(세이프/아웃)는 운이 섞이고 판정은 기대 득점으로 한다.
+// 주루 판단 엔진의 공통 부분.
+// 판단은 '단계'로 나눈다. 한 상황에 판단이 한 번(한 베이스 더, 땅볼 진루) 또는 두 번(플라이: 타구 판단 → 태그업) 있다.
+// 단계마다 선택지별 기대 득점(RUN_EXPECTANCY)을 계산해서, 판단 순간 바로 정했을 때 가장 높은 선택이 최선이다.
+// 송구에는 오차가 있어서 결과(세이프/아웃)는 운이 섞이고, 판정은 기대 득점으로 한다.
 
 export type RunMe = 'batter' | 'r1' | 'r2' | 'r3';
 export type Arm = keyof typeof RUNNER.arm;
 export type OutfielderId = 'LF' | 'CF' | 'RF';
-export type RunDecision = 'go' | 'stop';
+export type RunKind = 'extra' | 'fly' | 'ground';
+export const RUN_KIND_LABEL: Record<RunKind, string> = { extra: '한 베이스 더', fly: '플라이', ground: '땅볼' };
+
+export interface OutfieldHit {
+  type: 'grounder' | 'liner' | 'fly';
+  land?: { pos: THREE.Vector3; t: number }; // liner: 여기 떨어진 뒤 field까지 굴러간다
+  field: THREE.Vector3; // 외야수가 공을 잡는 곳 (fly: 포구 지점, 안 잡히면 공이 떨어지는 곳)
+  fieldT: number;
+  release: keyof typeof RUNNER.release;
+  catchProb?: number; // fly: 잡힐 확률
+  drop?: { field: THREE.Vector3; t: number }; // fly: 안 잡히면 외야수가 공을 줍는 곳과 시간
+}
 
 export interface RunScenario {
   id: string;
-  kind: 'extra' | 'tagup'; // extra: 안타 때 한 베이스 더, tagup: 플라이 태그업
+  kind: RunKind; // extra: 안타 때 한 베이스 더, fly: 외야 플라이 (타구 판단 → 태그업), ground: 땅볼 진루
   title: string;
   event: string; // 상황판에 보이는 짧은 타구 이름
   me: RunMe;
   situation: Situation;
-  fielder: OutfielderId; // 공을 처리하는 외야수
-  arm: Arm;
-  hit: {
-    type: 'grounder' | 'liner' | 'fly';
-    land?: { pos: THREE.Vector3; t: number }; // liner: 여기 떨어진 뒤 field까지 굴러간다
-    field: THREE.Vector3; // 외야수가 공을 잡는 곳 (fly: 포구 지점)
-    fieldT: number;
-    release: keyof typeof RUNNER.release;
-  };
+  fielder?: OutfielderId; // extra/fly: 공을 처리하는 외야수
+  arm?: Arm;
+  hit?: OutfieldHit;
+  ground?: ThrowScenario; // ground: 내야 수비 엔진에 넘기는 상황 (내 주자의 행동은 판단에 따라 바꾼다)
   brief: string;
   explanation?: string;
   generated?: boolean;
@@ -40,88 +47,32 @@ export const ARM_LABEL: Record<Arm, string> = { strong: '강견', average: '보�
 export const OF_NAME: Record<OutfielderId, string> = { LF: '좌익수', CF: '중견수', RF: '우익수' };
 export const ME_NAME: Record<RunMe, string> = { batter: '타자 주자', r1: '1루 주자', r2: '2루 주자', r3: '3루 주자' };
 
-const ORIGIN: Record<RunMe, BaseId> = { batter: 'home', r1: 'first', r2: 'second', r3: 'third' };
-const NEXT: Record<BaseId, BaseId> = { home: 'first', first: 'second', second: 'third', third: 'home' };
-const TAG_REACH = 1.5; // 베이스 앞 이 거리에서 태그된다
+export const ORIGIN: Record<RunMe, BaseId> = { batter: 'home', r1: 'first', r2: 'second', r3: 'third' };
+export const NEXT: Record<BaseId, BaseId> = { home: 'first', first: 'second', second: 'third', third: 'home' };
+export const BASE_PATH = 27.43;
+export const TAG_REACH = 1.5; // 베이스 앞 이 거리에서 태그된다
 
 export function batterBoxOf(scn: RunScenario) {
   return P(scn.situation.batter === 'R' ? -0.9 : 0.9, 0);
 }
 
-// 판단에 쓰는 베이스: mid는 돌아서 지나가는 베이스(태그업은 없음), target은 노리는 베이스, stay는 멈추면 남는 베이스
-export function route(scn: RunScenario) {
-  const origin = ORIGIN[scn.me];
-  if (scn.kind === 'tagup') return { origin, mid: null, target: NEXT[origin], stay: origin };
-  const mid = NEXT[origin];
-  return { origin, mid, target: NEXT[mid], stay: mid };
-}
+export const pct = (p: number) => (p > 0.99 ? '99% 이상' : p < 0.01 ? '1% 미만' : `${Math.round(p * 100)}%`);
 
-export function decisionLabel(scn: RunScenario, d: RunDecision) {
-  const r = route(scn);
-  if (scn.kind === 'tagup') return d === 'go' ? `태그업, ${josa(BASE_LABEL[r.target], '으로', '로')}` : `${BASE_LABEL[r.stay]}에 머묾`;
-  return d === 'go' ? (r.target === 'home' ? '홈으로' : `${BASE_LABEL[r.target]}까지`) : `${BASE_LABEL[r.stay]}에서 멈춤`;
-}
-
-// ---------- 시간 ----------
-
-function leadSpot(base: BaseId, dist: number) {
+// 베이스에서 다음 베이스 쪽으로 dist만큼 나간 곳 (베이스를 지나면 그다음 베이스 쪽으로 이어진다)
+export function along(origin: BaseId, dist: number): THREE.Vector3 {
+  let base = origin;
+  let d = dist;
+  while (d > BASE_PATH && base !== 'home') {
+    d -= BASE_PATH;
+    base = NEXT[base];
+  }
+  if (base === 'home' && origin !== 'home' && dist > 0) return BASES.home.clone();
   const dir = BASES[NEXT[base]].clone().sub(BASES[base]).normalize();
-  return BASES[base].clone().addScaledVector(dir, dist);
+  return BASES[base].clone().addScaledVector(dir, Math.max(-2, d));
 }
 
-// 타격 순간 주자의 출발 위치와 출발 시간
-function start(scn: RunScenario) {
-  if (scn.kind === 'tagup') {
-    // 태그업은 베이스를 밟고 있다가 포구 순간에 출발한다
-    return { pos: BASES[ORIGIN[scn.me]].clone(), t: Infinity };
-  }
-  if (scn.me === 'batter') return { pos: batterBoxOf(scn), t: RUN.batterStartDelay };
-  const pos = leadSpot(ORIGIN[scn.me], RUN.leadOff + RUNNER.secondaryLead);
-  if (scn.me === 'r1' || scn.situation.outs === 2) return { pos, t: RUN.runnerStartDelay };
-  // 2루 주자는 밀려서 뛰는 게 아니라서, 타구가 빠지는(잡히지 않는) 걸 보고 출발한다
-  return { pos, t: scn.hit.type === 'liner' ? RUNNER.liner2Delay : RUNNER.grounder2Delay };
-}
-
-export interface RunTiming {
-  decisionAt: number; // 슬로모션이 걸리는 판단 순간
-  deadline: number; // 이때까지 안 고르면 멈춘다(머문다)
-  tBase: number; // extra: 돌아서 지나가는 베이스에 도착하는 시간
-  release: number; // 외야수가 공을 놓는 시간
-  ballAt: number; // 송구가 노리는 베이스에 도착하는 시간 (오차 없이)
-  tagAt: number; // 태그까지 마친 시간
-}
-
-export function timing(scn: RunScenario): RunTiming {
-  const r = route(scn);
-  const s = start(scn);
-  const fieldT = scn.hit.fieldT;
-  const release = fieldT + RUNNER.release[scn.hit.release];
-  const from = scn.hit.field.clone().setY(1.8);
-  const flight = from.distanceTo(BASES[r.target].clone().setY(1.0)) / RUNNER.arm[scn.arm];
-  const ballAt = release + flight;
-  const tagAt = ballAt + THROW.tagTime;
-  if (scn.kind === 'tagup') return { decisionAt: fieldT, deadline: fieldT + RUNNER.tagupWindow, tBase: fieldT, release, ballAt, tagAt };
-  const tBase = s.t + s.pos.distanceTo(BASES[r.mid!]) / (scn.me === 'batter' ? RUN.speed : RUNNER.speed);
-  return { decisionAt: Math.min(fieldT, tBase - RUNNER.commit), deadline: tBase + RUNNER.window, tBase, release, ballAt, tagAt };
-}
-
-// 판단 시각(게임 시간) td에 간다고 정했을 때 노리는 베이스에 도착하는 시간
-export function arrivalIfGo(scn: RunScenario, td: number) {
-  const r = route(scn);
-  const tm = timing(scn);
-  if (scn.kind === 'tagup') {
-    const leave = Math.max(td, scn.hit.fieldT) + RUNNER.tagupReaction;
-    return { leave, arrival: leave + BASES[r.origin].distanceTo(BASES[r.target]) / RUNNER.speed, late: 0 };
-  }
-  // 베이스 commit초 전까지 정하면 속도를 줄이지 않고 돈다. 늦으면 늦은 만큼 베이스에서 머뭇거린다.
-  const late = Math.max(0, td - (tm.tBase - RUNNER.commit));
-  const leave = tm.tBase + late;
-  return { leave, arrival: leave + RUNNER.roundTime + BASES[r.mid!].distanceTo(BASES[r.target]) / RUNNER.speed, late };
-}
-
-// 주자가 태그보다 얼마나 먼저 도착하는지 (+면 세이프 쪽, 송구 오차 없이)
-export function marginAt(scn: RunScenario, td: number) {
-  return timing(scn).tagAt - arrivalIfGo(scn, td).arrival;
+export function leadSpot(base: BaseId, dist: number) {
+  return along(base, dist);
 }
 
 // ---------- 확률 ----------
@@ -134,7 +85,8 @@ function phi(x: number) {
   return x > 0 ? 1 - p : p;
 }
 
-// 송구 오차를 감안한 세이프 확률. 송구는 평소 throwSd 정도 흔들리고, wildRate 확률로 빗나가서 태그가 더 늦어진다.
+// 송구 오차를 감안한 세이프 확률 (margin: 주자가 송구보다 몇 초 먼저 도착하는지). 송구는 평소 throwSd 정도 흔들리고,
+// wildRate 확률로 빗나가서 더 늦어진다.
 export function safeProb(margin: number) {
   const sd = RUNNER.throwSd;
   const normal = phi(margin / sd);
@@ -170,32 +122,7 @@ export function expectancy(st: BaseState) {
   return st.runs + RUN_EXPECTANCY[key][st.outs];
 }
 
-const R = (first: boolean, second: boolean, third: boolean) => ({ first, second, third });
-
-// 판단 결과의 상황. 리드 주자가 송구 승부를 하면 타자 주자는 송구 사이에 2루까지 간다.
-export function resultState(scn: RunScenario, d: RunDecision, safe: boolean): BaseState {
-  const o = scn.situation.outs;
-  if (scn.kind === 'tagup') {
-    const o1 = o + 1; // 플라이가 잡혀서 타자는 아웃
-    if (scn.me === 'r3') {
-      if (d === 'stop') return { runs: 0, outs: o1, runners: R(false, false, true) };
-      return safe ? { runs: 1, outs: o1, runners: R(false, false, false) } : { runs: 0, outs: o1 + 1, runners: R(false, false, false) };
-    }
-    if (d === 'stop') return { runs: 0, outs: o1, runners: R(false, true, false) };
-    return safe ? { runs: 0, outs: o1, runners: R(false, false, true) } : { runs: 0, outs: o1 + 1, runners: R(false, false, false) };
-  }
-  if (scn.me === 'batter') {
-    if (d === 'stop') return { runs: 0, outs: o, runners: R(true, false, false) };
-    return safe ? { runs: 0, outs: o, runners: R(false, true, false) } : { runs: 0, outs: o + 1, runners: R(false, false, false) };
-  }
-  if (scn.me === 'r1') {
-    if (d === 'stop') return { runs: 0, outs: o, runners: R(true, true, false) };
-    return safe ? { runs: 0, outs: o, runners: R(false, true, true) } : { runs: 0, outs: o + 1, runners: R(false, true, false) };
-  }
-  // r2: 홈 승부
-  if (d === 'stop') return { runs: 0, outs: o, runners: R(true, false, true) };
-  return safe ? { runs: 1, outs: o, runners: R(false, true, false) } : { runs: 0, outs: o + 1, runners: R(false, true, false) };
-}
+export const R = (first: boolean, second: boolean, third: boolean) => ({ first, second, third });
 
 export function stateLabel(st: BaseState) {
   const runs = st.runs ? `${st.runs}점 득점, ` : '';
@@ -206,84 +133,87 @@ export function stateLabel(st: BaseState) {
   return `${runs}${outs} ${on}`;
 }
 
-export interface RunValue {
-  decisionTime: number; // 판단 시각 (게임 시간)
-  margin: number;
-  pSafe: number;
-  evGo: number;
-  evStop: number;
-  safe: BaseState;
-  out: BaseState;
-  stay: BaseState;
-  breakEven: number; // 이 확률보다 세이프 확률이 높아야 가는 게 이득
+export const evText = (st: BaseState) => `${stateLabel(st)} <small>(기대 ${expectancy(st).toFixed(2)}점)</small>`;
+
+// ---------- 단계와 판정 ----------
+
+export interface StepOption {
+  id: string;
+  key: 'W' | 'S' | 'D';
+  label: string;
+  short: string; // 3D 표시에 쓰는 짧은 이름
+  pos: THREE.Vector3 | null; // 화면에 표시할 곳 (지금 서 있는 베이스면 null)
 }
 
-export function valueAt(scn: RunScenario, td: number): RunValue {
-  const margin = marginAt(scn, td);
-  const pSafe = safeProb(margin);
-  const safe = resultState(scn, 'go', true);
-  const out = resultState(scn, 'go', false);
-  const stay = resultState(scn, 'stop', false);
-  const vs = expectancy(safe);
-  const vo = expectancy(out);
-  const vk = expectancy(stay);
-  return {
-    decisionTime: td,
-    margin,
-    pSafe,
-    evGo: pSafe * vs + (1 - pSafe) * vo,
-    evStop: vk,
-    safe,
-    out,
-    stay,
-    breakEven: vs > vo ? THREE.MathUtils.clamp((vk - vo) / (vs - vo), 0, 1) : 1,
-  };
+export interface OptionValue {
+  id: string;
+  ev: number; // 기대 득점
+  lines: string[]; // 결과 화면에 보여줄 설명 (확률 → 상황)
+  invalid?: boolean; // 규칙상 답이 될 수 없는 선택 (포스인데 귀루)
 }
 
-// ---------- 판정 ----------
+export interface StepValue {
+  options: OptionValue[];
+  note: string; // 판단 근거 한 줄 (예: 세이프 확률과 이득 기준)
+}
+
+export interface Step {
+  key: 'extra' | 'read' | 'tagup' | 'ground';
+  name: string; // 결과 화면의 단계 이름
+  prompt: string; // 결정 패널 제목
+  urgent: string; // 판단 순간(슬로모션) 제목
+  options: StepOption[];
+  decisionAt: number;
+  deadline: number;
+  timeout: string; // 시간 안에 안 고르면 이 선택
+  value(td: number): StepValue; // td(게임 시간)에 정했을 때 선택지별 기대 득점
+}
 
 export type RunVerdict = 'ideal' | 'late' | 'fallback' | 'other' | 'timeout';
 
-export interface RunGrade {
+export interface StepGrade {
+  step: Step;
+  choice: string;
+  delay: number;
+  timedOut: boolean;
   grade: Grade;
   verdict: RunVerdict;
-  best: RunDecision[]; // 판단 순간 바로 정했을 때 최선 (둘 다일 수 있음)
-  immediate: RunValue; // 판단 순간 바로 정했을 때
-  mine: RunValue; // 내가 정한 시각 기준
+  best: string[]; // 판단 순간 바로 정했을 때 최선 (여럿일 수 있음)
+  immediate: StepValue;
+  mine: StepValue; // 내가 정한 시각 기준
   loss: number; // 최선과의 기대 득점 차이
 }
 
-const evOf = (v: RunValue, d: RunDecision) => (d === 'go' ? v.evGo : v.evStop);
+const evOf = (v: StepValue, id: string) => v.options.find((o) => o.id === id)!.ev;
 
-export function bestDecisions(v: RunValue): RunDecision[] {
-  const top = Math.max(v.evGo, v.evStop);
-  return (['go', 'stop'] as RunDecision[]).filter((d) => evOf(v, d) >= top - RUNNER.closeTolerance);
+export function bestOptions(v: StepValue): string[] {
+  const top = Math.max(...v.options.map((o) => o.ev));
+  return v.options.filter((o) => o.ev >= top - RUNNER.closeTolerance).map((o) => o.id);
 }
 
-export function gradeRun(scn: RunScenario, decision: RunDecision, delay: number, timedOut: boolean): RunGrade {
-  const tm = timing(scn);
-  const immediate = valueAt(scn, tm.decisionAt);
-  const mine = valueAt(scn, tm.decisionAt + delay);
-  const best = bestDecisions(immediate);
-  const top = Math.max(immediate.evGo, immediate.evStop);
-  const loss = Math.max(0, top - evOf(mine, decision));
+export function gradeStep(step: Step, choice: string, delay: number, timedOut: boolean): StepGrade {
+  const immediate = step.value(step.decisionAt);
+  const mine = step.value(step.decisionAt + delay);
+  const best = bestOptions(immediate);
+  const top = Math.max(...immediate.options.map((o) => o.ev));
+  const loss = Math.max(0, top - evOf(mine, choice));
   let verdict: RunVerdict;
   let grade: Grade;
   if (timedOut) {
     verdict = 'timeout';
-    grade = best.includes('stop') ? 'ok' : 'bad';
-  } else if (best.includes(decision)) {
+    grade = best.includes(choice) ? 'ok' : 'bad';
+  } else if (best.includes(choice)) {
     verdict = loss < 0.05 ? 'ideal' : 'late';
     grade = loss < 0.05 ? 'best' : loss < 0.2 ? 'ok' : 'bad';
-  } else if (bestDecisions(mine).includes(decision) && delay > 0.05) {
-    // 처음엔 가는 게 맞았지만, 늦게 정한 시점에선 멈추는 게 나았다
+  } else if (bestOptions(mine).includes(choice) && delay > 0.05) {
+    // 처음엔 다른 게 맞았지만, 늦게 정한 시점에선 이게 나았다
     verdict = 'fallback';
     grade = 'ok';
   } else {
     verdict = 'other';
     grade = loss < 0.1 ? 'ok' : 'bad';
   }
-  return { grade, verdict, best, immediate, mine, loss };
+  return { step, choice, delay, timedOut, grade, verdict, best, immediate, mine, loss };
 }
 
 // ---------- 타임라인 ----------
@@ -308,12 +238,35 @@ export function trackAt(track: Key[], t: number, out = new THREE.Vector3()) {
   return { pos: out.copy(track[track.length - 1].pos), moving: false };
 }
 
+// t 이후를 잘라 그 자리에 멈추게 한다
+export function cutTrack(track: Key[], t: number): Key[] {
+  const kept = track.filter((k) => k.t < t);
+  return [...kept, { t, pos: trackAt(track, t).pos.clone() }];
+}
+
+// 내야 수비 엔진의 경로(Path)를 키프레임으로 바꾼다
+export function pathKeys(p: Path): Key[] {
+  const keys: Key[] = [{ t: p.startTime, pos: p.waypoints[0].clone() }];
+  let t = p.startTime;
+  for (let i = 1; i < p.waypoints.length; i++) {
+    t += p.waypoints[i - 1].distanceTo(p.waypoints[i]) / p.speed;
+    keys.push({ t, pos: p.waypoints[i].clone() });
+  }
+  return p.stopAt !== undefined ? cutTrack(keys, p.stopAt) : keys;
+}
+
 export interface RunPlay {
   t: number;
   base: BaseId;
   out: boolean;
   receiver: FielderId;
-  runner: 'me' | 'batter';
+  runner: 'me' | number; // number: others의 순서
+}
+
+export interface Other {
+  keys: Key[];
+  batter: boolean; // 타석에서 스윙 자세로 시작하는 타자
+  start: number; // 이 시간 전에는 타석(타자)이나 리드 자리에 서 있다
 }
 
 export interface RunTimeline {
@@ -321,23 +274,47 @@ export interface RunTimeline {
   tWindup: number;
   tRelease: number;
   ball: BallSeg[];
-  fielders: Partial<Record<FielderId, Path>>;
+  fielders: Partial<Record<FielderId, Key[]>>;
+  fieldersHome?: Partial<Record<FielderId, THREE.Vector3>>; // 움직이지 않는 수비수의 자리 (없으면 기본 수비 위치)
   me: Key[];
-  batter: Key[] | null; // 내가 타자 주자가 아니면 타자의 움직임 (타격 전에는 타석에 있다)
-  batterStart: number;
+  meBatter: boolean; // 내가 타자 주자 (타석에서 시작)
+  meStart: number;
+  others: Other[];
   calls: Call[];
   plays: RunPlay[];
-  decisionAt: number;
-  deadline: number;
+  slides: { runner: 'me' | number; base: BaseId; t: number }[];
   end: number;
-  slide: { base: BaseId; t: number } | null; // 내가 슬라이딩하는 순간
 }
 
-export interface RunInput {
-  decision: RunDecision;
-  td: number; // 정한 시각 (게임 시간)
-  noise: number; // 이번 송구의 오차
+export function pitchTimes(pitchFlight: number) {
+  const tRelease = -pitchFlight;
+  const tWindup = tRelease - PITCH.windupTime;
+  return { tRelease, tWindup, start: tWindup - PRE_PITCH };
 }
+
+export function walkKeys(from: THREE.Vector3, to: THREE.Vector3, t0: number, speed = RUN.fielderSpeed): Key[] {
+  return [
+    { t: t0, pos: from.clone() },
+    { t: t0 + from.distanceTo(to) / speed, pos: to.clone() },
+  ];
+}
+
+// 외야로 가는 타구 (땅볼·라이너·뜬공)
+export function hitSegments(hit: OutfieldHit): BallSeg[] {
+  if (hit.type === 'grounder') {
+    return [{ from: CONTACT_POINT, to: hit.field.clone().setY(0.3), t0: 0, t1: hit.fieldT, ...grounderHops(Math.min(hit.fieldT, 2.2)) }];
+  }
+  if (hit.type === 'liner') {
+    const land = hit.land!;
+    return [
+      { from: CONTACT_POINT, to: land.pos.clone().setY(0.1), t0: 0, t1: land.t, arc: (9.8 * land.t * land.t) / 8 },
+      { from: land.pos.clone().setY(0.1), to: hit.field.clone().setY(0.3), t0: land.t, t1: hit.fieldT, arc: 0.6, bounces: 3 },
+    ];
+  }
+  return [{ from: CONTACT_POINT, to: hit.field.clone().setY(1.9), t0: 0, t1: hit.fieldT, arc: (9.8 * hit.fieldT * hit.fieldT) / 8 }];
+}
+
+export const PITCH_SEG = (tRelease: number): BallSeg => ({ from: releasePoint(), to: CONTACT_POINT, t0: tRelease, t1: 0, arc: 0.15 });
 
 const RECEIVER: Record<BaseId, (f: OutfielderId) => FielderId> = {
   home: () => 'C',
@@ -346,123 +323,66 @@ const RECEIVER: Record<BaseId, (f: OutfielderId) => FielderId> = {
   third: () => '3B',
 };
 
-export function receiverOf(scn: RunScenario): FielderId {
-  return RECEIVER[route(scn).target](scn.fielder);
+export function receiverAt(base: BaseId, f: OutfielderId): FielderId {
+  return RECEIVER[base](f);
 }
 
-function walk(from: THREE.Vector3, to: THREE.Vector3, startTime: number, speed = RUN.fielderSpeed): Path {
-  return { waypoints: [from.clone(), to.clone()], startTime, speed };
-}
-
-// 실제 송구가 도착하는 시간과 곳 (빗나간 송구는 베이스 옆으로 간다)
-export function throwOf(scn: RunScenario, noise: number) {
-  const r = route(scn);
-  const tm = timing(scn);
-  const from = scn.hit.field.clone().setY(1.8);
-  const bag = BASES[r.target].clone().setY(1.0);
+// 외야수의 송구: 빗나간 송구는 베이스 옆으로 간다
+export function outfieldThrow(from: THREE.Vector3, base: BaseId, t0: number, arm: Arm, noise: number) {
+  const src = from.clone().setY(1.8);
+  const bag = BASES[base].clone().setY(1.0);
   const off = noise > RUNNER.wildMin ? Math.min(2.5, noise * 3) : 0;
-  const side = from.clone().sub(bag).setY(0).normalize();
+  const side = src.clone().sub(bag).setY(0).normalize();
   const to = bag.clone().add(new THREE.Vector3(-side.z, 0, side.x).multiplyScalar(off));
-  return { from, to, t0: tm.release, t1: tm.ballAt + noise, tagAt: tm.tagAt + noise };
+  const flight = src.distanceTo(bag) / RUNNER.arm[arm];
+  return { from: src, to, t0, t1: t0 + flight + noise, flight };
 }
 
-export function buildRunTimeline(scn: RunScenario, pitchFlight: number, input?: RunInput): RunTimeline {
-  const tRelease = -pitchFlight;
-  const tWindup = tRelease - PITCH.windupTime;
-  const startT = tWindup - PRE_PITCH;
-  const r = route(scn);
-  const tm = timing(scn);
-  const s = start(scn);
-  const hit = scn.hit;
-  const fielders = DEFAULT_FIELDERS;
-
-  // 공: 투구, 타구, 송구
-  const ball: BallSeg[] = [{ from: releasePoint(), to: CONTACT_POINT, t0: tRelease, t1: 0, arc: 0.15 }];
-  if (hit.type === 'grounder') {
-    ball.push({ from: CONTACT_POINT, to: hit.field.clone().setY(0.3), t0: 0, t1: hit.fieldT, ...grounderHops(Math.min(hit.fieldT, 2.2)) });
-  } else if (hit.type === 'liner') {
-    const land = hit.land!;
-    ball.push({ from: CONTACT_POINT, to: land.pos.clone().setY(0.1), t0: 0, t1: land.t, arc: (9.8 * land.t * land.t) / 8 });
-    ball.push({ from: land.pos.clone().setY(0.1), to: hit.field.clone().setY(0.3), t0: land.t, t1: hit.fieldT, arc: 0.6, bounces: 3 });
-  } else {
-    ball.push({ from: CONTACT_POINT, to: hit.field.clone().setY(1.9), t0: 0, t1: hit.fieldT, arc: (9.8 * hit.fieldT * hit.fieldT) / 8 });
+// 외야 수비 기본 움직임: 공을 처리하는 외야수, 그 베이스로 들어가는 수비수, 그 뒤를 받치는 투수
+export function outfieldDefense(fielder: OutfielderId, ballAt: THREE.Vector3, arriveBy: number, playBase: BaseId, alsoCover: BaseId | null) {
+  const f = DEFAULT_FIELDERS;
+  const moves: Partial<Record<FielderId, Key[]>> = {};
+  const target = ballAt.clone().setY(0);
+  moves[fielder] = [
+    { t: 0.15, pos: f[fielder].clone() },
+    { t: Math.max(0.3, arriveBy), pos: target },
+  ];
+  const receiver = receiverAt(playBase, fielder);
+  if (receiver !== 'C') moves[receiver] = walkKeys(f[receiver], bagSpot(playBase), 0.5);
+  // 다른 베이스에 들어가는 수비수는 주자가 지나가는 길을 막지 않게 베이스 안쪽에 선다
+  if (alsoCover && alsoCover !== playBase && alsoCover !== 'home') {
+    const cover: FielderId = alsoCover === 'second' ? (receiver === 'SS' ? '2B' : fielder === 'RF' ? '2B' : 'SS') : alsoCover === 'first' ? '1B' : '3B';
+    const inside = BASES[alsoCover].clone().lerp(P(0, 19.4), 2.5 / BASES[alsoCover].distanceTo(P(0, 19.4)));
+    if (!moves[cover]) moves[cover] = walkKeys(f[cover], inside, 0.6);
   }
-  const noise = input?.noise ?? 0;
-  const thr = throwOf(scn, noise);
-  ball.push({ from: thr.from, to: thr.to, t0: thr.t0, t1: thr.t1, arc: Math.min(6, thr.from.distanceTo(thr.to) * 0.06), thrower: scn.fielder });
+  const backDir = BASES[playBase].clone().sub(target).setY(0).normalize();
+  moves.P = walkKeys(f.P, BASES[playBase].clone().addScaledVector(backDir, 9), 0.4);
+  return { moves, receiver };
+}
 
-  // 수비: 외야수는 공을 잡는 곳으로, 받는 수비수는 베이스로, 투수는 그 베이스 뒤로 백업
-  const moves: Partial<Record<FielderId, Path>> = {};
-  const of = fielders[scn.fielder];
-  const arriveBy = hit.type === 'fly' ? hit.fieldT - 0.4 : hit.fieldT;
-  moves[scn.fielder] = { waypoints: [of.clone(), hit.field.clone().setY(0)], startTime: 0.15, speed: Math.max(1, of.distanceTo(hit.field.clone().setY(0)) / Math.max(0.3, arriveBy - 0.15)) };
-  const receiver = receiverOf(scn);
-  if (receiver !== 'C') moves[receiver] = walk(fielders[receiver], bagSpot(r.target), 0.5);
-  // 멈추면 남는 베이스에도 누군가 들어간다 (2루는 반대쪽 키스톤, 1루는 1루수)
-  // 주자가 지나가는 길을 막지 않게 베이스 안쪽에 선다
-  if (r.stay !== r.target && r.stay !== 'home') {
-    const cover: FielderId = r.stay === 'second' ? (receiver === 'SS' ? '2B' : scn.fielder === 'RF' ? '2B' : 'SS') : r.stay === 'first' ? '1B' : '3B';
-    const inside = BASES[r.stay].clone().lerp(P(0, 19.4), 2.5 / BASES[r.stay].distanceTo(P(0, 19.4)));
-    if (!moves[cover]) moves[cover] = walk(fielders[cover], inside, 0.6);
-  }
-  const backDir = BASES[r.target].clone().sub(thr.from).setY(0).normalize();
-  moves.P = walk(fielders.P, BASES[r.target].clone().addScaledVector(backDir, 9), 0.4);
+// 타자: 1루로 뛴다 (뜬공이 잡히면 그 자리에서 멈춘다)
+export function batterRun(scn: RunScenario, stopAt?: number, toSecond = false): Other {
+  const box = batterBoxOf(scn);
+  const t1 = RUN.batterStartDelay + box.distanceTo(BASES.first) / RUN.speed;
+  let keys: Key[] = [
+    { t: RUN.batterStartDelay, pos: box },
+    { t: t1, pos: BASES.first.clone() },
+  ];
+  if (toSecond) keys.push({ t: t1 + RUNNER.roundTime + BASE_PATH / RUNNER.speed, pos: BASES.second.clone() });
+  if (stopAt !== undefined) keys = cutTrack(keys, stopAt);
+  return { keys, batter: true, start: RUN.batterStartDelay };
+}
 
-  // 나
-  const me: Key[] = [];
-  const bag = (b: BaseId) => BASES[b].clone();
-  if (scn.kind === 'tagup') {
-    // 투구 때 리드했다가, 뜬공을 보고 베이스로 돌아가 태그업 자세를 잡는다
-    const lead = leadSpot(r.origin, RUN.leadOff);
-    me.push({ t: tWindup, pos: bag(r.origin) }, { t: 0, pos: lead }, { t: 1.2, pos: bag(r.origin) });
-  } else if (scn.me === 'batter') {
-    me.push({ t: s.t, pos: s.pos.clone() }, { t: tm.tBase, pos: bag(r.mid!) });
-  } else {
-    const lead = leadSpot(r.origin, RUN.leadOff);
-    me.push({ t: tWindup, pos: lead }, { t: 0, pos: s.pos.clone() }, { t: s.t, pos: s.pos.clone() }, { t: tm.tBase, pos: bag(r.mid!) });
-  }
+export function tagCall(base: BaseId, t: number, safe: boolean): Call {
+  return { t, pos: BASES[base], text: safe ? '세이프!' : '태그아웃', good: !safe };
+}
 
-  const calls: Call[] = [];
-  const plays: RunPlay[] = [];
-  let slide: RunTimeline['slide'] = null;
-  let end = Infinity;
-  let batterGoes = false;
-  if (input) {
-    if (input.decision === 'go') {
-      const go = arrivalIfGo(scn, input.td);
-      const from = scn.kind === 'tagup' ? r.origin : r.mid!;
-      const safe = go.arrival < thr.tagAt;
-      // 아웃이면 태그되는 순간 그 자리에 멈춘다 (주자가 베이스 앞 TAG_REACH까지 와야 태그된다)
-      const outT = Math.max(thr.tagAt, go.arrival - TAG_REACH / RUNNER.speed);
-      const tEnd = safe ? go.arrival : outT;
-      me.push({ t: go.leave, pos: bag(from) });
-      const leg: Key[] = [{ t: go.leave, pos: bag(from) }, { t: go.arrival, pos: bag(r.target) }];
-      me.push({ t: tEnd, pos: trackAt(leg, tEnd).pos.clone() });
-      calls.push({ t: tEnd, pos: BASES[r.target], text: safe ? '세이프!' : '태그아웃', good: !safe });
-      plays.push({ t: tEnd, base: r.target, out: !safe, receiver, runner: 'me' });
-      slide = { base: r.target, t: tEnd };
-      batterGoes = scn.kind === 'extra' && scn.me !== 'batter';
-      end = Math.max(tEnd, thr.t1) + 1.6;
-    } else {
-      end = Math.max(tm.tBase, thr.t1) + 1.4;
-    }
-  }
+export function throwArc(from: THREE.Vector3, to: THREE.Vector3) {
+  return Math.min(6, from.distanceTo(to) * 0.06);
+}
 
-  // 타자: 안타면 1루로 뛰고, 리드 주자가 송구 승부를 하면 송구 사이에 2루까지 간다. 플라이면 잡히는 순간 멈춘다.
-  let batter: Key[] | null = null;
-  const batterStart = RUN.batterStartDelay;
-  if (scn.me !== 'batter') {
-    const box = batterBoxOf(scn);
-    const t1 = batterStart + box.distanceTo(BASES.first) / RUN.speed;
-    if (scn.kind === 'tagup') {
-      const stopT = hit.fieldT + 0.3;
-      const leg: Key[] = [{ t: batterStart, pos: box }, { t: t1, pos: bag('first') }];
-      batter = [...leg.filter((k) => k.t < stopT), { t: stopT, pos: trackAt(leg, stopT).pos.clone() }];
-    } else {
-      batter = [{ t: batterStart, pos: box }, { t: t1, pos: bag('first') }];
-      if (batterGoes) batter.push({ t: t1 + RUNNER.roundTime + 27.43 / RUNNER.speed, pos: bag('second') });
-    }
-  }
+export const TAG_TIME = THROW.tagTime;
 
-  return { start: startT, tWindup, tRelease, ball, fielders: moves, me, batter, batterStart, calls, plays, decisionAt: tm.decisionAt, deadline: tm.deadline, end, slide };
+export function baseLabelTo(base: BaseId) {
+  return josa(BASE_LABEL[base], '으로', '로');
 }

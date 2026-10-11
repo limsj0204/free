@@ -3,29 +3,17 @@ import { DIFFICULTIES, PITCH, type DifficultyId } from './config';
 import { BASES, P } from './coords';
 import { TEAM_DEFENSE, TEAM_OFFENSE, createMannequin, faceTowards, nameSprite, poseCrouch, poseIdle, poseRun, poseSlide, poseTag, poseThrow, type Mannequin } from './players';
 import { addResult, getIncludeGenerated, getRecord } from './progress';
-import {
-  arrivalIfGo,
-  batterBoxOf,
-  buildRunTimeline,
-  decisionLabel,
-  gradeRun,
-  route,
-  sampleThrowNoise,
-  throwOf,
-  trackAt,
-  type RunDecision,
-  type RunScenario,
-  type RunTimeline,
-} from './runner';
+import { firstStep, nextStep, playResult, playTimeline, type Play } from './runPlay';
+import { batterBoxOf, gradeStep, sampleThrowNoise, trackAt, type Key, type RunScenario, type RunTimeline, type Step } from './runner';
 import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
-import { runPrompt, showRunBriefing, showRunResult } from './runUi';
-import type { FielderId } from './scenario';
+import { showRunBriefing, showRunResult } from './runUi';
+import type { FielderId, Grade } from './scenario';
 import { DEFAULT_FIELDERS } from './scenarios';
 import { sfx } from './sound';
-import { CONTACT_POINT, pathPosition, releasePoint } from './timeline';
+import { CONTACT_POINT, releasePoint } from './timeline';
 import type { DecisionDef, UI } from './ui';
 
-// 주루 판단: 내가 주자가 되어 1인칭으로 뛰면서 한 베이스 더 갈지(또는 태그업할지) 정한다.
+// 주루 판단: 내가 주자가 되어 1인칭으로 뛰면서 판단한다. 판단은 단계(runPlay.ts)로 나뉘고, 단계마다 선택지가 뜬다.
 // 수비 게임(Game)과 같은 구장·카메라·화면을 쓰고, 주자 탭에서 상황을 고르면 Game이 이쪽으로 넘겨준다.
 
 type Phase = 'idle' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 'replay';
@@ -36,28 +24,27 @@ const TOUCH_LOOK = 2.7;
 const TAP_RADIUS = 70;
 const REPLAY_SPEED = 0.6;
 const FIELDER_IDS: FielderId[] = ['P', 'C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'];
-const GO = 0;
-const STOP = 1;
+const OTHER_COUNT = 3; // 나 말고 화면에 나오는 주자 (타자 포함)
+const KEY_CODES: Record<string, string[]> = { W: ['KeyW', 'ArrowUp'], S: ['KeyS', 'ArrowDown'], D: ['KeyD', 'ArrowRight'] };
+const RANK: Record<Grade, number> = { best: 2, ok: 1, bad: 0 };
 
 const tvView = new URLSearchParams(location.search).get('view') === 'tv';
 
 export class RunGame {
   private phase: Phase = 'idle';
   private scn: RunScenario = RUN_SCENARIOS[0];
+  private play!: Play;
+  private step: Step | null = null; // 지금 기다리는 판단
   private tl!: RunTimeline;
   private t = 0;
   private timeScale = 1;
   difficulty: DifficultyId = 'normal';
 
   private pitchKmh = 120;
-  private pitchFlight = 0.4;
-  private noise = 0;
   private panelShown = false;
-  private pending: RunDecision | null = null;
+  private pending: string | null = null;
   private pendingReal = 0;
   private decisionRealStart = 0;
-  private reactionReal = 0;
-  private decided: { decision: RunDecision; td: number; timedOut: boolean } | null = null;
   private defs: DecisionDef[] = [];
   private randomPool: RunScenario[] | null = null;
   private soundT = -Infinity;
@@ -67,7 +54,7 @@ export class RunGame {
   private world = new THREE.Group();
   private fielders = new Map<FielderId, Mannequin>();
   private me: Mannequin;
-  private batter: Mannequin;
+  private others: Mannequin[] = [];
   private bat: THREE.Group;
   private ball: THREE.Mesh;
   private ballShadow: THREE.Mesh;
@@ -93,8 +80,12 @@ export class RunGame {
       this.world.add(m.root);
     }
     this.me = createMannequin(TEAM_OFFENSE);
-    this.batter = createMannequin(TEAM_OFFENSE);
-    this.world.add(this.me.root, this.batter.root);
+    this.world.add(this.me.root);
+    for (let i = 0; i < OTHER_COUNT; i++) {
+      const m = createMannequin(TEAM_OFFENSE);
+      this.others.push(m);
+      this.world.add(m.root);
+    }
 
     this.bat = new THREE.Group();
     const bat = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.018, 0.85, 8), new THREE.MeshLambertMaterial({ color: 0xd8b07a }));
@@ -188,9 +179,10 @@ export class RunGame {
 
     document.addEventListener('keydown', (e) => {
       if (!this.active || e.repeat) return;
-      if (this.canChoose && (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'KeyS' || e.code === 'ArrowDown')) {
+      const opt = this.canChoose ? this.step!.options.findIndex((o) => KEY_CODES[o.key].includes(e.code)) : -1;
+      if (opt >= 0) {
         e.preventDefault();
-        this.input(e.code === 'KeyW' || e.code === 'ArrowUp' ? GO : STOP);
+        this.input(opt);
       } else if (this.phase === 'result') {
         if (e.code === 'KeyR') this.restart();
         else if (e.code === 'KeyV') this.replay();
@@ -224,7 +216,7 @@ export class RunGame {
   }
 
   private get canChoose() {
-    return this.phase === 'decision' || (this.phase === 'live' && this.panelShown);
+    return !!this.step && (this.phase === 'decision' || (this.phase === 'live' && this.panelShown));
   }
 
   private lockPointer() {
@@ -254,10 +246,10 @@ export class RunGame {
         best = i;
       }
     });
-    if (best >= 0) this.input(this.defs[best].value as number);
+    if (best >= 0) this.input(best);
   }
 
-  // 화면 가운데와 좌우 방향이 가장 가까운 베이스 (지금 서 있는 베이스는 고를 수 없다)
+  // 화면 가운데와 좌우 방향이 가장 가까운 곳 (지금 서 있는 곳은 고를 수 없다)
   private pickByGaze() {
     const fwd = new THREE.Vector3();
     this.camera.getWorldDirection(fwd);
@@ -274,20 +266,21 @@ export class RunGame {
         best = i;
       }
     });
-    if (best >= 0) this.input(this.defs[best].value as number);
+    if (best >= 0) this.input(best);
   }
 
   // 판단 순간 전이면 미리 골라두고(그 순간 바로 실행), 판단 순간이 지났으면 바로 정한다
-  private input(value: number) {
+  private input(index: number) {
+    const opt = this.step?.options[index];
+    if (!opt) return;
     sfx.click();
-    const d: RunDecision = value === GO ? 'go' : 'stop';
     if (this.phase === 'decision') {
-      this.choose(d);
+      this.choose(opt.id);
       return;
     }
-    this.pending = d;
+    this.pending = opt.id;
     this.pendingReal = performance.now();
-    this.ui.markPending(value);
+    this.ui.markPending(index);
   }
 
   // ---------- 흐름 ----------
@@ -310,25 +303,24 @@ export class RunGame {
     this.onExit();
   }
 
+  private setStep(step: Step | null) {
+    this.step = step;
+    this.panelShown = false;
+    this.pending = null;
+    this.defs = (step?.options ?? []).map((o, i) => ({ value: i, key: o.key, code: KEY_CODES[o.key][0], label: o.label, short: o.short, pos: o.pos }));
+  }
+
   private prepare(scn: RunScenario) {
     this.scn = scn;
     this.pitchKmh = Math.round(PITCH.minKmh + Math.random() * (PITCH.maxKmh - PITCH.minKmh));
-    this.pitchFlight = releasePoint().distanceTo(CONTACT_POINT) / (this.pitchKmh / 3.6);
-    this.noise = sampleThrowNoise();
-    this.tl = buildRunTimeline(scn, this.pitchFlight);
+    const pitchFlight = releasePoint().distanceTo(CONTACT_POINT) / (this.pitchKmh / 3.6);
+    this.play = { scn, pitchFlight, noise: sampleThrowNoise(), caught: Math.random() < (scn.hit?.catchProb ?? 1), decided: [] };
+    this.tl = playTimeline(this.play);
     this.t = this.tl.start;
     this.soundT = this.t;
     this.timeScale = 1;
-    this.panelShown = false;
-    this.pending = null;
-    this.decided = null;
     this.clearCalls();
-    const r = route(scn);
-    this.defs = [
-      { value: GO, key: 'W', code: 'KeyW', label: decisionLabel(scn, 'go'), short: decisionLabel(scn, 'go'), pos: BASES[r.target] },
-      // 태그업은 지금 밟고 있는 베이스라 화면에 표시하지 않는다
-      { value: STOP, key: 'S', code: 'KeyS', label: decisionLabel(scn, 'stop'), short: decisionLabel(scn, 'stop'), pos: scn.kind === 'tagup' ? null : BASES[r.stay] },
-    ];
+    this.setStep(firstStep(scn));
     this.autoLook = true;
     this.camera.position.copy(trackAt(this.tl.me, this.t).pos).setY(EYE_HEIGHT);
     // 타자는 투수를, 주자는 타자를 보고 시작한다
@@ -340,8 +332,7 @@ export class RunGame {
   private openBriefing(scn: RunScenario) {
     this.prepare(scn);
     this.phase = 'briefing';
-    const label = this.randomPool ? '주자 랜덤' : null;
-    showRunBriefing(this.ui, scn, label);
+    showRunBriefing(this.ui, scn, this.randomPool ? '주자 랜덤' : null);
   }
 
   private start() {
@@ -380,13 +371,15 @@ export class RunGame {
     return cands[cands.length - 1];
   }
 
-  private choose(decision: RunDecision, timedOut = false, decidedAtReal = performance.now()) {
-    const td = Math.max(this.t, this.tl.decisionAt);
-    this.reactionReal = Math.max(0, (decidedAtReal - this.decisionRealStart) / 1000);
-    this.decided = { decision, td, timedOut };
-    this.tl = buildRunTimeline(this.scn, this.pitchFlight, { decision, td, noise: this.noise });
-    this.phase = 'play';
+  private choose(id: string, timedOut = false, decidedAtReal = performance.now()) {
+    const step = this.step!;
+    const td = Math.max(this.t, step.decisionAt);
+    this.play.decided.push({ step, id, td, timedOut, reactionReal: Math.max(0, (decidedAtReal - this.decisionRealStart) / 1000) });
+    this.tl = playTimeline(this.play);
     this.ui.hideDecision();
+    const next = nextStep(this.play);
+    this.setStep(next);
+    this.phase = next ? 'live' : 'play';
   }
 
   private finish() {
@@ -396,28 +389,18 @@ export class RunGame {
   }
 
   private showResult(record: boolean) {
-    const scn = this.scn;
-    const dec = this.decided!;
-    const delay = Math.max(0, dec.td - this.tl.decisionAt);
-    const grade = gradeRun(scn, dec.decision, delay, dec.timedOut);
+    const grades = this.play.decided.map((d) => gradeStep(d.step, d.id, d.td - d.step.decisionAt, d.timedOut));
+    const worst = grades.reduce((a, g) => (RANK[g.grade] < RANK[a] ? g.grade : a), 'best' as Grade);
     if (record) {
-      addResult(scn.id, grade.grade, delay);
-      sfx.result(grade.grade === 'best');
+      addResult(this.scn.id, worst, grades[0].delay);
+      sfx.result(worst === 'best');
     }
-    const thr = throwOf(scn, this.noise);
-    const go = dec.decision === 'go' ? arrivalIfGo(scn, dec.td) : null;
     showRunResult(this.ui, {
-      scenario: scn,
-      decision: dec.decision,
-      delay,
-      timedOut: dec.timedOut,
-      grade,
-      safe: go ? go.arrival < thr.tagAt : null,
-      noise: this.noise,
-      arrival: go ? go.arrival : null,
-      tagAt: thr.tagAt,
-      hesitated: go ? go.late : 0,
-      reactionReal: this.reactionReal,
+      scenario: this.scn,
+      play: this.play,
+      grades,
+      grade: worst,
+      result: playResult(this.play),
       timeScale: DIFFICULTIES.find((x) => x.id === this.difficulty)!.timeScale,
     });
   }
@@ -458,27 +441,29 @@ export class RunGame {
       if (this.t >= this.tl.end) this.endReplay();
     }
 
-    if (this.phase === 'live' && !this.panelShown && this.t >= 0) {
-      // 타격 순간부터 선택지를 띄워서 미리 고를 수 있게 한다
+    const step = this.step;
+    // 첫 판단은 타격 순간부터 선택지를 띄워서 미리 고를 수 있게 한다.
+    // 다음 판단(태그업)은 공이 잡히는 순간에야 뜬다 (미리 뜨면 잡힌다는 걸 알려주는 셈이라).
+    const first = this.play.decided.length === 0;
+    if (this.phase === 'live' && step && !this.panelShown && this.t >= (first ? 0 : step.decisionAt)) {
       this.panelShown = true;
       this.decisionRealStart = performance.now();
-      this.ui.setHudTitle(this.scn.event);
-      this.ui.showDecision(runPrompt(this.scn), this.defs);
+      if (first) this.ui.setHudTitle(this.scn.event);
+      this.ui.showDecision(step.prompt, this.defs);
       this.ui.setDecisionTimer(1);
     }
-    if (this.phase === 'live' && this.t >= this.tl.decisionAt) {
-      this.t = this.tl.decisionAt;
+    if (this.phase === 'live' && step && this.t >= step.decisionAt) {
+      this.t = step.decisionAt;
       if (this.pending) this.choose(this.pending, false, this.pendingReal);
       else {
         this.phase = 'decision';
         this.decisionRealStart = performance.now();
-        this.ui.setDecisionTitle(this.scn.kind === 'tagup' ? '잡았다! 뛸까?' : `지금 정하세요! ${runPrompt(this.scn)}`);
+        this.ui.setDecisionTitle(step.urgent);
       }
     }
-    if (this.phase === 'decision') {
-      const left = (this.tl.deadline - this.t) / (this.tl.deadline - this.tl.decisionAt);
-      this.ui.setDecisionTimer(left);
-      if (this.t >= this.tl.deadline) this.choose('stop', true);
+    if (this.phase === 'decision' && step) {
+      this.ui.setDecisionTimer((step.deadline - this.t) / (step.deadline - step.decisionAt));
+      if (this.t >= step.deadline) this.choose(step.timeout, true);
     }
     if (this.phase === 'play' && this.t >= this.tl.end) this.finish();
 
@@ -498,6 +483,11 @@ export class RunGame {
     return tvView || this.phase === 'replay';
   }
 
+  private sliding(runner: 'me' | number, pos: THREE.Vector3, t: number) {
+    const s = this.tl.slides.find((x) => x.runner === runner && t > x.t - 0.35 && t < x.t + 0.9);
+    return s && pos.distanceTo(BASES[s.base]) < 3.5 ? s : null;
+  }
+
   private updateCamera(realDt: number) {
     if (this.overhead) {
       this.camera.position.copy(P(0, -22, 42));
@@ -515,8 +505,7 @@ export class RunGame {
       this.pitch += (pitch - this.pitch) * k;
     }
     // 슬라이딩할 때는 몸을 낮춘다
-    const s = this.tl.slide;
-    const low = s && this.t > s.t - 0.35 && this.t < s.t + 0.9 && pos.distanceTo(BASES[s.base]) < 3.5 ? 0.9 : 0;
+    const low = this.sliding('me', pos, this.t) ? 0.9 : 0;
     this.camera.position.set(pos.x, EYE_HEIGHT - low, pos.z);
     this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
   }
@@ -524,29 +513,28 @@ export class RunGame {
   private animate(realDt: number) {
     const t = this.t;
     const tl = this.tl;
-    const scn = this.scn;
     const dt = realDt * (this.phase === 'replay' ? REPLAY_SPEED : this.timeScale);
     const ballPos = this.ballPosition(t);
-    const tmp = new THREE.Vector3();
+    const myPos = trackAt(tl.me, t, new THREE.Vector3()).pos;
 
     for (const id of FIELDER_IDS) {
       const m = this.fielders.get(id)!;
-      const path = tl.fielders[id];
+      const keys = tl.fielders[id];
       let moving = false;
       let dest: THREE.Vector3 | null = null;
-      if (path) {
-        const r = pathPosition(path, t, tmp);
+      if (keys) {
+        const r = trackAt(keys, t);
         m.root.position.copy(r.pos);
         moving = r.moving;
-        dest = path.waypoints[path.waypoints.length - 1];
-      } else m.root.position.copy(DEFAULT_FIELDERS[id]);
+        dest = keys[keys.length - 1].pos;
+      } else m.root.position.copy(tl.fieldersHome?.[id] ?? DEFAULT_FIELDERS[id]);
       const throwSeg = tl.ball.find((s) => s.thrower === id && t > s.t0 - 0.3 && t < s.t0 + 0.15);
       const play = tl.plays.find((p) => p.receiver === id && t > p.t - 0.3 && t < p.t + 0.45);
       if (throwSeg) {
         faceTowards(m, throwSeg.to);
         poseThrow(m, THREE.MathUtils.clamp((t - (throwSeg.t0 - 0.3)) / 0.3, 0, 1));
       } else if (play) {
-        faceTowards(m, trackAt(tl.me, t).pos);
+        faceTowards(m, play.runner === 'me' ? myPos : trackAt(tl.others[play.runner].keys, t).pos);
         poseTag(m);
       } else if (id === 'P' && t >= tl.tWindup && t < tl.tRelease + 0.3) {
         faceTowards(m, BASES.home);
@@ -567,23 +555,24 @@ export class RunGame {
     this.bat.visible = false;
 
     // 나: 1인칭일 때는 몸을 숨기고, 리플레이에서만 보인다
-    const myPos = trackAt(tl.me, t, new THREE.Vector3());
     this.me.root.visible = this.overhead;
     this.marker.visible = this.overhead;
-    this.marker.position.copy(myPos.pos);
-    this.me.root.position.copy(myPos.pos);
-    if (scn.me === 'batter' && t < tl.batterStart) this.poseBatter(this.me, t, true);
-    else this.poseRunner(this.me, tl.me, t, dt, tl.slide);
+    this.marker.position.copy(myPos);
+    this.me.root.position.copy(myPos);
+    if (tl.meBatter && t < tl.meStart) this.poseBatter(this.me, t, true);
+    else this.poseRunner(this.me, tl.me, t, dt, 'me');
 
-    // 타자 (내가 타자 주자가 아닐 때)
-    this.batter.root.visible = tl.batter !== null;
-    if (tl.batter) {
-      if (t < tl.batterStart) this.poseBatter(this.batter, t, false);
+    // 다른 주자들 (타자 포함)
+    this.others.forEach((m, i) => {
+      const o = tl.others[i];
+      m.root.visible = !!o;
+      if (!o) return;
+      if (o.batter && t < o.start) this.poseBatter(m, t, false);
       else {
-        this.batter.root.position.copy(trackAt(tl.batter, t).pos);
-        this.poseRunner(this.batter, tl.batter, t, dt, null);
+        m.root.position.copy(trackAt(o.keys, t).pos);
+        this.poseRunner(m, o.keys, t, dt, i);
       }
-    }
+    });
 
     this.ball.position.copy(ballPos);
     this.ballShadow.position.set(ballPos.x, 0.02, ballPos.z);
@@ -591,11 +580,12 @@ export class RunGame {
     this.showCalls(t);
   }
 
-  private poseRunner(m: Mannequin, track: { t: number; pos: THREE.Vector3 }[], t: number, dt: number, slide: RunTimeline['slide']) {
+  private poseRunner(m: Mannequin, track: Key[], t: number, dt: number, who: 'me' | number) {
     m.body.rotation.y = 0;
     const now = trackAt(track, t);
     const ahead = trackAt(track, t + 0.1).pos;
-    if (slide && t > slide.t - 0.35 && t < slide.t + 0.9 && now.pos.distanceTo(BASES[slide.base]) < 3.5) {
+    const slide = this.sliding(who, now.pos, t);
+    if (slide) {
       faceTowards(m, BASES[slide.base]);
       poseSlide(m);
     } else if (now.moving && ahead.distanceTo(now.pos) > 0.05) {
@@ -640,9 +630,12 @@ export class RunGame {
     this.soundT = b;
     if (!(this.playing || this.phase === 'replay') || b <= a) return;
     const crossed = (x: number) => a < x && x <= b;
+    const ball = this.tl.ball;
     if (crossed(0)) sfx.bat();
-    if (crossed(this.scn.hit.fieldT)) sfx.glove();
-    for (const s of this.tl.ball) {
+    // 타구를 수비가 잡는 순간 (뒤로 튀어 굴러가는 공은 잡은 게 아니다)
+    const hit = ball[1];
+    if (hit && crossed(hit.t1) && !ball.some((s) => !s.thrower && s !== hit && Math.abs(s.t0 - hit.t1) < 0.01)) sfx.glove();
+    for (const s of ball) {
       if (!s.thrower) continue;
       if (crossed(s.t0)) sfx.whoosh();
       if (crossed(s.t1)) sfx.glove();
@@ -653,7 +646,7 @@ export class RunGame {
     this.tl.calls.forEach((c, i) => {
       if (t < c.t || this.shownCalls.has(i)) return;
       this.shownCalls.add(i);
-      // 주자 입장이라 세이프가 좋은 결과: 세이프는 파랑, 아웃은 빨강 (수비 화면과 같은 색)
+      // 아웃은 빨강, 세이프·안타는 파랑 (수비 화면과 같은 색). 주자 입장이라 세이프 쪽 소리가 밝다.
       const sprite = nameSprite(c.text, c.good ? '#ff5a4f' : '#5ad1ff');
       sprite.position.copy(c.pos).setY(3);
       sprite.scale.set(3.2, 0.8, 1);

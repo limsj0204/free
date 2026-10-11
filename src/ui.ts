@@ -4,6 +4,7 @@ import { BASES, BASE_LABEL, P, type BaseId } from './coords';
 import { BUNT_RULE, josa } from './explain';
 import { generatedFor } from './generated';
 import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
+import { RUN_KIND_LABEL } from './runner';
 import { getHideBall, getIncludeGenerated, getMode, getRecord, getSoundOn, getVolume, setHideBall, setIncludeGenerated, setSoundOn, setVolume } from './progress';
 import { sfx } from './sound';
 import {
@@ -215,7 +216,7 @@ export class UI {
 
     const list: { id: string; title: string; kind: string }[] =
       this.tab === 'RUN'
-        ? RUN_SCENARIOS.map((s) => ({ id: s.id, title: s.title, kind: s.kind === 'tagup' ? '태그업' : '한 베이스 더' }))
+        ? RUN_SCENARIOS.map((s) => ({ id: s.id, title: s.title, kind: RUN_KIND_LABEL[s.kind] }))
         : scenariosFor(this.tab).map((s) => ({ id: s.id, title: s.title, kind: s.kind === 'throw' ? '송구 판단' : '위치 판단' }));
     const items = list
       .map((s) => {
@@ -237,8 +238,9 @@ export class UI {
     // 조작법: 지금 고른 모드 기준으로 보여준다
     const controls = run
       ? `<div class="controls">
-            <span><kbd>W</kbd></span><span>간다 (한 베이스 더, 태그업)</span>
-            <span><kbd>S</kbd></span><span>멈춘다 (지금 베이스에 머문다)</span>
+            <span><kbd>W</kbd></span><span>간다 (한 베이스 더, 스타트, 태그업, 진루)</span>
+            <span><kbd>D</kbd></span><span>하프웨이 (플라이일 때)</span>
+            <span><kbd>S</kbd></span><span>멈춘다 · 베이스로 돌아간다 (태그업 준비, 귀루)</span>
             <span><kbd>좌클릭</kbd></span><span>바라보는 베이스 고르기</span>
             <span><kbd>마우스</kbd></span><span>고개 돌리기. 뛰면서 공과 외야수를 보세요 (화면을 클릭하면 마우스가 잠겨요)</span>
           </div>
@@ -308,7 +310,7 @@ export class UI {
                 <input type="checkbox" id="gen-toggle" ${getIncludeGenerated() ? 'checked' : ''} />
                 <span>자동 생성 상황도 섞기 <small>${
                   this.tab === 'RUN'
-                    ? `(위의 기본 상황 ${RUN_SCENARIOS.length}개 + 자동 생성 ${generatedRunScenarios().length}개 · 같은 타구라도 아웃 카운트, 외야수 어깨가 다른 상황)`
+                    ? `(위의 기본 상황 ${RUN_SCENARIOS.length}개 + 자동 생성 ${generatedRunScenarios().length}개 · 같은 타구라도 아웃 카운트, 주자, 외야수 어깨가 다른 상황)`
                     : `(위의 기본 상황 ${scenariosFor(this.tab).length}개 + 자동 생성 ${generatedFor(this.tab).length}개 · 같은 타구라도 아웃 카운트, 주자, 주자 움직임이 다른 상황)`
                 }</small></span>
               </label>
