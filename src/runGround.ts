@@ -269,7 +269,8 @@ export function generatedGroundScenarios() {
   for (const position of Object.keys(BALLS) as PositionId[]) {
     for (const ball of BALLS[position])
       for (const rs of RUNNER_SETS)
-        for (const outs of [0, 1, 2]) {
+        // 2아웃이면 주자는 모두 타격과 동시에 뛰어서 판단할 게 없다
+        for (const outs of [0, 1]) {
           const scn = groundScenario(position, ball, rs.me, rs.set, outs);
           // 진루하든 귀루하든 결과가 같은 상황(포스 아닌 주자)은 연습 가치가 없어서 뺀다
           const st = groundStep(scn);

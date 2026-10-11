@@ -3,8 +3,6 @@ import { ACTION, DIFFICULTIES, RUN, VALUE, type DifficultyId } from './config';
 import { BASES, BASE_LABEL, P, type BaseId } from './coords';
 import { BUNT_RULE, josa } from './explain';
 import { generatedFor } from './generated';
-import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
-import { RUN_KIND_LABEL } from './runner';
 import { getHideBall, getIncludeGenerated, getMode, getRecord, getSoundOn, getVolume, setHideBall, setIncludeGenerated, setSoundOn, setVolume } from './progress';
 import { sfx } from './sound';
 import {
@@ -28,9 +26,6 @@ import {
 } from './scenario';
 import { fieldersOf, scenariosFor } from './scenarios';
 import type { ChoiceResult } from './timeline';
-
-// 목록의 탭: 수비 포지션 다섯 개와 주자
-export type MenuTab = PositionId | 'RUN';
 
 export interface DecisionDef {
   value: Choice | number;
@@ -144,7 +139,7 @@ export class UI {
   onReplay: () => void = () => {};
   onNext: () => void = () => {};
   onMenu: () => void = () => {};
-  onRandom: (scope: PositionId | 'all' | 'RUN') => void = () => {};
+  onRandom: (scope: PositionId | 'all') => void = () => {};
   onMode: (m: 'judge' | 'action') => void = () => {};
   randomLabel: string | null = null; // 랜덤 연습 중이면 "유격수 랜덤" 같은 이름
 
@@ -164,12 +159,13 @@ export class UI {
   private tagRoot = $('tags');
   private tags: HTMLElement[] = [];
   private buttons: HTMLButtonElement[] = [];
-  private tab: MenuTab = 'SS';
+  private tab: PositionId = 'SS';
 
   setHud(scn: Scenario, kmh: number) {
     this.setHudInfo(ballHidden(scn) ? '타구 대기' : scn.event, scn.situation, kmh);
   }
 
+  // 아래 몇 가지는 주루 판단 앱(runMain.ts)도 같이 쓴다
   setHudInfo(title: string, sit: Situation, kmh: number) {
     $('hud-title').textContent = title;
     document.querySelectorAll<HTMLElement>('.hud-outs i').forEach((el) => {
@@ -192,8 +188,8 @@ export class UI {
 
   // ---------- 목록 ----------
 
-  showMenu(tab: MenuTab, difficulty: DifficultyId) {
-    this.tab = tab;
+  showMenu(position: PositionId, difficulty: DifficultyId) {
+    this.tab = position;
     this.hideAll();
     this.hud.classList.add('hidden');
     this.renderMenu(difficulty);
@@ -208,27 +204,18 @@ export class UI {
       const n = list.filter((s) => done(s.id)).length;
       return `<button class="tab ${p === this.tab ? 'selected' : ''}" data-tab="${p}" id="tab-${p}">
         <b>${FIELDER_NAME[p]}</b><span>${n}/${list.length}</span></button>`;
-    }).join('') +
-      `<button class="tab run-tab ${this.tab === 'RUN' ? 'selected' : ''}" data-tab="RUN" id="tab-RUN">
-        <b>주자</b><span>${RUN_SCENARIOS.filter((s) => getRecord(s.id)?.best === 'best').length}/${RUN_SCENARIOS.length}</span></button>`;
-    const run = this.tab === 'RUN';
-    const tabName = this.tab === 'RUN' ? '주자' : FIELDER_NAME[this.tab];
+    }).join('');
 
-    const list: { id: string; title: string; kind: string }[] =
-      this.tab === 'RUN'
-        ? RUN_SCENARIOS.map((s) => ({ id: s.id, title: s.title, kind: RUN_KIND_LABEL[s.kind] }))
-        : scenariosFor(this.tab).map((s) => ({ id: s.id, title: s.title, kind: s.kind === 'throw' ? '송구 판단' : '위치 판단' }));
-    const items = list
+    const items = scenariosFor(this.tab)
       .map((s) => {
-        // 주자 판단은 판단 모드만 있어서 기록도 하나다
-        const rec = getRecord(run ? s.id : recordId(s.id));
+        const rec = getRecord(recordId(s.id));
         const status = rec ? `<span class="status ${rec.best}">${GRADE_SHORT[rec.best]}</span>` : '<span class="status none">도전 전</span>';
         return `<button class="item" data-scenario="${s.id}" id="item-${s.id}">
           <span class="item-main">
             <b>${s.title}</b>
           </span>
           <span class="item-side">
-            <span class="kind">${s.kind}</span>
+            <span class="kind">${s.kind === 'throw' ? '송구 판단' : '위치 판단'}</span>
             ${status}
           </span>
         </button>`;
@@ -236,16 +223,8 @@ export class UI {
       .join('');
 
     // 조작법: 지금 고른 모드 기준으로 보여준다
-    const controls = run
-      ? `<div class="controls">
-            <span><kbd>W</kbd></span><span>간다 (한 베이스 더, 스타트, 태그업, 진루)</span>
-            <span><kbd>D</kbd></span><span>하프웨이 (플라이일 때)</span>
-            <span><kbd>S</kbd></span><span>멈춘다 · 베이스로 돌아간다 (태그업 준비, 귀루)</span>
-            <span><kbd>좌클릭</kbd></span><span>바라보는 베이스 고르기</span>
-            <span><kbd>마우스</kbd></span><span>고개 돌리기. 뛰면서 공과 외야수를 보세요 (화면을 클릭하면 마우스가 잠겨요)</span>
-          </div>
-          <p class="controls-note">주자 판단은 아직 판단 모드만 있어요. 세이프 확률과 기대 득점으로 판정하고, 결과(세이프·아웃)에는 송구 운이 섞여요.</p>`
-      : mode === 'action'
+    const controls =
+      mode === 'action'
         ? `<div class="controls">
             <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>이동. 공이 지나가는 길로 가면 자동으로 잡혀요</span>
             <span><kbd>마우스</kbd></span><span>시점 돌리기 (화면을 클릭하면 마우스가 잠겨요)</span>
@@ -266,19 +245,19 @@ export class UI {
       <div class="card menu-card">
         <div class="menu-grid">
           <div class="menu-side">
-            <div class="eyebrow">VR 야구 대비 · 내야 수비 · 주루</div>
+            <div class="eyebrow">VR 야구 대비 · 내야 수비</div>
             <h1>내야 수비 시뮬레이터</h1>
             <p class="note">처음엔 <b>판단 모드</b>로 판단부터 익히는 걸 추천해요. 수비에 자신이 생기면 <b>액션 모드</b>도 해 보세요.</p>
             <div class="modes">
               <button class="${mode === 'judge' ? 'selected' : ''}" data-mode="judge" id="mode-judge"><b>판단 모드</b><span>키보드·클릭으로 던질 곳, 갈 곳 고르기</span></button>
               <button class="${mode === 'action' ? 'selected' : ''}" data-mode="action" id="mode-action"><b>액션 모드</b><span>WASD로 직접 움직여 잡고, 좌클릭으로 송구</span></button>
             </div>
-            <h2>${mode === 'action' && !run ? '난이도 (플레이 전체 속도)' : '난이도 (판단 순간의 슬로모션)'}</h2>
+            <h2>${mode === 'action' ? '난이도 (플레이 전체 속도)' : '난이도 (판단 순간의 슬로모션)'}</h2>
             <div class="difficulties">
               ${DIFFICULTIES.map(
                 (d) =>
                   `<button data-diff="${d.id}" id="diff-${d.id}" class="${d.id === difficulty ? 'selected' : ''}"><b>${d.label}</b><span>${
-                    mode === 'action' && !run ? `전체 ${ACTION.speeds[d.id]}배 속도` : `${d.timeScale}배${d.timeScale === 1 ? ' (실제 속도)' : ''}`
+                    mode === 'action' ? `전체 ${ACTION.speeds[d.id]}배 속도` : `${d.timeScale}배${d.timeScale === 1 ? ' (실제 속도)' : ''}`
                   }</span></button>`,
               ).join('')}
             </div>
@@ -303,16 +282,12 @@ export class UI {
             <div class="items">
               ${items}
               <div class="random-row">
-                <button class="primary" id="random-pos">${tabName} 랜덤 연습</button>
-                <span class="random-desc">${tabName} 상황이 무작위로 계속 나와요. 결과 화면에서 <kbd>N</kbd>을 누르면 다음 상황으로 넘어가요.</span>
+                <button class="primary" id="random-pos">${FIELDER_NAME[this.tab]} 랜덤 연습</button>
+                <span class="random-desc">${FIELDER_NAME[this.tab]} 상황이 무작위로 계속 나와요. 결과 화면에서 <kbd>N</kbd>을 누르면 다음 상황으로 넘어가요.</span>
               </div>
               <label class="gen-toggle" for="gen-toggle">
                 <input type="checkbox" id="gen-toggle" ${getIncludeGenerated() ? 'checked' : ''} />
-                <span>자동 생성 상황도 섞기 <small>${
-                  this.tab === 'RUN'
-                    ? `(위의 기본 상황 ${RUN_SCENARIOS.length}개 + 자동 생성 ${generatedRunScenarios().length}개 · 같은 타구라도 아웃 카운트, 주자, 외야수 어깨가 다른 상황)`
-                    : `(위의 기본 상황 ${scenariosFor(this.tab).length}개 + 자동 생성 ${generatedFor(this.tab).length}개 · 같은 타구라도 아웃 카운트, 주자, 주자 움직임이 다른 상황)`
-                }</small></span>
+                <span>자동 생성 상황도 섞기 <small>(위의 기본 상황 ${scenariosFor(this.tab).length}개 + 자동 생성 ${generatedFor(this.tab).length}개 · 같은 타구라도 아웃 카운트, 주자, 주자 움직임이 다른 상황)</small></span>
               </label>
             </div>
             <div class="channel-links">
@@ -325,7 +300,7 @@ export class UI {
 
     this.menu.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) =>
       b.addEventListener('click', () => {
-        this.tab = b.dataset.tab as MenuTab;
+        this.tab = b.dataset.tab as PositionId;
         this.renderMenu(difficulty);
       }),
     );

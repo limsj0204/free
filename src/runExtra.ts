@@ -58,7 +58,7 @@ export function extraTiming(scn: RunScenario) {
   const s = startOf(scn);
   const hit = scn.hit!;
   const release = hit.fieldT + RUNNER.release[hit.release];
-  const thr = outfieldThrow(hit.field, r.target, release, scn.arm!, 0);
+  const thr = outfieldThrow(hit.field, r.target, release, 0);
   const tagAt = thr.t1 + TAG_TIME;
   const tBase = s.t + s.pos.distanceTo(BASES[r.mid]) / (scn.me === 'batter' ? RUN.speed : RUNNER.speed);
   return { decisionAt: Math.min(hit.fieldT, tBase - RUNNER.commit), deadline: tBase + RUNNER.window, tBase, release, tagAt, start: s };
@@ -158,7 +158,7 @@ export function extraTimeline(scn: RunScenario, pitchFlight: number, choice: { i
   const r = extraRoute(scn);
   const tm = extraTiming(scn);
   const hit = scn.hit!;
-  const thr = outfieldThrow(hit.field, r.target, tm.release, scn.arm!, noise);
+  const thr = outfieldThrow(hit.field, r.target, tm.release, noise);
   const ball = [PITCH_SEG(tRelease), ...hitSegments(hit), { from: thr.from, to: thr.to, t0: thr.t0, t1: thr.t1, arc: throwArc(thr.from, thr.to), thrower: scn.fielder }];
   const def = outfieldDefense(scn.fielder!, hit.field, hit.fieldT, r.target, r.mid);
 

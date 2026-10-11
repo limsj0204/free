@@ -12,7 +12,6 @@ import { CONTACT_POINT, PRE_PITCH, grounderHops, releasePoint, type BallSeg, typ
 // 송구에는 오차가 있어서 결과(세이프/아웃)는 운이 섞이고, 판정은 기대 득점으로 한다.
 
 export type RunMe = 'batter' | 'r1' | 'r2' | 'r3';
-export type Arm = keyof typeof RUNNER.arm;
 export type OutfielderId = 'LF' | 'CF' | 'RF';
 export type RunKind = 'extra' | 'fly' | 'ground';
 export const RUN_KIND_LABEL: Record<RunKind, string> = { extra: '한 베이스 더', fly: '플라이', ground: '땅볼' };
@@ -35,7 +34,6 @@ export interface RunScenario {
   me: RunMe;
   situation: Situation;
   fielder?: OutfielderId; // extra/fly: 공을 처리하는 외야수
-  arm?: Arm;
   hit?: OutfieldHit;
   ground?: ThrowScenario; // ground: 내야 수비 엔진에 넘기는 상황 (내 주자의 행동은 판단에 따라 바꾼다)
   brief: string;
@@ -43,7 +41,6 @@ export interface RunScenario {
   generated?: boolean;
 }
 
-export const ARM_LABEL: Record<Arm, string> = { strong: '강견', average: '보통', weak: '약견' };
 export const OF_NAME: Record<OutfielderId, string> = { LF: '좌익수', CF: '중견수', RF: '우익수' };
 export const ME_NAME: Record<RunMe, string> = { batter: '타자 주자', r1: '1루 주자', r2: '2루 주자', r3: '3루 주자' };
 
@@ -328,13 +325,13 @@ export function receiverAt(base: BaseId, f: OutfielderId): FielderId {
 }
 
 // 외야수의 송구: 빗나간 송구는 베이스 옆으로 간다
-export function outfieldThrow(from: THREE.Vector3, base: BaseId, t0: number, arm: Arm, noise: number) {
+export function outfieldThrow(from: THREE.Vector3, base: BaseId, t0: number, noise: number) {
   const src = from.clone().setY(1.8);
   const bag = BASES[base].clone().setY(1.0);
   const off = noise > RUNNER.wildMin ? Math.min(2.5, noise * 3) : 0;
   const side = src.clone().sub(bag).setY(0).normalize();
   const to = bag.clone().add(new THREE.Vector3(-side.z, 0, side.x).multiplyScalar(off));
-  const flight = src.distanceTo(bag) / RUNNER.arm[arm];
+  const flight = src.distanceTo(bag) / RUNNER.throwSpeed;
   return { from: src, to, t0, t1: t0 + flight + noise, flight };
 }
 

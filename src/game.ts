@@ -52,11 +52,9 @@ import {
   type Timeline,
 } from './timeline';
 import { sfx, unlockAudio } from './sound';
-import { recordId, type DecisionDef, type MenuTab, type UI } from './ui';
-import { RunGame } from './runGame';
+import { recordId, type DecisionDef, type UI } from './ui';
 
-// run: 주루 판단(RunGame)으로 넘겨준 상태. 그동안 이쪽은 화면과 입력을 쓰지 않는다.
-type Phase = 'menu' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 'replay' | 'run';
+type Phase = 'menu' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 'replay';
 
 const EYE_HEIGHT = 1.62;
 const PICK_ANGLE = 0.3; // 시선으로 고를 때 허용 각도 (rad)
@@ -137,9 +135,6 @@ export class Game {
   private keys = new Set<string>();
   private act: ActState = newAct(new THREE.Vector3());
 
-  private runner: RunGame;
-  private menuTab: MenuTab | null = null; // 목록으로 돌아올 때 열어 둘 탭 (없으면 지금 상황의 포지션)
-  private world = new THREE.Group(); // 수비 게임의 선수와 공. 주루 판단 중에는 숨긴다.
   private fielders = new Map<FielderId, Mannequin>();
   private runnerModels = new Map<RunnerId, Mannequin>();
   private bat: THREE.Group;
@@ -154,21 +149,20 @@ export class Game {
   private dragging = false;
 
   constructor(
-    scene: THREE.Scene,
+    private scene: THREE.Scene,
     private camera: THREE.PerspectiveCamera,
     private canvas: HTMLCanvasElement,
     private ui: UI,
   ) {
-    scene.add(this.world);
     for (const id of FIELDER_IDS) {
       const m = createMannequin(TEAM_DEFENSE);
       this.fielders.set(id, m);
-      this.world.add(m.root);
+      scene.add(m.root);
     }
     for (const id of RUNNER_IDS) {
       const m = createMannequin(TEAM_OFFENSE);
       this.runnerModels.set(id, m);
-      this.world.add(m.root);
+      scene.add(m.root);
     }
 
     // 타자의 배트
@@ -180,14 +174,14 @@ export class Game {
     this.runnerModels.get('batter')!.body.add(this.bat);
 
     this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    this.world.add(this.ball);
+    scene.add(this.ball);
     this.ballShadow = new THREE.Mesh(
       new THREE.CircleGeometry(0.09, 16),
       new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }),
     );
     this.ballShadow.rotation.x = -Math.PI / 2;
     this.ballShadow.renderOrder = 1;
-    this.world.add(this.ballShadow);
+    scene.add(this.ballShadow);
 
     // 1인칭 글러브. 공은 글러브 앞쪽(pocket)에 놓여 보이게 한다.
     this.glove = new THREE.Group();
@@ -217,9 +211,8 @@ export class Game {
     tag.scale.set(5, 1.25, 1);
     this.marker.add(tag);
     this.marker.visible = false;
-    this.world.add(this.marker);
+    scene.add(this.marker);
 
-    this.runner = new RunGame(scene, camera, canvas, ui, () => this.exitRun());
     this.bindInput();
     this.prepare(this.scn);
     this.openMenu();
@@ -328,26 +321,16 @@ export class Game {
       }
     });
 
-    // 주루 판단 중이면 화면 버튼은 RunGame이 처리한다
-    const run = this.runner;
-    this.ui.onChoose = (v) => (this.phase === 'run' ? run.handle('choose', v as number) : this.canChoose && this.input(v));
+    this.ui.onChoose = (v) => this.canChoose && this.input(v);
     this.ui.onMode = (m) => {
       this.mode = m;
       setMode(m);
     };
     this.ui.onPickScenario = (id) => {
-      if (id.startsWith('run-')) {
-        this.enterRun(id, false);
-        return;
-      }
       this.setRandom(null);
       this.openBriefing(SCENARIOS.find((s) => s.id === id)!);
     };
     this.ui.onRandom = (scope) => {
-      if (scope === 'RUN') {
-        this.enterRun(null, true);
-        return;
-      }
       this.setRandom(scope);
       this.openBriefing(this.pickRandom());
     };
@@ -355,11 +338,11 @@ export class Game {
       this.difficulty = d;
       setDifficulty(d);
     };
-    this.ui.onStart = () => (this.phase === 'run' ? run.handle('start') : this.start());
-    this.ui.onRestart = () => (this.phase === 'run' ? run.handle('restart') : this.restart());
-    this.ui.onReplay = () => (this.phase === 'run' ? run.handle('replay') : this.replay());
-    this.ui.onNext = () => (this.phase === 'run' ? run.handle('next') : this.next());
-    this.ui.onMenu = () => (this.phase === 'run' ? run.handle('menu') : this.openMenu());
+    this.ui.onStart = () => this.start();
+    this.ui.onRestart = () => this.restart();
+    this.ui.onReplay = () => this.replay();
+    this.ui.onNext = () => this.next();
+    this.ui.onMenu = () => this.openMenu();
   }
 
   private get canChoose() {
@@ -512,25 +495,7 @@ export class Game {
     if (this.phase !== 'briefing' && this.phase !== 'menu') this.prepare(this.scn);
     this.phase = 'menu';
     this.unlockPointer();
-    this.ui.showMenu(this.menuTab ?? this.scn.position, this.difficulty);
-    this.menuTab = null;
-  }
-
-  // 주자 탭: 주루 판단으로 넘겨준다. 수비 쪽 선수와 글러브는 숨긴다.
-  private enterRun(id: string | null, random: boolean) {
-    this.phase = 'run';
-    this.world.visible = false;
-    this.glove.visible = false;
-    this.clearCalls();
-    this.ui.hideDecision();
-    this.runner.difficulty = this.difficulty;
-    this.runner.open(id, random);
-  }
-
-  private exitRun() {
-    this.world.visible = true;
-    this.menuTab = 'RUN';
-    this.openMenu();
+    this.ui.showMenu(this.scn.position, this.difficulty);
   }
 
   private openBriefing(scn: Scenario) {
@@ -707,17 +672,13 @@ export class Game {
 
   private clearCalls() {
     this.shownCalls.clear();
-    for (const s of this.calls) this.world.remove(s);
+    for (const s of this.calls) this.scene.remove(s);
     this.calls = [];
   }
 
   // ---------- 매 프레임 ----------
 
   update(realDt: number) {
-    if (this.phase === 'run') {
-      this.runner.update(realDt);
-      return;
-    }
     const ds = DIFFICULTIES.find((x) => x.id === this.difficulty)!.timeScale;
 
     if (this.playing && this.mode === 'action') {
@@ -1303,7 +1264,7 @@ export class Game {
       const sprite = nameSprite(c.text, c.good ? '#ff5a4f' : '#5ad1ff');
       sprite.position.copy(c.pos).setY(3);
       sprite.scale.set(3.2, 0.8, 1);
-      this.world.add(sprite);
+      this.scene.add(sprite);
       this.calls.push(sprite);
       if (this.phase !== 'replay') this.ui.toast(c.text, c.good);
       if (c.good && c.text.includes('아웃')) sfx.out();

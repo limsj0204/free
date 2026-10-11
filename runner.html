@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>주루 판단 시뮬레이터</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+
+    <!-- 중계 화면 느낌의 상황판 -->
+    <div id="hud" class="hud">
+      <div class="hud-title" id="hud-title"></div>
+      <div class="hud-row">
+        <div class="hud-outs">
+          <span>OUT</span>
+          <i data-out="0"></i><i data-out="1"></i>
+        </div>
+        <svg class="hud-bases" viewBox="0 0 60 44" aria-label="주자 상황">
+          <rect data-base="second" x="23" y="2" width="14" height="14" transform="rotate(45 30 9)" />
+          <rect data-base="first" x="39" y="18" width="14" height="14" transform="rotate(45 46 25)" />
+          <rect data-base="third" x="7" y="18" width="14" height="14" transform="rotate(45 14 25)" />
+        </svg>
+        <span class="hud-batter" id="hud-batter"></span>
+        <div class="hud-speed"><b id="hud-speed">0</b> km/h</div>
+      </div>
+    </div>
+
+    <div id="crosshair" class="crosshair"></div>
+    <div id="tags" class="tags"></div>
+    <div id="toasts" class="toasts"></div>
+
+    <div id="decision" class="decision hidden">
+      <div class="decision-title" id="decision-title">어떻게 할까?</div>
+      <div class="decision-call hidden" id="decision-call"></div>
+      <div class="decision-timer"><div id="decision-bar"></div></div>
+      <div class="decision-buttons" id="decision-buttons"></div>
+    </div>
+
+    <div id="replay-banner" class="replay-banner hidden">위에서 다시 보는 중 · 클릭하거나 Esc를 누르면 결과로 돌아가요</div>
+
+    <div id="help" class="help">마우스: 고개 돌리기 · W: 간다 · D: 하프웨이 · S: 멈춘다/베이스로 · Esc: 마우스 풀기</div>
+
+    <div id="menu" class="overlay hidden"></div>
+    <div id="briefing" class="overlay hidden"></div>
+    <div id="result" class="overlay hidden"></div>
+
+    <script type="module" src="./src/runMain.ts"></script>
+  </body>
+</html>

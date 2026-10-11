@@ -4,7 +4,7 @@ import { BASES, P } from './coords';
 import { TEAM_DEFENSE, TEAM_OFFENSE, createMannequin, faceTowards, nameSprite, poseCrouch, poseIdle, poseRun, poseSlide, poseTag, poseThrow, type Mannequin } from './players';
 import { addResult, getIncludeGenerated, getRecord } from './progress';
 import { firstStep, nextStep, playResult, playTimeline, type Play } from './runPlay';
-import { batterBoxOf, gradeStep, sampleThrowNoise, trackAt, type Key, type RunScenario, type RunTimeline, type Step } from './runner';
+import { RUN_KIND_LABEL, batterBoxOf, gradeStep, sampleThrowNoise, trackAt, type Key, type RunKind, type RunScenario, type RunTimeline, type Step } from './runner';
 import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
 import { showRunBriefing, showRunResult } from './runUi';
 import type { FielderId, Grade } from './scenario';
@@ -14,7 +14,7 @@ import { CONTACT_POINT, releasePoint } from './timeline';
 import type { DecisionDef, UI } from './ui';
 
 // 주루 판단: 내가 주자가 되어 1인칭으로 뛰면서 판단한다. 판단은 단계(runPlay.ts)로 나뉘고, 단계마다 선택지가 뜬다.
-// 수비 게임(Game)과 같은 구장·카메라·화면을 쓰고, 주자 탭에서 상황을 고르면 Game이 이쪽으로 넘겨준다.
+// 내야 수비 시뮬레이터와 같은 구장·선수·화면 부품을 쓰는 별도 페이지(runner.html, runMain.ts)다.
 
 type Phase = 'idle' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 'replay';
 
@@ -47,6 +47,7 @@ export class RunGame {
   private decisionRealStart = 0;
   private defs: DecisionDef[] = [];
   private randomPool: RunScenario[] | null = null;
+  private randomLabel: string | null = null;
   private soundT = -Infinity;
   private shownCalls = new Set<number>();
   private callSprites: THREE.Sprite[] = [];
@@ -200,7 +201,7 @@ export class RunGame {
     });
   }
 
-  // Game이 화면 버튼(시작, 다시 하기 등)을 이쪽으로 넘겨준다
+  // 화면 버튼(시작, 다시 하기 등)
   handle(action: 'choose' | 'start' | 'restart' | 'replay' | 'next' | 'menu', value?: number) {
     if (action === 'choose') {
       if (this.canChoose && value !== undefined) this.input(value);
@@ -285,10 +286,12 @@ export class RunGame {
 
   // ---------- 흐름 ----------
 
-  // 주자 탭에서 상황을 골랐을 때 (random이면 랜덤 연습)
-  open(id: string | null, random: boolean) {
+  // 목록에서 상황을 골랐을 때 (random이면 그 종류의 랜덤 연습, 'all'이면 전체 랜덤)
+  open(id: string | null, random: RunKind | 'all' | null) {
     this.world.visible = true;
-    this.randomPool = random ? [...RUN_SCENARIOS, ...(getIncludeGenerated() ? generatedRunScenarios() : [])] : null;
+    const pool = [...RUN_SCENARIOS, ...(getIncludeGenerated() ? generatedRunScenarios() : [])];
+    this.randomPool = random ? pool.filter((s) => random === 'all' || s.kind === random) : null;
+    this.randomLabel = random ? `${random === 'all' ? '전체' : RUN_KIND_LABEL[random]} 랜덤` : null;
     const scn = id ? RUN_SCENARIOS.find((s) => s.id === id)! : this.pickRandom();
     this.openBriefing(scn);
   }
@@ -332,7 +335,7 @@ export class RunGame {
   private openBriefing(scn: RunScenario) {
     this.prepare(scn);
     this.phase = 'briefing';
-    showRunBriefing(this.ui, scn, this.randomPool ? '주자 랜덤' : null);
+    showRunBriefing(this.ui, scn, this.randomLabel);
   }
 
   private start() {
@@ -354,8 +357,9 @@ export class RunGame {
       this.openBriefing(this.pickRandom());
       return;
     }
-    const i = RUN_SCENARIOS.indexOf(this.scn);
-    this.openBriefing(RUN_SCENARIOS[(i + 1) % RUN_SCENARIOS.length]);
+    // 같은 탭(종류)의 다음 기본 상황
+    const list = RUN_SCENARIOS.filter((s) => s.kind === this.scn.kind);
+    this.openBriefing(list[(list.indexOf(this.scn) + 1) % list.length]);
   }
 
   // 방금 한 상황은 빼고, 아직 최선의 판단을 못 한 상황이 두 배 더 잘 나오게 고른다

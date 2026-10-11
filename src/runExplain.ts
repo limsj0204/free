@@ -1,4 +1,4 @@
-import { NEXT, OF_NAME, ORIGIN, type Arm, type OutfielderId, type RunScenario } from './runner';
+import { NEXT, OF_NAME, ORIGIN, type RunScenario } from './runner';
 import { extraRoute } from './runExtra';
 import { isForced } from './runGround';
 
@@ -24,8 +24,6 @@ function distanceText(scn: RunScenario) {
   if (scn.kind === 'extra' && target === 'third' && scn.fielder === 'CF') return '중견수에서 3루는 우익수보다 훨씬 가까워서, 중견수가 잡는 단타면 1루 주자는 2루에서 멈추는 게 기본이에요.';
   return '';
 }
-
-const ARM_TEXT: Record<Arm, string> = { strong: '어깨가 강해서 송구가 빨라요.', average: '', weak: '어깨가 약한 편이라 송구가 느려요.' };
 
 function extraText(scn: RunScenario) {
   const o = scn.situation.outs;
@@ -68,18 +66,5 @@ export function explainRun(scn: RunScenario) {
   if (scn.explanation) return scn.explanation;
   if (scn.kind === 'ground') return groundText(scn);
   const tail = scn.kind === 'fly' ? flyText(scn) : extraText(scn);
-  return [ballText(scn), distanceText(scn), ARM_TEXT[scn.arm!], tail].filter(Boolean).join(' ');
-}
-
-// 브리핑에 보여줄 외야수 셋의 어깨. 공을 처리하는 외야수는 상황에 정해진 값, 나머지는 상황마다 고정된 임의 값.
-export function armsOf(scn: RunScenario): Record<OutfielderId, Arm> | null {
-  if (!scn.fielder || !scn.arm) return null;
-  let h = 0;
-  for (const c of scn.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const arms: Arm[] = ['strong', 'average', 'weak'];
-  const out = {} as Record<OutfielderId, Arm>;
-  (['LF', 'CF', 'RF'] as OutfielderId[]).forEach((f, i) => {
-    out[f] = f === scn.fielder ? scn.arm! : arms[(h >>> (i * 3)) % 3];
-  });
-  return out;
+  return [ballText(scn), distanceText(scn), tail].filter(Boolean).join(' ');
 }

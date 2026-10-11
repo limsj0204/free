@@ -98,7 +98,7 @@ export function tagupTiming(scn: RunScenario) {
   const hit = scn.hit!;
   const b = flyBases(scn);
   const release = hit.fieldT + RUNNER.release[hit.release];
-  const thr = outfieldThrow(hit.field, b.next, release, scn.arm!, 0);
+  const thr = outfieldThrow(hit.field, b.next, release, 0);
   return { release, tagAt: thr.t1 + TAG_TIME };
 }
 
@@ -165,7 +165,7 @@ function caughtValue(scn: RunScenario, choice: ReadChoice, td: number): Caught {
   // 베이스에서 떨어져 있다: 귀루해야 하고, 송구보다 늦으면 더블아웃
   const returnT = T + RUNNER.returnReaction + x / RUNNER.speed;
   const release = T + RUNNER.release[hit.release];
-  const ballAt = outfieldThrow(hit.field, b.origin, release, scn.arm!, 0).t1;
+  const ballAt = outfieldThrow(hit.field, b.origin, release, 0).t1;
   const p = safeProb(ballAt - returnT);
   const safeState = { runs: 0, outs: o + 1, runners: single(b.origin) };
   const outState = { runs: 0, outs: o + 2, runners: R(false, false, false) };
@@ -209,7 +209,7 @@ export function dropOutcome(scn: RunScenario, choice: ReadChoice, td: number): D
   const arrivals: number[] = [0];
   for (let k = 1; k <= kmax; k++) arrivals.push(start.t + (k * BASE_PATH - start.x) / v + RUNNER.roundTime * Math.max(0, k - 1 - Math.floor(start.x / BASE_PATH)));
   const forced = scn.me === 'r1';
-  const ballAt = (k: number) => outfieldThrow(drop.field, baseAt(k), release, scn.arm!, 0).t1 + (forced && k === 1 ? 0 : TAG_TIME);
+  const ballAt = (k: number) => outfieldThrow(drop.field, baseAt(k), release, 0).t1 + (forced && k === 1 ? 0 : TAG_TIME);
   let k = forced ? 1 : 0;
   const o = scn.situation.outs;
   if (forced && arrivals[1] >= ballAt(1)) {
@@ -393,7 +393,7 @@ export function flyTimeline(
       if (tag.id === 'go') {
         const tm = tagupTiming(scn);
         const go = tagupArrival(scn, tag.td);
-        const thr = outfieldThrow(hit.field, b.next, release, scn.arm!, noise);
+        const thr = outfieldThrow(hit.field, b.next, release, noise);
         ball.push({ from: thr.from, to: thr.to, t0: thr.t0, t1: thr.t1, arc: throwArc(thr.from, thr.to), thrower: scn.fielder });
         const tagAt = tm.tagAt + noise;
         const safe = go.arrival < tagAt;
@@ -409,14 +409,14 @@ export function flyTimeline(
         tl.slides.push({ runner: 'me', base: b.next, t: tE });
         tl.end = Math.max(tE, thr.t1) + 1.6;
       } else {
-        const thr = outfieldThrow(hit.field, 'second', release, scn.arm!, 0);
+        const thr = outfieldThrow(hit.field, 'second', release, 0);
         ball.push({ from: thr.from, to: thr.to, t0: thr.t0, t1: thr.t1, arc: throwArc(thr.from, thr.to), thrower: scn.fielder });
         tl.end = thr.t1 + 1.2;
       }
       return tl;
     }
     // 귀루: 송구보다 늦으면 더블아웃
-    const thr = outfieldThrow(hit.field, b.origin, release, scn.arm!, noise);
+    const thr = outfieldThrow(hit.field, b.origin, release, noise);
     ball.push({ from: thr.from, to: thr.to, t0: thr.t0, t1: thr.t1, arc: throwArc(thr.from, thr.to), thrower: scn.fielder });
     const back0 = T + RUNNER.returnReaction;
     const backT = back0 + xT / RUNNER.speed;
@@ -437,7 +437,7 @@ export function flyTimeline(
   tl.others.push(batterRun(scn));
   const d = dropOutcome(scn, choice!, td);
   const release = drop.t + RUNNER.release.charging;
-  const thr = outfieldThrow(drop.field, d.playBase, release, scn.arm!, noise);
+  const thr = outfieldThrow(drop.field, d.playBase, release, noise);
   ball.push({ from: thr.from, to: thr.to, t0: thr.t0, t1: thr.t1, arc: throwArc(thr.from, thr.to), thrower: scn.fielder });
   if (choice !== 'go') me.push({ t: d.start.t, pos: along(b.origin, d.start.x) });
   const idx = BASE_INDEX[b.origin];

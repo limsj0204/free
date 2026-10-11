@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { P } from './coords';
 import type { Situation } from './scenario';
-import type { Arm, OutfieldHit, OutfielderId, RunMe, RunScenario } from './runner';
+import type { OutfieldHit, OutfielderId, RunMe, RunScenario } from './runner';
 import { generatedGroundScenarios, groundBasic } from './runGround';
 
-// 주루 판단 상황. 기본 상황은 해설을 직접 쓰고, 생성 상황은 타구 × 아웃 카운트 × 외야수 어깨(땅볼은 타구 × 주자 × 아웃)를 조합한다.
+// 주루 판단 상황. 기본 상황은 해설을 직접 쓰고, 생성 상황은 타구 × 아웃 카운트(땅볼은 타구 × 주자 × 아웃)를 조합한다. 외야수 어깨는 모두 같다.
 // 최선은 판정 엔진이 기대 득점으로 계산한다.
 
 type Hit = OutfieldHit;
@@ -38,8 +38,8 @@ const fly = (field: THREE.Vector3, fieldT: number, release: Hit['release'], catc
 const SINGLES: Profile[] = [
   { key: 'rf', name: '우전 안타', fielder: 'RF', hit: grounder(P(23, 56), 3.0, 'charging') },
   { key: 'rf-liner', name: '우전 라이너 안타', fielder: 'RF', hit: liner(P(20, 50), 1.1, P(24, 59), 2.4, 'charging') },
-  { key: 'rf-line', name: '우익선 쪽 안타', fielder: 'RF', hit: grounder(P(32, 60), 3.2, 'standing') },
-  { key: 'rc', name: '우중간 안타', fielder: 'RF', hit: liner(P(15, 64), 1.4, P(19, 74), 3.3, 'standing') },
+  { key: 'rf-line', name: '우익선 쪽 안타', fielder: 'RF', hit: grounder(P(33, 62), 3.4, 'standing') },
+  { key: 'rc', name: '우중간 안타', fielder: 'RF', hit: liner(P(14, 66), 1.5, P(17, 78), 3.7, 'standing') },
   { key: 'cf', name: '중전 안타', fielder: 'CF', hit: grounder(P(1, 60), 3.3, 'charging') },
   { key: 'cf-liner', name: '중전 라이너 안타', fielder: 'CF', hit: liner(P(-3, 56), 1.2, P(-4, 64), 2.5, 'charging') },
   { key: 'lc', name: '좌중간 쪽 안타', fielder: 'CF', hit: grounder(P(-13, 67), 3.6, 'standing') },
@@ -109,16 +109,15 @@ function briefOf(kind: RunScenario['kind'], me: RunMe, outs: number) {
   return `${me === 'r1' ? '1루' : '2루'} 주자예요. 외야로 안타가 나오면 ${run} 갈지 정해요.${start}`;
 }
 
-function make(kind: RunScenario['kind'], me: RunMe, outs: number, arm: Arm, p: Profile, extra: Partial<RunScenario> = {}): RunScenario {
+function make(kind: RunScenario['kind'], me: RunMe, outs: number, p: Profile, extra: Partial<RunScenario> = {}): RunScenario {
   return {
-    id: `run-${kind}-${me}-${p.key}-${outs}-${arm}`,
+    id: `run-${kind}-${me}-${p.key}-${outs}`,
     kind,
     title: titleOf(me, outs, p.name),
     event: p.name,
     me,
     situation: situationOf(me, outs),
     fielder: p.fielder,
-    arm,
     hit: p.hit,
     brief: briefOf(kind, me, outs),
     generated: true,
@@ -126,21 +125,19 @@ function make(kind: RunScenario['kind'], me: RunMe, outs: number, arm: Arm, p: P
   };
 }
 
-const ARMS: Arm[] = ['strong', 'average', 'weak'];
-
 function buildGenerated(): RunScenario[] {
   const out: RunScenario[] = [];
-  for (const p of SINGLES) for (const o of [0, 1, 2]) for (const a of ARMS) out.push(make('extra', 'r1', o, a, p));
-  for (const p of SINGLES) for (const o of [0, 1, 2]) for (const a of ARMS) out.push(make('extra', 'r2', o, a, p));
-  for (const p of STRETCH) for (const o of [0, 1, 2]) for (const a of ARMS) out.push(make('extra', 'batter', o, a, p));
+  for (const p of SINGLES) for (const o of [0, 1, 2]) out.push(make('extra', 'r1', o, p));
+  for (const p of SINGLES) for (const o of [0, 1, 2]) out.push(make('extra', 'r2', o, p));
+  for (const p of STRETCH) for (const o of [0, 1, 2]) out.push(make('extra', 'batter', o, p));
   for (const me of ['r1', 'r2', 'r3'] as RunMe[])
     for (const p of FLIES_HOME)
       for (const o of [0, 1, 2]) {
         // 2아웃에 거의 잡히는 플라이는 무엇을 해도 결과가 같아서 뺀다
         if (o === 2 && (p.hit.catchProb ?? 1) >= 0.9) continue;
-        for (const a of ARMS) out.push(make('fly', me, o, a, p));
+        out.push(make('fly', me, o, p));
       }
-  for (const p of FLIES_THIRD) for (const o of [0, 1]) for (const a of ARMS) out.push({ ...make('fly', 'r2', o, a, p), id: `run-fly-r2-deep-${p.key}-${o}-${a}` });
+  for (const p of FLIES_THIRD) for (const o of [0, 1]) out.push({ ...make('fly', 'r2', o, p), id: `run-fly-r2-deep-${p.key}-${o}` });
   out.push(...generatedGroundScenarios());
   return out;
 }
@@ -152,18 +149,18 @@ export function generatedRunScenarios() {
 
 const pick = (list: Profile[], key: string) => list.find((p) => p.key === key)!;
 
-// 기본 상황: 아웃 카운트와 어깨에 따라 판단이 갈리는 대표적인 장면
-export const RUN_SCENARIOS: RunScenario[] = [
+// 기본 상황: 타구와 아웃 카운트에 따라 판단이 갈리는 대표적인 장면
+const BASICS: RunScenario[] = [
   {
-    ...make('extra', 'r1', 1, 'weak', pick(SINGLES, 'rc')),
+    ...make('extra', 'r1', 1, pick(SINGLES, 'rc')),
     id: 'run-r1-rc',
     generated: false,
     explanation:
-      '1루 주자가 3루까지 노려볼 수 있는 건 우익수 쪽 타구일 때뿐이에요. 우익수는 3루까지 가장 멀고, 우중간 타구는 옆으로 뛰어가 잡아서 바로 던지기도 어려워요. 거기에 우익수 어깨까지 약하면 해볼 만해요. ' +
+      '1루 주자가 3루까지 노려볼 수 있는 건 우익수 쪽 타구일 때뿐이에요. 우익수는 3루까지 가장 멀고, 우중간 타구는 옆으로 뛰어가 잡아서 바로 던지기도 어려워요. 우중간 깊숙이 가는 타구면 3루까지 가요. ' +
       '1아웃에서 3루에 있으면 안타가 아니어도 플라이나 땅볼로 점수가 나요. 그래서 1사 1루에서 1루→3루는 가장 가치 있는 주루예요.',
   },
   {
-    ...make('extra', 'r1', 0, 'average', pick(SINGLES, 'lf')),
+    ...make('extra', 'r1', 0, pick(SINGLES, 'lf')),
     id: 'run-r1-lf',
     generated: false,
     explanation:
@@ -171,7 +168,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '좌익수 쪽 단타면 2루에서 멈추는 게 기본이에요. 무사 1, 2루도 충분히 좋은 기회예요.',
   },
   {
-    ...make('extra', 'r1', 2, 'strong', pick(SINGLES, 'rf-line')),
+    ...make('extra', 'r1', 2, pick(SINGLES, 'rf-line')),
     id: 'run-r1-2out',
     generated: false,
     explanation:
@@ -179,15 +176,15 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '반대로 3루에서 아웃되면 이닝이 끝나요. "3루에서 첫 번째와 세 번째 아웃은 당하지 마라"는 말이 여기서 나와요. 확실할 때만 가세요.',
   },
   {
-    ...make('extra', 'r1', 0, 'weak', pick(SINGLES, 'lc')),
+    ...make('extra', 'r1', 0, pick(SINGLES, 'lc')),
     id: 'run-r1-cf',
     generated: false,
     explanation:
       '중견수가 잡는 단타면 1루 주자는 2루에서 멈춰요. 좌중간 쪽으로 옆걸음해서 잡아도 중견수에서 3루까지는 우익수보다 훨씬 가깝고, 2루를 돌 때쯤이면 이미 공이 중견수 글러브에 들어가 있어요. ' +
-      '중견수 어깨가 약해도 마찬가지예요. 1루→3루는 우익수 쪽 타구에서만 생각하세요.',
+      '1루→3루는 우익수 쪽 타구에서만 생각하세요.',
   },
   {
-    ...make('extra', 'r2', 2, 'average', pick(SINGLES, 'lc')),
+    ...make('extra', 'r2', 2, pick(SINGLES, 'lc')),
     id: 'run-r2-2out',
     generated: false,
     explanation:
@@ -195,15 +192,15 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '홈에서 아웃돼도 잃는 게 적고(2아웃 1, 3루도 점수가 나기 어려워요), 세이프면 1점이에요. 중견수가 옆으로 움직여 잡는 타구라면 홈으로 가세요. 다만 중견수 정면으로 빨리 오는 타구는 2아웃이어도 홈에서 잡혀요.',
   },
   {
-    ...make('extra', 'r2', 0, 'strong', pick(SINGLES, 'lf')),
+    ...make('extra', 'r2', 0, pick(SINGLES, 'lf')),
     id: 'run-r2-lf',
     generated: false,
     explanation:
-      '2아웃이 아니면 2루 주자는 타구가 내야를 빠져나가는 걸 보고 출발해서 조금 늦어요. 게다가 좌익수가 앞으로 오면서 잡으면 홈까지 가깝고, 어깨까지 강하면 홈에서 거의 잡혀요. ' +
+      '2아웃이 아니면 2루 주자는 타구가 내야를 빠져나가는 걸 보고 출발해서 조금 늦어요. 게다가 좌익수가 앞으로 오면서 잡으면 홈까지 가까워서 홈에서 거의 잡혀요. ' +
       '무사 1, 3루는 땅볼이나 플라이로도 점수가 나는 좋은 기회예요. 무리해서 홈에서 아웃될 필요가 없어요.',
   },
   {
-    ...make('extra', 'r2', 1, 'average', pick(SINGLES, 'rf')),
+    ...make('extra', 'r2', 1, pick(SINGLES, 'rf')),
     id: 'run-r2-rf',
     generated: false,
     explanation:
@@ -211,7 +208,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '1사 1, 3루면 땅볼이나 플라이로도 점수가 나요. 결과 화면의 세이프 확률과 "이 확률보다 높아야 이득"을 비교해 보세요. 그 차이가 판단의 근거예요.',
   },
   {
-    ...make('extra', 'batter', 0, 'average', pick(STRETCH, 'lc-gap')),
+    ...make('extra', 'batter', 0, pick(STRETCH, 'lc-gap')),
     id: 'run-b-gap',
     generated: false,
     explanation:
@@ -219,7 +216,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '2루에 가면 다음 안타 하나로 홈까지 올 수 있는 득점권이에요.',
   },
   {
-    ...make('extra', 'batter', 1, 'strong', pick(STRETCH, 'lf')),
+    ...make('extra', 'batter', 1, pick(STRETCH, 'lf')),
     id: 'run-b-lf',
     generated: false,
     explanation:
@@ -227,7 +224,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '1루를 돌 때 크게 돌아 두면 수비가 공을 더듬을 때 바로 2루로 갈 수 있어요.',
   },
   {
-    ...make('fly', 'r3', 1, 'average', pick(FLIES_HOME, 'cf-mid')),
+    ...make('fly', 'r3', 1, pick(FLIES_HOME, 'cf-mid')),
     id: 'run-t3-1out',
     generated: false,
     explanation:
@@ -235,7 +232,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '그래서 1아웃 3루의 희생플라이는 세이프 확률이 낮아도 뛰는 게 이득이에요. 공이 글러브에 들어가는 순간 출발하세요.',
   },
   {
-    ...make('fly', 'r3', 0, 'average', pick(FLIES_HOME, 'cf-mid')),
+    ...make('fly', 'r3', 0, pick(FLIES_HOME, 'cf-mid')),
     id: 'run-t3-0out',
     generated: false,
     explanation:
@@ -243,14 +240,14 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '홈에서 아웃되면 2사 주자 없음이 되니, 아슬아슬하면 3루에 머무는 게 나아요.',
   },
   {
-    ...make('fly', 'r3', 0, 'strong', pick(FLIES_HOME, 'lf-short')),
+    ...make('fly', 'r3', 0, pick(FLIES_HOME, 'lf-short')),
     id: 'run-t3-short',
     generated: false,
     explanation:
       '얕은 플라이는 외야수가 앞으로 뛰어오면서 잡아서, 그 기세로 바로 홈에 던져요. 홈까지 거리도 짧아서 태그업하면 거의 아웃이에요. 3루에 머무세요.',
   },
   {
-    ...make('fly', 'r2', 0, 'average', pick(FLIES_THIRD, 'rf-mid')),
+    ...make('fly', 'r2', 0, pick(FLIES_THIRD, 'rf-mid')),
     id: 'run-t2-rf',
     generated: false,
     explanation:
@@ -258,7 +255,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '무사 2루가 1사 3루가 되면 다음 타자의 땅볼이나 플라이로도 점수가 나요.',
   },
   {
-    ...make('fly', 'r2', 1, 'average', pick(FLIES_THIRD, 'cf-mid')),
+    ...make('fly', 'r2', 1, pick(FLIES_THIRD, 'cf-mid')),
     id: 'run-t2-1out',
     generated: false,
     explanation:
@@ -267,7 +264,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
   },
   // ---------- 플라이: 타구 판단 ----------
   {
-    ...make('fly', 'r1', 0, 'average', pick(FLIES_HOME, 'cf-mid')),
+    ...make('fly', 'r1', 0, pick(FLIES_HOME, 'cf-mid')),
     id: 'run-f1-half',
     generated: false,
     explanation:
@@ -275,7 +272,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '잡히면 여유 있게 돌아오고, 떨어지면 2루까지 쉽게 가요. 베이스로 돌아가도 크게 손해는 아니지만, 스타트하면 잡혔을 때 돌아오지 못해 더블아웃이에요.',
   },
   {
-    ...make('fly', 'r1', 1, 'average', pick(FLIES_HOME, 'cf-bloop')),
+    ...make('fly', 'r1', 1, pick(FLIES_HOME, 'cf-bloop')),
     id: 'run-f1-bloop',
     generated: false,
     explanation:
@@ -283,14 +280,14 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '1루 주자가 태그업을 하는 건 깊은 플라이일 때뿐이에요.',
   },
   {
-    ...make('fly', 'r2', 0, 'average', pick(FLIES_HOME, 'rc-gap')),
+    ...make('fly', 'r2', 0, pick(FLIES_HOME, 'rc-gap')),
     id: 'run-f2-gap0',
     generated: false,
     explanation:
       '무사 2루에서 우중간 깊은 타구면 베이스로 돌아가 태그업을 준비해요. 잡히면 태그업으로 3루까지 가서 1사 3루를 만들고, 떨어져도 우중간을 가르는 장타라 홈까지 들어올 수 있어요.',
   },
   {
-    ...make('fly', 'r2', 1, 'average', pick(FLIES_HOME, 'rc-gap')),
+    ...make('fly', 'r2', 1, pick(FLIES_HOME, 'rc-gap')),
     id: 'run-f2-gap1',
     generated: false,
     explanation:
@@ -298,7 +295,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '그래서 하프웨이로 나가 있다가, 떨어지면 홈까지 들어오는 게 이득이에요.',
   },
   {
-    ...make('fly', 'r2', 2, 'average', pick(FLIES_HOME, 'rc-gap')),
+    ...make('fly', 'r2', 2, pick(FLIES_HOME, 'rc-gap')),
     id: 'run-f2-2out',
     generated: false,
     explanation:
@@ -324,3 +321,9 @@ export const RUN_SCENARIOS: RunScenario[] = [
     '남아 있으면 병살로 2사 3루가 되고 점수는 없어요.'),
 ];
 
+// 목록 순서: 종류별로, 그 안에서는 1루 → 2루 → 3루 → 타자 주자 순 (같은 주자끼리는 쓴 순서대로)
+const KIND_ORDER: RunScenario['kind'][] = ['extra', 'fly', 'ground'];
+const ME_ORDER: RunMe[] = ['r1', 'r2', 'r3', 'batter'];
+export const RUN_SCENARIOS: RunScenario[] = BASICS.map((s, i) => ({ s, i }))
+  .sort((a, b) => KIND_ORDER.indexOf(a.s.kind) - KIND_ORDER.indexOf(b.s.kind) || ME_ORDER.indexOf(a.s.me) - ME_ORDER.indexOf(b.s.me) || a.i - b.i)
+  .map((x) => x.s);

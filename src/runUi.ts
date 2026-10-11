@@ -1,7 +1,7 @@
 import { BASE_LABEL, type BaseId } from './coords';
 import type { Play, PlayResult } from './runPlay';
-import { ARM_LABEL, ME_NAME, OF_NAME, RUN_KIND_LABEL, stateLabel, type RunScenario, type RunVerdict, type StepGrade } from './runner';
-import { armsOf, explainRun } from './runExplain';
+import { ME_NAME, RUN_KIND_LABEL, stateLabel, type RunScenario, type RunVerdict, type StepGrade } from './runner';
+import { explainRun } from './runExplain';
 import type { Grade } from './scenario';
 import type { UI } from './ui';
 
@@ -24,8 +24,6 @@ export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null
   const outsLabel = sit.outs === 0 ? '무사' : `${sit.outs}아웃`;
   const bases = (['first', 'second', 'third'] as const).filter((b) => sit.runners[b]);
   const runnersLabel = bases.length === 3 ? '만루' : bases.length ? `주자 ${bases.map((b) => BASE_LABEL[b].replace('루', '')).join(', ')}루` : '주자 없음';
-  const arms = armsOf(scn);
-  const armRow = arms ? (['LF', 'CF', 'RF'] as const).map((f) => `${OF_NAME[f]} <b>${ARM_LABEL[arms[f]]}</b>`).join(' · ') : '';
   const el = $('briefing');
   el.innerHTML = `
     <div class="card">
@@ -52,7 +50,6 @@ export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null
         </section>
       </div>
       <p>${scn.brief}</p>
-      ${armRow ? `<p class="arms">외야수 어깨: ${armRow}</p>` : ''}
       <p class="note">타격 순간부터 선택지가 떠요. ${KEY_HELP[scn.kind]}. 미리 고르면 판단 순간 바로 실행되고, 안 고르면 판단 순간 화면이 느려져요.
         시점은 공을 따라가고, 마우스로 직접 돌리면 그때부터는 내가 보는 대로 둬요.</p>
       <div class="actions">
@@ -132,7 +129,7 @@ export function showRunResult(ui: UI, r: RunResultData) {
   const throwNote =
     scn.kind === 'ground' || !res.timing
       ? ''
-      : `<p class="note">${noise > 0.15 ? `이번 송구는 빗나가서 평소보다 <b>${sec(noise)}</b> 늦었어요.` : noise < -0.08 ? `이번 송구는 평소보다 <b>${sec(-noise)}</b> 빨랐어요.` : '이번 송구는 평소 수준이었어요.'} (${OF_NAME[scn.fielder!]} 어깨: ${ARM_LABEL[scn.arm!]})</p>`;
+      : `<p class="note">${noise > 0.15 ? `이번 송구는 빗나가서 평소보다 <b>${sec(noise)}</b> 늦었어요.` : noise < -0.08 ? `이번 송구는 평소보다 <b>${sec(-noise)}</b> 빨랐어요.` : '이번 송구는 평소 수준이었어요.'}</p>`;
 
   // 결과가 판단과 엇갈렸을 때 (운)
   const luck: string[] = [];
