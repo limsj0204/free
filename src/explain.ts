@@ -4,6 +4,7 @@ import {
   evaluate,
   isCarry,
   latestDecision,
+  lateBest,
   planRunners,
   playMargin,
   throwAnswers,
@@ -151,7 +152,7 @@ export function explainThrow(scn: ThrowScenario): string {
   if (best.outsMade > 0 && scn.situation.outs < 2) {
     const w = latestDecision(scn, best.choice, best.outsMade);
     if (w !== null) {
-      const late = bestAt(scn, w + 0.05);
+      const late = lateBest(scn, w + 0.05);
       const lateLabel = josa(choiceLabel(scn, late.choice), '이', '가');
       if (late.choice !== best.choice && late.outsMade > 0)
         out.push(answers.includes(late.choice) ? `판단이 늦었다면 ${lateLabel} 더 안전해요.` : `판단이 늦었다면 ${lateLabel} 차선이에요.`);

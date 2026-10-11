@@ -617,6 +617,26 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
   return { answers, ideal, immediate, close, follows };
 }
 
+// 판단이 늦었을 때(d초) 가장 나은 선택: 점수가 아니라 야구의 기본 요령으로 고른다.
+// 병살이 아직 확실하면 그곳, 아니면 가장 앞 주자를 확실하게 잡을 수 있으면 그곳, 그것도 아니면 확실한 1루(타자).
+// '확실하다'는 공이 주자보다 VALUE.closeMargin 이상 먼저 도착하는 것. 아슬아슬한 앞 주자 승부는 늦었을 때 권하지 않는다.
+const RUNNER_RANK: Record<RunnerId, number> = { r3: 3, r2: 2, r1: 1, batter: 0 };
+export function lateBest(scn: ThrowScenario, d: number, exec?: ThrowExec): Outcome {
+  const all = THROW_CHOICES.map((c) => evaluate(scn, c, d, false, exec));
+  const byValue = all.reduce((a, b) => (b.value > a.value ? b : a));
+  const plays = all.filter((o) => o.choice !== 'hold' && o.events.length);
+  const outs = plays.filter((o) => o.outsMade > 0);
+  if (!outs.length) return byValue;
+  const sure = (o: Outcome) => o.outsMade > 0 && (playMargin(o) ?? -1) >= VALUE.closeMargin;
+  const dp = outs.filter((o) => sure(o) && o.outsMade >= 2);
+  if (dp.length) return dp.reduce((a, b) => (b.value > a.value ? b : a));
+  const lead = plays.reduce((a, b) => (RUNNER_RANK[b.events[0].runner] > RUNNER_RANK[a.events[0].runner] ? b : a));
+  if (sure(lead)) return lead;
+  const first = outs.find((o) => o.events[0].runner === 'batter' && sure(o));
+  if (first) return first;
+  return outs.reduce((a, b) => ((playMargin(b) ?? -1) > (playMargin(a) ?? -1) ? b : a));
+}
+
 // ideal: 최선을 제때 고름 / late: 최선이었지만 늦어서 아웃이 줄었음
 // fallback: 최선은 아니지만 늦은 시점에선 가장 나은 선택 / other: 그 밖 / timeout: 시간 초과
 // follow: 직접 밟은 건 최선인데 이어 던진 곳이 최선이 아님
@@ -638,7 +658,7 @@ export function gradeThrow(scn: ThrowScenario, outcome: Outcome, exec?: ThrowExe
   if (missed) return { grade: 'bad', verdict: 'miss', answers, ideal, bestNow: ideal, immediate, close, follows };
   // 내 판단 시간 기준 최선: 액션 모드면 실제로 잡은 위치와 던진 시점에서 다른 곳으로 던졌다고 친다
   const alt = altExec(exec);
-  const bestNow = THROW_CHOICES.map((c) => evaluate(scn, c, outcome.decisionDelay, false, alt)).reduce((a, b) => (b.value > a.value ? b : a));
+  const bestNow = lateBest(scn, outcome.decisionDelay, alt);
   const gotOut = outcome.outsMade > 0;
   const base = { answers, ideal, bestNow, immediate, close, follows };
   if (outcome.timedOut) return { ...base, grade: 'bad', verdict: 'timeout' };
@@ -651,6 +671,6 @@ export function gradeThrow(scn: ThrowScenario, outcome: Outcome, exec?: ThrowExe
     if (outcome.outsMade >= planned) return { ...base, grade: 'best', verdict: 'ideal' };
     return { ...base, grade: gotOut ? 'ok' : 'bad', verdict: 'late' };
   }
-  if (gotOut && outcome.value >= bestNow.value - VALUE.bestTolerance) return { ...base, grade: 'ok', verdict: 'fallback' };
+  if (gotOut && (outcome.choice === bestNow.choice || outcome.value >= bestNow.value - VALUE.bestTolerance)) return { ...base, grade: 'ok', verdict: 'fallback' };
   return { ...base, grade: gotOut ? 'ok' : 'bad', verdict: 'other' };
 }
