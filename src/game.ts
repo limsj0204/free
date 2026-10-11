@@ -490,14 +490,32 @@ export class Game {
         pos: BASES[c as BaseId],
       }));
     }
-    return scn.options.map((o, i) => ({
-      value: i,
-      key: this.mode === 'action' ? '' : DECISION_KEYS[i],
-      code: `Key${DECISION_KEYS[i]}`,
-      label: o.label,
-      short: o.label,
-      pos: o.moveTo,
-    }));
+    // 베이스로 가는 선택지는 송구와 같은 키(1루 A, 2루 S, 3루 D)를 쓰고, 나머지는 남는 키를 앞에서부터 받는다
+    const keyOf: number[] = [];
+    const used = new Set<number>();
+    scn.options.forEach((o, i) => {
+      const k = (['first', 'second', 'third'] as const).findIndex((b) => Math.hypot(o.moveTo.x - BASES[b].x, o.moveTo.z - BASES[b].z) < 3);
+      if (k >= 0 && !used.has(k)) {
+        keyOf[i] = k;
+        used.add(k);
+      }
+    });
+    scn.options.forEach((_, i) => {
+      if (keyOf[i] !== undefined) return;
+      const k = DECISION_KEYS.findIndex((_, j) => !used.has(j));
+      keyOf[i] = k;
+      used.add(k);
+    });
+    return scn.options
+      .map((o, i) => ({
+        value: i,
+        key: this.mode === 'action' ? '' : DECISION_KEYS[keyOf[i]],
+        code: `Key${DECISION_KEYS[keyOf[i]]}`,
+        label: o.label,
+        short: o.label,
+        pos: o.moveTo,
+      }))
+      .sort((a, b) => DECISION_KEYS.indexOf(a.code.slice(3)) - DECISION_KEYS.indexOf(b.code.slice(3)));
   }
 
   openMenu() {

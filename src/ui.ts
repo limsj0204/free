@@ -219,7 +219,7 @@ export class UI {
             <span><b class="ctl-label">위치 판단</b></span><span>갈 곳까지 직접 뛰어가기</span>
           </div>`
         : `<div class="controls">
-            <span><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>1루 · 2루 · 3루로 송구 (위치 판단은 선택지 순서대로)</span>
+            <span><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>1루 · 2루 · 3루로 송구 (위치 판단도 1루·2루·3루로 가는 선택은 같은 키)</span>
             <span><b class="ctl-label">직접 밟기</b></span><span>베이스가 가까우면 같은 키로 직접 밟고, 밟은 다음 이어 던질 곳을 한 번 더 골라요</span>
             <span><kbd>Space</kbd></span><span>홈으로 송구</span>
             <span><kbd>좌클릭</kbd></span><span>바라보는 베이스로 송구 · 바라보는 선택지 고르기</span>
@@ -334,7 +334,7 @@ export class UI {
       ? '마우스: 시점 이동 · 클릭: 바라보는 곳 선택 · A/S/D, Space: 선택지 · Esc: 마우스 풀기'
       : scn.kind === 'throw'
         ? '마우스: 시점 이동 · 클릭: 바라보는 베이스로 송구 · A/S/D: 1루/2루/3루 · Space: 홈 · Esc: 마우스 풀기'
-        : '마우스: 시점 이동 · 클릭: 바라보는 위치로 이동 · A/S/D: 선택지 순서대로 · Esc: 마우스 풀기';
+        : '마우스: 시점 이동 · 클릭: 바라보는 위치로 이동 · A/S/D: 선택지 (1루·2루·3루로 가는 선택은 송구와 같은 키) · Esc: 마우스 풀기';
     this.hud.classList.remove('hidden');
     const sit = scn.situation;
     const outsLabel = sit.outs === 0 ? '무사' : `${sit.outs}아웃`;
