@@ -635,7 +635,7 @@ button {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 6px;
   margin-top: 18px;
 }
@@ -666,6 +666,34 @@ button {
 .tab.selected {
   background: rgba(242, 201, 76, 0.12);
   border-color: var(--accent);
+}
+
+/* 주자 탭은 수비 포지션들과 조금 떨어뜨려 다른 종류임을 보여준다 */
+.tab.run-tab {
+  margin-left: 6px;
+  border-style: dashed;
+  border-bottom: none;
+}
+
+.tab.run-tab.selected {
+  border-style: solid;
+}
+
+/* 휴대폰: 탭 여섯 개를 두 줄로 */
+@media (max-width: 480px) {
+  .tabs {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .tab {
+    border-radius: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .tab.run-tab {
+    margin-left: 0;
+    border-bottom: 1px dashed var(--line);
+  }
 }
 
 .items {
@@ -1159,4 +1187,17 @@ button:focus-visible {
 .sound-ctl input[type='range'] {
   width: 110px;
   accent-color: var(--accent);
+}
+
+/* 주루 판단 브리핑: 외야수 어깨 */
+.arms {
+  color: var(--muted);
+}
+
+.arms b {
+  color: var(--text);
+}
+
+.alt-res small {
+  color: var(--muted);
 }
