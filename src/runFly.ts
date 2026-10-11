@@ -241,6 +241,17 @@ export function readStep(scn: RunScenario): Step {
       const ev = pc * caught.ev + (1 - pc) * expectancy(drop.state);
       return { id: c, ev, lines: [`${caught.lines[0]} (${pct(pc)})`, `${dropLine(scn, drop)} (${pct(1 - pc)})`] };
     });
+    if (scn.situation.outs === 2) {
+      // 2아웃이면 잡히는 순간 이닝이 끝나서 돌아올 이유가 없다. 결과가 비슷해 보여도 스타트만 답이다.
+      const go = options.find((o) => o.id === 'go')!;
+      for (const o of options) {
+        if (o.id === 'go') continue;
+        o.ev = Math.min(o.ev, go.ev - 0.3);
+        o.invalid = true;
+        o.lines.push('2아웃이면 잡혀도 이닝이 끝나서 베이스로 돌아올 이유가 없어요. 무조건 스타트예요.');
+      }
+      return { options, note: '<b>2아웃</b>이에요. 공이 잡히면 이닝이 끝나니, 타격과 동시에 무조건 스타트해요.' };
+    }
     return { options, note: `이 타구가 잡힐 확률은 <b>${pct(pc)}</b>예요. 잡혔을 때와 떨어졌을 때를 함께 따져서 정해요.` };
   };
   return {

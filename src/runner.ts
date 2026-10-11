@@ -146,7 +146,7 @@ export interface OptionValue {
   id: string;
   ev: number; // 기대 득점
   lines: string[]; // 결과 화면에 보여줄 설명 (확률 → 상황)
-  invalid?: boolean; // 규칙상 답이 될 수 없는 선택 (포스인데 귀루)
+  invalid?: boolean; // 원칙상 답이 될 수 없는 선택 (포스인데 귀루, 2아웃인데 스타트하지 않음)
 }
 
 export interface StepValue {

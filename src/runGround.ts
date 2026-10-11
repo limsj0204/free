@@ -118,12 +118,20 @@ export function groundStep(scn: RunScenario): Step {
       back.ev = Math.min(back.ev, go.ev - 0.3);
       back.invalid = true;
       back.lines.push('포스라서 돌아갈 곳이 없어요. 남아 있으면 수비는 서두를 필요 없이 다음 베이스만 밟으면 돼요.');
+    } else if (scn.situation.outs === 2) {
+      // 2아웃이면 타자가 아웃되는 순간 이닝이 끝나서, 주자는 무조건 뛴다
+      const back = options[1];
+      back.ev = Math.min(back.ev, options[0].ev - 0.3);
+      back.invalid = true;
+      back.lines.push('2아웃이면 타자가 1루에서 아웃되는 순간 이닝이 끝나요. 남아 있을 이유가 없어서 무조건 뛰어요.');
     }
     return {
       options,
       note: forced
         ? '포스(의무 진루) 상황이에요. 뒤에서 주자가 밀고 오니 베이스를 비워 줘야 해요.'
-        : `포스가 아니에요. ${BASE_LABEL[b]}에 남아도 돼서, 진루할지 직접 정해요.`,
+        : scn.situation.outs === 2
+          ? '<b>2아웃</b>이에요. 포스가 아니어도 타격과 동시에 무조건 뛰어요.'
+          : `포스가 아니에요. ${BASE_LABEL[b]}에 남아도 돼서, 진루할지 직접 정해요.`,
     };
   };
   return {

@@ -133,7 +133,7 @@ function buildGenerated(): RunScenario[] {
   for (const me of ['r1', 'r2', 'r3'] as RunMe[])
     for (const p of FLIES_HOME)
       for (const o of [0, 1, 2]) {
-        // 2아웃에 거의 잡히는 플라이는 무엇을 해도 결과가 같아서 뺀다
+        // 2아웃에 거의 잡히는 플라이는 답(스타트)이 매번 같아서 뺀다 (잡힐지 모르는 타구만 남긴다)
         if (o === 2 && (p.hit.catchProb ?? 1) >= 0.9) continue;
         out.push(make('fly', me, o, p));
       }
