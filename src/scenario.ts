@@ -582,6 +582,8 @@ export interface ThrowAnswers {
   close?: CloseCall;
   // 최선이 직접 밟기면, 밟은 뒤 이어 던질 곳의 최선과 선택지별 결과
   follows: Partial<Record<Choice, { best: Choice[]; options: Outcome[] }>>;
+  // 무사 만루에서 홈 포스아웃(실점 막기)도 좋은 판단으로 인정했는지
+  loadedHome?: boolean;
 }
 
 // 직접 밟은 뒤 이어 던지는 곳별 결과와 그중 최선 (점수 차이가 거의 없으면 함께 인정)
@@ -609,12 +611,23 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
       close = { lead: ideal, safe, margin };
     }
   }
+  // 무사 만루: 홈에서 3루 주자를 확실하게 잡을 수 있으면, 점수가 낮더라도 실점을 막는 좋은 판단으로 인정한다.
+  // (병살로 1점 주고 2아웃 vs 홈 아웃으로 실점 없이 1아웃 만루는 실제 기대 득점이 거의 같다. 1사면 병살이 이닝을 끝내니 해당 없음)
+  let loadedHome = false;
+  const s = scn.situation;
+  if (s.outs === 0 && s.runners.first && s.runners.second && s.runners.third && !answers.includes('home')) {
+    const home = immediate.find((o) => o.choice === 'home');
+    if (home && home.events[0]?.out && (playMargin(home) ?? -1) >= VALUE.closeMargin) {
+      answers.push('home');
+      loadedHome = true;
+    }
+  }
   const follows: ThrowAnswers['follows'] = {};
   for (const c of answers) {
     const f = followAnswers(scn, c);
     if (f) follows[c] = f;
   }
-  return { answers, ideal, immediate, close, follows };
+  return { answers, ideal, immediate, close, follows, loadedHome };
 }
 
 // 판단이 늦었을 때(d초) 가장 나은 선택: 점수가 아니라 야구의 기본 요령으로 고른다.

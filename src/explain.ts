@@ -70,7 +70,7 @@ export function explainThrow(scn: ThrowScenario): string {
     out.push(`${join(held.map((r) => NUM[r.origin]))} 주자는 멈춰 있어서 그 앞 베이스로 던져도 잡을 주자가 없어요.`);
   }
 
-  const { answers, close, immediate, follows } = throwAnswers(scn);
+  const { answers, close, immediate, follows, loadedHome } = throwAnswers(scn);
   const best = bestAt(scn, 0);
   const totalOuts = best.outsMade + best.autoOuts;
   // 해설에서 이미 좋은 판단이라고 말한 선택지 (나머지는 뒤에서 따로 알려준다)
@@ -130,6 +130,21 @@ export function explainThrow(scn: ThrowScenario): string {
     );
     mentioned.add(close.safe.choice);
   }
+  // 무사 만루: 홈으로 실점을 막는 것과 병살은 타구·주자 속도에 따라 최선이 갈린다
+  const sit = scn.situation;
+  let loadedNote = '';
+  if (sit.outs === 0 && sit.runners.first && sit.runners.second && sit.runners.third) {
+    const home = immediate.find((o) => o.choice === 'home');
+    if (best.choice === 'home' && best.outsMade >= 2) {
+      loadedNote =
+        '무사 만루에서는 홈도 포스 상황이라, 타구가 빠르면 홈에서 3루 주자를 잡고 포수가 1루로 이어 던지는 병살(실점 없이 아웃 2개)이 가장 좋아요. 타구가 느리거나 주자 스타트가 빠르면 홈은 아웃 하나뿐이니 타구 속도와 주자 속도를 보고 판단하세요.';
+    } else if (loadedHome && home) {
+      loadedNote =
+        `홈으로 던져 3루 주자를 잡는 것도 좋은 판단이에요. 실점은 막지만 아웃은 하나뿐(${home.resultState})이고, 병살은 1점을 주는 대신 아웃이 2개예요. ` +
+        '타구가 빠르고 주자 스타트가 늦으면 홈에서 포수가 1루로 이어 던져 병살까지 되니, 타구 속도와 주자 속도에 따라 최선이 달라져요.';
+      mentioned.add('home');
+    }
+  }
   // 점수 차이가 거의 없어서 같이 인정되는 선택지
   const others = answers.filter((c) => !mentioned.has(c));
   if (others.length) out.push(`${others.map((c) => choiceLabel(scn, c)).join(', ')}도 결과가 거의 같아서 좋은 판단이에요.`);
@@ -145,7 +160,8 @@ export function explainThrow(scn: ThrowScenario): string {
         : '베이스가 가까우니 던지지 않고 직접 밟는 게 가장 빠르고 확실해요.',
     );
   }
-  if (best.runs > 0 && !endsInning) out.push('1점은 주지만, 아웃을 늘리는 게 더 나아요.');
+  if (best.runs > 0 && !endsInning && !loadedHome) out.push('1점은 주지만, 아웃을 늘리는 게 더 나아요.');
+  if (loadedNote) out.push(loadedNote);
 
   // 4. 늦었을 때: 함께 인정되는 선택이면 '더 안전하다', 아니면 '차선'.
   // 2아웃이면 아웃 하나로 끝나서, 늦었을 때 엉뚱한 곳이 계산상 차선으로 나오는 경우가 있어 말하지 않는다.
