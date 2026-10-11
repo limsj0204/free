@@ -133,6 +133,8 @@ export class Game {
   private randomPool: Scenario[] | null = null; // 랜덤 연습 중이면 고를 상황들
   private mode: 'judge' | 'action' = getMode();
   private keys = new Set<string>();
+  // 방금 선택에 쓴 키. 떼기 전에는 같은 키로 다음 선택(예: 커버 A → 1루 송구 A)이 되지 않게 막는다
+  private usedKey: { code: string; at: number } | null = null;
   private act: ActState = newAct(new THREE.Vector3());
 
   private fielders = new Map<FielderId, Mannequin>();
@@ -292,7 +294,10 @@ export class Game {
       { passive: false },
     );
 
-    document.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    document.addEventListener('keyup', (e) => {
+      this.keys.delete(e.code);
+      if (this.usedKey?.code === e.code) this.usedKey = null;
+    });
     window.addEventListener('blur', () => this.keys.clear());
     document.addEventListener('keydown', (e) => {
       if (this.mode === 'action' && this.playing && MOVE_KEYS.includes(e.code)) {
@@ -304,6 +309,10 @@ export class Game {
       const def = this.canChoose ? this.defs.find((d) => d.code === e.code) : undefined;
       if (def) {
         e.preventDefault();
+        // 한글 입력 상태 등에서 keydown이 한 번 더 오거나 keyup이 빠져도, 같은 키는 떼고 다시 눌러야(keyup이 안 오면 0.4초 뒤에야) 다음 선택이 된다
+        const now = performance.now();
+        if (this.usedKey?.code === e.code && now - this.usedKey.at < 400) return;
+        this.usedKey = { code: e.code, at: now };
         this.input(def.value);
       } else if (this.phase === 'result') {
         if (e.code === 'KeyR') this.restart();
