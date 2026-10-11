@@ -20,6 +20,7 @@ function distanceText(scn: RunScenario) {
   const target = route(scn).target;
   if (target === 'third' && scn.fielder === 'RF') return '우익수에서 3루는 외야에서 가장 먼 송구예요.';
   if (target === 'third' && scn.fielder === 'LF') return '좌익수에서 3루는 가까워요.';
+  if (target === 'third' && scn.fielder === 'CF') return '중견수에서 3루는 우익수보다 훨씬 가까워서, 중견수가 잡는 단타면 1루 주자는 2루에서 멈추는 게 기본이에요.';
   return '';
 }
 

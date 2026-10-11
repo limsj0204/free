@@ -134,11 +134,11 @@ const pick = (list: Profile[], key: string) => list.find((p) => p.key === key)!;
 // 기본 상황: 아웃 카운트와 어깨에 따라 판단이 갈리는 대표적인 장면
 export const RUN_SCENARIOS: RunScenario[] = [
   {
-    ...make('extra', 'r1', 1, 'average', pick(SINGLES, 'rc')),
+    ...make('extra', 'r1', 1, 'weak', pick(SINGLES, 'rc')),
     id: 'run-r1-rc',
     generated: false,
     explanation:
-      '1루 주자가 3루까지 가는 건 우익수 쪽 타구일 때예요. 우익수는 3루까지 가장 멀고, 우중간 타구는 옆으로 뛰어가 잡아서 바로 던지기도 어려워요. ' +
+      '1루 주자가 3루까지 노려볼 수 있는 건 우익수 쪽 타구일 때뿐이에요. 우익수는 3루까지 가장 멀고, 우중간 타구는 옆으로 뛰어가 잡아서 바로 던지기도 어려워요. 거기에 우익수 어깨까지 약하면 해볼 만해요. ' +
       '1아웃에서 3루에 있으면 안타가 아니어도 플라이나 땅볼로 점수가 나요. 그래서 1사 1루에서 1루→3루는 가장 가치 있는 주루예요.',
   },
   {
@@ -159,19 +159,19 @@ export const RUN_SCENARIOS: RunScenario[] = [
   },
   {
     ...make('extra', 'r1', 0, 'weak', pick(SINGLES, 'lc')),
-    id: 'run-r1-weak',
+    id: 'run-r1-cf',
     generated: false,
     explanation:
-      '중견수가 좌중간 쪽으로 옆걸음해서 잡는 타구는, 몸을 3루 쪽으로 돌려 던지기까지 시간이 걸려요. 거기에 중견수 어깨가 약하면 3루까지 노려볼 만해요. ' +
-      '같은 타구라도 어깨가 강한 중견수면 아웃될 확률이 훨씬 높아요. 경기 전에 외야수들 어깨를 봐 두면 이런 순간에 바로 판단할 수 있어요.',
+      '중견수가 잡는 단타면 1루 주자는 2루에서 멈춰요. 좌중간 쪽으로 옆걸음해서 잡아도 중견수에서 3루까지는 우익수보다 훨씬 가깝고, 2루를 돌 때쯤이면 이미 공이 중견수 글러브에 들어가 있어요. ' +
+      '중견수 어깨가 약해도 마찬가지예요. 1루→3루는 우익수 쪽 타구에서만 생각하세요.',
   },
   {
-    ...make('extra', 'r2', 2, 'average', pick(SINGLES, 'cf')),
+    ...make('extra', 'r2', 2, 'average', pick(SINGLES, 'lc')),
     id: 'run-r2-2out',
     generated: false,
     explanation:
       '2아웃 2루에서는 타격과 동시에 뛰어요. 공이 잡히면 어차피 이닝이 끝나니까요. 그래서 안타가 나오면 이미 3루 가까이 와 있어요. ' +
-      '홈에서 아웃돼도 잃는 게 적고(2아웃 1, 3루도 점수가 나기 어려워요), 세이프면 1점이에요. 2아웃 2루 안타면 웬만하면 홈으로 가세요.',
+      '홈에서 아웃돼도 잃는 게 적고(2아웃 1, 3루도 점수가 나기 어려워요), 세이프면 1점이에요. 중견수가 옆으로 움직여 잡는 타구라면 홈으로 가세요. 다만 중견수 정면으로 빨리 오는 타구는 2아웃이어도 홈에서 잡혀요.',
   },
   {
     ...make('extra', 'r2', 0, 'strong', pick(SINGLES, 'lf')),
@@ -206,7 +206,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '1루를 돌 때 크게 돌아 두면 수비가 공을 더듬을 때 바로 2루로 갈 수 있어요.',
   },
   {
-    ...make('tagup', 'r3', 1, 'strong', pick(FLIES_HOME, 'cf-mid')),
+    ...make('tagup', 'r3', 1, 'average', pick(FLIES_HOME, 'cf-mid')),
     id: 'run-t3-1out',
     generated: false,
     explanation:
@@ -214,7 +214,7 @@ export const RUN_SCENARIOS: RunScenario[] = [
       '그래서 1아웃 3루의 희생플라이는 세이프 확률이 낮아도 뛰는 게 이득이에요. 공이 글러브에 들어가는 순간 출발하세요.',
   },
   {
-    ...make('tagup', 'r3', 0, 'strong', pick(FLIES_HOME, 'cf-mid')),
+    ...make('tagup', 'r3', 0, 'average', pick(FLIES_HOME, 'cf-mid')),
     id: 'run-t3-0out',
     generated: false,
     explanation:
