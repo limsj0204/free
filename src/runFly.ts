@@ -229,6 +229,21 @@ function dropLine(scn: RunScenario, d: Drop) {
   return `떨어지면: ${where} → ${evText(d.state)}`;
 }
 
+// 깊은 플라이에서 하프웨이와 태그업 준비 중 이 아웃 카운트에서 어느 쪽이 조금 더 나은지와 그 이유
+function deepNote(scn: RunScenario, options: OptionValue[]) {
+  const half = options.find((o) => o.id === 'half')!.ev;
+  const tag = options.find((o) => o.id === 'tag')!.ev;
+  const head = '깊은 플라이라 <b>하프웨이</b>와 <b>베이스로(태그업 준비)</b> 둘 다 좋은 판단이에요.';
+  if (Math.abs(half - tag) < RUNNER.closeTolerance) return `${head} 이 상황에선 기대 득점도 거의 같아요.`;
+  const o = scn.situation.outs;
+  if (tag > half) {
+    const why = scn.me === 'r2' && o === 0 ? ' 무사라 잡혀도 태그업으로 1사 3루를 만들면 땅볼이나 플라이로도 점수가 나요.' : '';
+    return `${head} 이 상황에선 잡혔을 때 태그업으로 한 베이스 더 가는 <b>태그업 준비</b>가 조금 더 나아요.${why}`;
+  }
+  const why = scn.me === 'r2' && o === 1 ? ' 1사라 잡히면 2아웃인데, 2사 3루는 2사 2루와 거의 같아서(안타가 나와야 점수가 나요) 태그업으로 얻는 게 적어요.' : '';
+  return `${head} 이 상황에선 떨어졌을 때 바로 더 멀리 가는 <b>하프웨이</b>가 조금 더 나아요.${why}`;
+}
+
 export function readStep(scn: RunScenario): Step {
   const hit = scn.hit!;
   const pc = hit.catchProb ?? 1;
@@ -252,7 +267,20 @@ export function readStep(scn: RunScenario): Step {
       }
       return { options, note: '<b>2아웃</b>이에요. 공이 잡히면 이닝이 끝나니, 타격과 동시에 무조건 스타트해요.' };
     }
-    return { options, note: `이 타구가 잡힐 확률은 <b>${pct(pc)}</b>예요. 잡혔을 때와 떨어졌을 때를 함께 따져서 정해요.` };
+    const note = `이 타구가 잡힐 확률은 <b>${pct(pc)}</b>예요. 잡혔을 때와 떨어졌을 때를 함께 따져서 정해요.`;
+    if (scn.me === 'r3') {
+      // 3루 주자는 외야 플라이면 태그업 준비가 기본이다 (잡히면 홈을 노릴 수 있다). 기대 득점이 같아도 하프웨이는 한 단계 아래로 본다.
+      const tag = options.find((o) => o.id === 'tag')!;
+      const half = options.find((o) => o.id === 'half')!;
+      if (half.ev > tag.ev - 0.05 && half.ev < tag.ev + 0.1) {
+        half.ev = tag.ev - 0.05;
+        half.lines.push('3루 주자는 외야 플라이면 베이스로 돌아가 태그업을 준비하는 게 기본이에요. 잡히는 순간 베이스를 밟고 있어야 홈을 노릴 수 있어요.');
+      }
+    }
+    // 깊은 플라이(외야수가 뒤로 물러나며 잡는 타구)면 1·2루 주자의 하프웨이와 태그업 준비는 둘 다 할 수 있는 판단이다.
+    // 3루 주자는 잡히면 희생플라이로 득점할 수 있어서 태그업 준비만 답이다.
+    if (hit.release === 'back' && scn.me !== 'r3') return { options, note: `${note}<br/>${deepNote(scn, options)}`, peers: ['half', 'tag'] };
+    return { options, note };
   };
   return {
     key: 'read',

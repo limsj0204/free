@@ -152,6 +152,7 @@ export interface OptionValue {
 export interface StepValue {
   options: OptionValue[];
   note: string; // 판단 근거 한 줄 (예: 세이프 확률과 이득 기준)
+  peers?: string[]; // 기대 득점이 조금 달라도 함께 좋은 판단으로 인정하는 선택들 (예: 깊은 플라이의 하프웨이와 태그업 준비)
 }
 
 export interface Step {
@@ -185,7 +186,10 @@ const evOf = (v: StepValue, id: string) => v.options.find((o) => o.id === id)!.e
 
 export function bestOptions(v: StepValue): string[] {
   const top = Math.max(...v.options.map((o) => o.ev));
-  return v.options.filter((o) => o.ev >= top - RUNNER.closeTolerance).map((o) => o.id);
+  const best = v.options.filter((o) => o.ev >= top - RUNNER.closeTolerance).map((o) => o.id);
+  // 함께 인정하는 선택 중 하나가 최선이면 나머지도 좋은 판단이다
+  if (v.peers?.some((id) => best.includes(id))) for (const id of v.peers) if (!best.includes(id)) best.push(id);
+  return v.options.map((o) => o.id).filter((id) => best.includes(id));
 }
 
 export function gradeStep(step: Step, choice: string, delay: number, timedOut: boolean): StepGrade {
@@ -193,7 +197,8 @@ export function gradeStep(step: Step, choice: string, delay: number, timedOut: b
   const mine = step.value(step.decisionAt + delay);
   const best = bestOptions(immediate);
   const top = Math.max(...immediate.options.map((o) => o.ev));
-  const loss = Math.max(0, top - evOf(mine, choice));
+  // 좋은 판단을 골랐으면 늦게 정해서 잃은 만큼만 손해로 본다 (함께 인정하는 선택끼리의 차이는 손해가 아니다)
+  const loss = best.includes(choice) ? Math.max(0, evOf(immediate, choice) - evOf(mine, choice)) : Math.max(0, top - evOf(mine, choice));
   let verdict: RunVerdict;
   let grade: Grade;
   if (timedOut) {
