@@ -5,6 +5,7 @@ import {
   isCarry,
   latestDecision,
   lateBest,
+  lateDoublePlays,
   planRunners,
   playMargin,
   throwAnswers,
@@ -178,7 +179,14 @@ export function explainThrow(scn: ThrowScenario): string {
     if (w !== null) {
       const late = lateBest(scn, w + 0.05);
       const lateLabel = josa(choiceLabel(scn, late.choice), '이', '가');
-      if (late.choice !== best.choice && late.outsMade > 0)
+      // 늦어도 병살이 되는 곳이 여럿이면 같이 알려준다 (더 늦게까지 병살이 되는 쪽부터)
+      const dps = lateDoublePlays(scn, w + 0.05).filter((o) => o.choice !== best.choice && o.choice !== 'hold');
+      if (dps.length >= 2) {
+        const [a, b] = dps;
+        if (isCarry(scn, a.choice as BaseId) || isCarry(scn, b.choice as BaseId))
+          out.push(`판단이 늦었다면 ${josa(choiceLabel(scn, a.choice as BaseId), '이나', '나')} ${josa(choiceLabel(scn, b.choice as BaseId), '으로', '로')} 병살을 노리세요.`);
+        else out.push(`판단이 늦었다면 ${josa(NUM[a.choice as BaseId], '이나', '나')} ${josa(NUM[b.choice as BaseId], '으로', '로')} 던져 병살을 노리세요.`);
+      } else if (late.choice !== best.choice && late.outsMade > 0)
         out.push(answers.includes(late.choice) ? `판단이 늦었다면 ${lateLabel} 더 안전해요.` : `판단이 늦었다면 ${lateLabel} 차선이에요.`);
       else if (late.choice === best.choice && late.outsMade < best.outsMade && late.outsMade > 0)
         out.push('판단이 늦어서 병살이 안 되더라도 같은 곳으로 던져 아웃 하나는 챙기세요.');

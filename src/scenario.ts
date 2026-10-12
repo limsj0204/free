@@ -646,15 +646,27 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
 // 병살이 아직 확실하면 그곳, 아니면 가장 앞 주자를 확실하게 잡을 수 있으면 그곳, 그것도 아니면 확실한 1루(타자).
 // '확실하다'는 공이 주자보다 VALUE.closeMargin 이상 먼저 도착하는 것. 아슬아슬한 앞 주자 승부는 늦었을 때 권하지 않는다.
 const RUNNER_RANK: Record<RunnerId, number> = { r3: 3, r2: 2, r1: 1, batter: 0 };
+const sureOut = (o: Outcome) => o.outsMade > 0 && (playMargin(o) ?? -1) >= VALUE.closeMargin;
+
+// 판단이 d초 늦었을 때 아직 확실하게 병살이 되는 선택들. 더 늦게까지 병살이 되는 쪽(더 여유 있는 쪽)이 앞에 온다
+export function lateDoublePlays(scn: ThrowScenario, d: number, exec?: ThrowExec): Outcome[] {
+  return THROW_CHOICES.filter((c) => c !== 'hold')
+    .map((c) => evaluate(scn, c, d, false, exec))
+    .filter((o) => o.outsMade >= 2 && sureOut(o))
+    .map((o) => ({ o, until: latestDecision(scn, o.choice, 2) ?? 0 }))
+    .sort((a, b) => b.until - a.until || b.o.value - a.o.value)
+    .map((x) => x.o);
+}
+
 export function lateBest(scn: ThrowScenario, d: number, exec?: ThrowExec): Outcome {
   const all = THROW_CHOICES.map((c) => evaluate(scn, c, d, false, exec));
   const byValue = all.reduce((a, b) => (b.value > a.value ? b : a));
   const plays = all.filter((o) => o.choice !== 'hold' && o.events.length);
   const outs = plays.filter((o) => o.outsMade > 0);
   if (!outs.length) return byValue;
-  const sure = (o: Outcome) => o.outsMade > 0 && (playMargin(o) ?? -1) >= VALUE.closeMargin;
-  const dp = outs.filter((o) => sure(o) && o.outsMade >= 2);
-  if (dp.length) return dp.reduce((a, b) => (b.value > a.value ? b : a));
+  const sure = sureOut;
+  const dp = lateDoublePlays(scn, d, exec);
+  if (dp.length) return dp[0];
   const lead = plays.reduce((a, b) => (RUNNER_RANK[b.events[0].runner] > RUNNER_RANK[a.events[0].runner] ? b : a));
   if (sure(lead)) return lead;
   const first = outs.find((o) => o.events[0].runner === 'batter' && sure(o));
@@ -696,6 +708,7 @@ export function gradeThrow(scn: ThrowScenario, outcome: Outcome, exec?: ThrowExe
     if (outcome.outsMade >= planned) return { ...base, grade: 'best', verdict: 'ideal' };
     return { ...base, grade: gotOut ? 'ok' : 'bad', verdict: 'late' };
   }
-  if (gotOut && (outcome.choice === bestNow.choice || outcome.value >= bestNow.value - VALUE.bestTolerance)) return { ...base, grade: 'ok', verdict: 'fallback' };
+  const sameDp = bestNow.outsMade >= 2 && outcome.outsMade >= bestNow.outsMade; // 늦었어도 다른 곳으로 똑같이 병살을 잡았다
+  if (gotOut && (outcome.choice === bestNow.choice || sameDp || outcome.value >= bestNow.value - VALUE.bestTolerance)) return { ...base, grade: 'ok', verdict: 'fallback' };
   return { ...base, grade: gotOut ? 'ok' : 'bad', verdict: 'other' };
 }
