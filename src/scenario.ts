@@ -57,6 +57,7 @@ export interface ThrowScenario extends ScenarioBase {
   selfBases?: BaseId[]; // 던지지 않고 직접 밟으러 가는 베이스
   runnerActs?: Partial<Record<Base3, 'advance' | 'hold'>>; // 안 밀리는 주자가 뛸지 (땅볼일 때)
   hitAndRun?: boolean; // 투구 때 주자가 미리 스타트했는지
+  alsoGood?: Choice[]; // 계산과 별개로 함께 좋은 판단으로 인정하는 선택 (주자 속도·스타트에 따라 갈리는 상황, 아웃을 잡을 때만)
 }
 
 export interface ChoiceOption {
@@ -659,6 +660,9 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
       .reduce<Outcome | undefined>((a, b) => (!a || b.value > a.value ? b : a), undefined);
     if (forceDp && !answers.includes(forceDp.choice)) answers.push(forceDp.choice);
     else forceDp = undefined;
+  }
+  for (const c of scn.alsoGood ?? []) {
+    if (!answers.includes(c) && immediate.find((o) => o.choice === c)?.outsMade) answers.push(c);
   }
   const follows: ThrowAnswers['follows'] = {};
   for (const c of answers) {
