@@ -308,7 +308,7 @@ export class UI {
                 </label>
                 <label class="gen-toggle" for="hide-runners">
                   <input type="checkbox" id="hide-runners" ${getHideRunners() ? 'checked' : ''} />
-                  <span>주자 움직임 숨기기 <small>안 밀리는 주자가 뛸지 멈출지 공을 잡는 순간에 알아요.</small></span>
+                  <span>주자 움직임 숨기기 <small>안 밀리는 주자가 뛸지 멈출지 미리 알려주지 않아요.</small></span>
                 </label>
               </div>
             </div>
