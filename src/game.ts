@@ -501,6 +501,15 @@ export class Game {
         used.add(k);
       }
     });
+    // 베이스 위는 아니어도 그 베이스 쪽 플레이(예: 3루 뒤 백업)면 그 베이스 키를 쓴다
+    scn.options.forEach((o, i) => {
+      if (keyOf[i] !== undefined) return;
+      const k = ['1루', '2루', '3루'].findIndex((b) => o.label.startsWith(b));
+      if (k >= 0 && !used.has(k)) {
+        keyOf[i] = k;
+        used.add(k);
+      }
+    });
     scn.options.forEach((_, i) => {
       if (keyOf[i] !== undefined) return;
       const k = DECISION_KEYS.findIndex((_, j) => !used.has(j));
