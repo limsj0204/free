@@ -3,6 +3,8 @@ import { ACTION, DIFFICULTIES, RUN, VALUE, type DifficultyId } from './config';
 import { BASES, BASE_LABEL, P, type BaseId } from './coords';
 import { BASIC_CARDS } from './basics';
 import { BUNT_RULE, josa } from './explain';
+import { annotate } from './glossary';
+import { PRINCIPLES } from './principles';
 import { generatedFor } from './generated';
 import {
   getHideBall,
@@ -266,9 +268,11 @@ export class UI {
     };
     const close = () => {
       this.basics.classList.add('hidden');
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onKey, true);
     };
+    // 창이 떠 있는 동안 키 입력은 게임으로 넘기지 않는다 (결과 화면의 Esc·R·N 등)
     const onKey = (e: KeyboardEvent) => {
+      e.stopImmediatePropagation();
       if (e.code === 'ArrowRight' || e.code === 'Enter') {
         e.preventDefault();
         if (cur < n - 1) go(cur + 1);
@@ -277,7 +281,35 @@ export class UI {
       else if (e.code === 'Escape') close();
     };
     render(index);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
+    this.basics.classList.remove('hidden');
+  }
+
+  // 포지션별 핵심 원칙 (기초 개념 카드와 같은 창을 쓴다)
+  showPrinciples(position: PositionId) {
+    this.basics.innerHTML = `
+      <div class="card basics-card">
+        <div class="eyebrow">핵심 원칙</div>
+        <h1>${FIELDER_NAME[position]}가 기억할 것</h1>
+        <ul class="principles">${PRINCIPLES[position].map((p) => `<li>${annotate(p)}</li>`).join('')}</ul>
+        <p class="principles-note">팀 약속에 따라 다를 수 있어요. 기본 상황을 풀면서 왜 그런지 해설로 확인해 보세요.</p>
+        <div class="actions"><button class="primary" id="principles-close">닫기</button></div>
+        <button class="basics-close" id="principles-x" aria-label="닫기">✕</button>
+      </div>`;
+    const close = () => {
+      this.basics.classList.add('hidden');
+      document.removeEventListener('keydown', onKey, true);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      e.stopImmediatePropagation();
+      if (e.code === 'Escape' || e.code === 'Enter') {
+        e.preventDefault();
+        close();
+      }
+    };
+    $('principles-close').addEventListener('click', close);
+    $('principles-x').addEventListener('click', close);
+    document.addEventListener('keydown', onKey, true);
     this.basics.classList.remove('hidden');
   }
 
@@ -382,12 +414,13 @@ export class UI {
               </div>
               <label class="gen-toggle" for="gen-toggle">
                 <input type="checkbox" id="gen-toggle" ${getIncludeGenerated() ? 'checked' : ''} />
-                <span>자동 생성 상황도 섞기 <small>(위의 기본 상황 ${scenariosFor(this.tab).length}개 + 자동 생성 ${generatedFor(this.tab).length}개 · 같은 타구라도 아웃 카운트, 주자, 주자 움직임이 다른 상황)</small></span>
+                <span>자동 생성 상황도 섞기 <small>(위의 기본 상황 ${scenariosFor(this.tab).length}개 + 자동 생성 ${generatedFor(this.tab).length}개 · 같은 타구라도 아웃 카운트, 주자, 주자 움직임이 다른 상황. 기본 상황을 다 해봤다면 켜 보세요)</small></span>
               </label>
             </div>
             <div class="channel-links">
               <button class="intro-link" id="intro-btn">ⓘ 소개</button>
               <button class="intro-link basics-link" id="basics-btn">📘 기초 개념</button>
+              <button class="intro-link basics-link push" id="principles-btn">📌 ${FIELDER_NAME[this.tab]} 핵심 원칙</button>
               <div class="sound-ctl">
                 <label class="gen-toggle" for="sound-on">
                   <input type="checkbox" id="sound-on" ${getSoundOn() ? 'checked' : ''} />
@@ -429,6 +462,7 @@ export class UI {
     $('random-pos').addEventListener('click', () => this.onRandom(this.tab));
     $('intro-btn').addEventListener('click', () => this.showIntro());
     $('basics-btn').addEventListener('click', () => this.showBasics());
+    $('principles-btn').addEventListener('click', () => this.showPrinciples(this.tab));
     this.menu.querySelectorAll<HTMLButtonElement>('[data-scenario]').forEach((b) =>
       b.addEventListener('click', () => this.onPickScenario(b.dataset.scenario!)),
     );
@@ -703,6 +737,16 @@ export class UI {
     $('result-menu-btn').addEventListener('click', () => this.onMenu());
   }
 
+  // 결과 화면의 자세한 숫자(타이밍 표 등)는 접어 둔다. 한 번 펼치면 다음 결과에서도 펼친 채로 보여준다
+  private moreOpen = false;
+  private more(inner: string) {
+    return `<details class="more" id="result-more" ${this.moreOpen ? 'open' : ''}><summary>자세히 보기 (타이밍 비교 · 다른 곳에 던졌다면)</summary>${inner}</details>`;
+  }
+
+  private principlesLink(position: PositionId) {
+    return `<button class="intro-link principles-link" id="result-principles" data-pos="${position}">📌 ${FIELDER_NAME[position]} 핵심 원칙 보기</button>`;
+  }
+
   // 결과 화면: 왼쪽에 판정과 타이밍, 오른쪽에 해설과 버튼 (넓은 화면에서 스크롤 없이 보이게)
   private openResult(main: string, side: string) {
     this.hideAll();
@@ -712,6 +756,9 @@ export class UI {
       <div class="result-side">${side}${this.resultActions()}</div>
     </div></div>`;
     this.bindResultActions();
+    document.getElementById('result-more')?.addEventListener('toggle', (e) => (this.moreOpen = (e.target as HTMLDetailsElement).open));
+    const pl = document.getElementById('result-principles');
+    pl?.addEventListener('click', () => this.showPrinciples(pl.dataset.pos as PositionId));
     this.result.classList.remove('hidden');
   }
 
@@ -824,17 +871,19 @@ export class UI {
         }
       </div>
       <p class="note">${notes.join('<br/>')}</p>
-      <h2>타이밍 비교 (타격 순간부터)</h2>
-      <div class="table-wrap"><table class="timing">
-        <tr><th>베이스</th><th>주자</th><th>공 도착</th><th>주자 도착</th><th>판정</th></tr>
-        ${timingRows}
-      </table></div>
-      <h2>내 판단 시간(${sec(o.decisionDelay)}) 그대로 다른 곳에 던졌다면</h2>
-      ${alts}`, `
+      ${this.more(`
+        <h2>타이밍 비교 (타격 순간부터)</h2>
+        <div class="table-wrap"><table class="timing">
+          <tr><th>베이스</th><th>주자</th><th>공 도착</th><th>주자 도착</th><th>판정</th></tr>
+          ${timingRows}
+        </table></div>
+        <h2>내 판단 시간(${sec(o.decisionDelay)}) 그대로 다른 곳에 던졌다면</h2>
+        ${alts}
+        ${basis ? `<h2>판단 기준: 잡자마자 던졌다면</h2>${basis}` : ''}`)}`, `
       <h2>해설</h2>
-      <p class="explain">${scn.batted.type === 'bunt' && !scn.generated ? `${BUNT_RULE} ` : ''}${scn.explanation}</p>
-      ${basis ? `<h2>판단 기준: 잡자마자 던졌다면</h2>${basis}` : ''}
-      ${followBlock ? `<h2>${throwLabel(scn, followChoice!)} 다음 어디로? (밟자마자 던졌다면)</h2>${followBlock}` : ''}`);
+      <p class="explain">${annotate(`${scn.batted.type === 'bunt' && !scn.generated ? `${BUNT_RULE} ` : ''}${scn.explanation}`)}</p>
+      ${followBlock ? `<h2>${throwLabel(scn, followChoice!)} 다음 어디로? (밟자마자 던졌다면)</h2>${followBlock}` : ''}
+      ${this.principlesLink(scn.position)}`);
   }
 
   showChoiceResult(r: ChoiceResultData) {
@@ -855,7 +904,7 @@ export class UI {
         const chosen = i === c.index;
         return `<div class="alt col ${chosen ? 'chosen' : ''}">
           <span class="alt-name">${o.label}${chosen ? ' (내 선택)' : ''}<span class="badge ${o.grade}">${GRADE_SHORT[o.grade]}</span></span>
-          <span class="alt-res">${o.feedback}</span>
+          <span class="alt-res">${annotate(o.feedback)}</span>
         </div>`;
       })
       .join('');
@@ -872,6 +921,7 @@ export class UI {
       <h2>선택지별 설명</h2>
       ${alts}`, `
       <h2>해설</h2>
-      <p class="explain">${scn.explanation}</p>`);
+      <p class="explain">${annotate(scn.explanation)}</p>
+      ${this.principlesLink(scn.position)}`);
   }
 }

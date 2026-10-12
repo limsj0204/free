@@ -940,6 +940,85 @@ button:focus-visible {
   color: var(--muted);
 }
 
+/* 용어 풀이: 마우스를 올리거나 누르면 풀이가 뜬다 */
+.term {
+  position: relative;
+  border-bottom: 1px dotted rgba(242, 201, 76, 0.8);
+  cursor: help;
+  outline: none;
+}
+
+.term:hover::after,
+.term:focus::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(260px, 70vw);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #0b1020;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: normal;
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* 결과 화면: 자세한 숫자는 접어 둔다 */
+details.more {
+  margin-top: 12px;
+}
+
+details.more summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 6px 0;
+}
+
+details.more summary:hover {
+  color: var(--text);
+}
+
+details.more h2:first-child {
+  margin-top: 8px;
+}
+
+.principles-link {
+  margin-top: 10px;
+  padding-left: 0;
+}
+
+/* 포지션별 핵심 원칙 */
+.principles {
+  margin: 14px 0 0;
+  padding-left: 20px;
+}
+
+.principles li {
+  margin: 8px 0;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.principles li b {
+  color: var(--accent);
+}
+
+.card .principles-note {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* 기초 개념 카드 */
 .basics-card {
   position: relative;
@@ -1082,8 +1161,11 @@ button:focus-visible {
 }
 
 .intro-link.basics-link {
-  margin-right: auto;
   margin-left: 6px;
+}
+
+.intro-link.push {
+  margin-right: auto;
 }
 
 /* 목록: 기본 상황 난이도 배지 */

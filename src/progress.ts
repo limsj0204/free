@@ -67,7 +67,7 @@ export function setDifficulty(d: DifficultyId) {
 }
 
 export function getIncludeGenerated(): boolean {
-  return saved.includeGenerated ?? true;
+  return saved.includeGenerated ?? false;
 }
 
 export function setIncludeGenerated(on: boolean) {
