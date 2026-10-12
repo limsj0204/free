@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ACTION, DIFFICULTIES, RUN, VALUE, type DifficultyId } from './config';
 import { BASES, BASE_LABEL, P, type BaseId } from './coords';
+import { BASIC_CARDS } from './basics';
 import { BUNT_RULE, josa } from './explain';
 import { generatedFor } from './generated';
 import {
@@ -159,6 +160,7 @@ export class UI {
 
   private menu = $('menu');
   private intro = $('intro');
+  private basics = $('basics');
   private briefing = $('briefing');
   private result = $('result');
   private decision = $('decision');
@@ -203,6 +205,7 @@ export class UI {
           <li>결과와 해설은 하나의 기준이에요. 실제 경기에서는 <b>팀 약속과 상황</b>에 따라 달라질 수 있어요.</li>
         </ul>
         <button class="primary intro-start" id="intro-start">시작하기 <kbd>Enter</kbd></button>
+        <button class="secondary intro-basics" id="intro-basics">야구 규칙이 낯설다면: 기초 개념 먼저 보기</button>
         <label class="intro-skip" for="intro-skip">
           <input type="checkbox" id="intro-skip" ${getSkipIntro() ? 'checked' : ''} />
           <span>다음부터 이 화면 건너뛰기</span>
@@ -221,8 +224,61 @@ export class UI {
       }
     };
     $('intro-start').addEventListener('click', close);
+    $('intro-basics').addEventListener('click', () => {
+      close();
+      this.showBasics();
+    });
     document.addEventListener('keydown', onKey);
     this.intro.classList.remove('hidden');
+  }
+
+  // ---------- 기초 개념 ----------
+
+  // 포스·태그·귀루 같은 기본 개념을 카드로 넘겨 본다. ←/→로 넘기고 Esc로 닫는다
+  showBasics(index = 0) {
+    const n = BASIC_CARDS.length;
+    const render = (i: number) => {
+      const c = BASIC_CARDS[i];
+      this.basics.innerHTML = `
+        <div class="card basics-card">
+          <div class="eyebrow">기초 개념 · ${i + 1} / ${n}</div>
+          <h1>${c.title}</h1>
+          ${c.svg ? `<div class="basics-figure">${c.svg}</div>` : ''}
+          <div class="basics-body">${c.body.map((p) => `<p>${p}</p>`).join('')}</div>
+          <div class="basics-dots">${BASIC_CARDS.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>
+          <div class="actions">
+            <button class="secondary" id="basics-prev" ${i === 0 ? 'disabled' : ''}>이전</button>
+            ${i < n - 1 ? '<button class="primary" id="basics-next">다음 <kbd>→</kbd></button>' : '<button class="primary" id="basics-done">목록으로</button>'}
+          </div>
+          <button class="basics-close" id="basics-close" aria-label="닫기">✕</button>
+        </div>`;
+      $('basics-prev').addEventListener('click', () => go(i - 1));
+      $('basics-next')?.addEventListener('click', () => go(i + 1));
+      $('basics-done')?.addEventListener('click', close);
+      $('basics-close').addEventListener('click', close);
+      cur = i;
+    };
+    let cur = index;
+    const go = (i: number) => {
+      if (i < 0 || i >= n) return;
+      sfx.click();
+      render(i);
+    };
+    const close = () => {
+      this.basics.classList.add('hidden');
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === 'ArrowRight' || e.code === 'Enter') {
+        e.preventDefault();
+        if (cur < n - 1) go(cur + 1);
+        else close();
+      } else if (e.code === 'ArrowLeft') go(cur - 1);
+      else if (e.code === 'Escape') close();
+    };
+    render(index);
+    document.addEventListener('keydown', onKey);
+    this.basics.classList.remove('hidden');
   }
 
   // ---------- 목록 ----------
@@ -254,6 +310,7 @@ export class UI {
             <b>${s.title}</b>
           </span>
           <span class="item-side">
+            <span class="level lv${s.level ?? 2}">${['', '기초', '응용', '심화'][s.level ?? 2]}</span>
             <span class="kind">${s.kind === 'throw' ? '송구 판단' : '위치 판단'}</span>
             ${status}
           </span>
@@ -330,6 +387,7 @@ export class UI {
             </div>
             <div class="channel-links">
               <button class="intro-link" id="intro-btn">ⓘ 소개</button>
+              <button class="intro-link basics-link" id="basics-btn">📘 기초 개념</button>
               <div class="sound-ctl">
                 <label class="gen-toggle" for="sound-on">
                   <input type="checkbox" id="sound-on" ${getSoundOn() ? 'checked' : ''} />
@@ -370,6 +428,7 @@ export class UI {
     );
     $('random-pos').addEventListener('click', () => this.onRandom(this.tab));
     $('intro-btn').addEventListener('click', () => this.showIntro());
+    $('basics-btn').addEventListener('click', () => this.showBasics());
     this.menu.querySelectorAll<HTMLButtonElement>('[data-scenario]').forEach((b) =>
       b.addEventListener('click', () => this.onPickScenario(b.dataset.scenario!)),
     );

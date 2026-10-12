@@ -47,6 +47,7 @@ interface ScenarioBase {
   fielders?: Partial<Record<FielderId, THREE.Vector3>>; // 기본 수비 위치에서 바꿀 것만
   fielderMoves?: Partial<Record<FielderId, THREE.Vector3>>; // 플레이가 시작되면 이동할 위치
   generated?: boolean; // 상황 생성기로 만든 상황 (랜덤 연습에만 나온다)
+  level?: 1 | 2 | 3; // 기본 상황의 난이도: 기초 / 응용 / 심화 (목록 순서와 배지)
 }
 
 // 공을 잡은 뒤 어디로 던질지 고르는 상황. 결과는 시간 계산으로 판정한다.

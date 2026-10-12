@@ -1264,6 +1264,29 @@ export const SCENARIOS: Scenario[] = [
   },
 ];
 
+// 기본 상황 난이도: 1 기초(먼저 익힐 기본 원칙) / 2 응용 / 3 심화(상황에 따라 갈리거나 특수한 규칙)
+const LEVELS: Record<string, 1 | 2 | 3> = {
+  'p-dp': 1, 'p-cover-1b': 1,
+  'p-bunt': 2, 'p-liner': 2, 'p-wildpitch': 2, 'p-backup-home': 2, 'p-backup-third': 2,
+  'p-third': 3, 'p-loaded': 3, 'p-wildpitch-2': 3,
+  '1b-cover': 1, '1b-hold': 1, '1b-2out': 1,
+  '1b-361': 2, '1b-step': 2, '1b-liner': 2, '1b-bunt': 2, '1b-advance': 2,
+  '1b-cutoff': 3, '1b-loaded': 3,
+  '2b-dp': 1, '2b-cover': 1, '2b-steal': 1,
+  '2b-self': 2, '2b-2out': 2, '2b-bunt-cover': 2, '2b-relay': 2, '2b-liner': 2,
+  '2b-advance': 3, '2b-corners': 3,
+  'ss-dp': 1, 'ss-cover': 1, 'ss-steal': 1,
+  'ss-2out': 2, 'ss-relay': 2, 'ss-liner': 2, 'ss-runner2': 2,
+  'ss-hole': 3, 'ss-loaded': 3, 'ss-corners': 3,
+  '3b-dp': 1, '3b-slow': 1, '3b-2out': 1,
+  '3b-force': 2, '3b-step': 2, '3b-liner': 2, '3b-bunt-charge': 2,
+  '3b-infield-in': 3, '3b-corners': 3, '3b-tiebreak': 3,
+};
+const POS_ORDER: PositionId[] = ['P', '1B', '2B', 'SS', '3B'];
+for (const s of SCENARIOS) s.level = LEVELS[s.id] ?? 2;
+// 포지션별로 기초 → 응용 → 심화 순서로 정렬한다 (같은 난이도는 만든 순서). '다음 상황'도 이 순서를 따른다
+SCENARIOS.sort((a, b) => POS_ORDER.indexOf(a.position) - POS_ORDER.indexOf(b.position) || a.level! - b.level!);
+
 export function scenariosFor(position: PositionId) {
   return SCENARIOS.filter((s) => s.position === position);
 }
