@@ -596,7 +596,12 @@ export interface ThrowAnswers {
   follows: Partial<Record<Choice, { best: Choice[]; options: Outcome[] }>>;
   // 무사 만루에서 홈 포스아웃(실점 막기)도 좋은 판단으로 인정했는지
   loadedHome?: boolean;
+  // 최선의 병살이 태그 플레이를 끼고 있어서, 둘 다 포스로 잡는 병살도 함께 인정했다면 그 선택
+  forceDp?: Outcome;
 }
+
+// 아웃이 전부 포스아웃인 병살인지 (태그가 섞이면 주자를 직접 태그해야 해서 더 어렵다)
+const allForce = (o: Outcome) => o.events.filter((e) => e.out).every((e) => e.kind === 'force');
 
 // 직접 밟은 뒤 이어 던지는 곳별 결과와 그중 최선 (점수 차이가 거의 없으면 함께 인정)
 export function followAnswers(scn: ThrowScenario, choice: Choice): { best: Choice[]; options: Outcome[] } | undefined {
@@ -634,12 +639,21 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
       loadedHome = true;
     }
   }
+  // 최선의 병살에 태그가 섞여 있으면(예: 1루를 먼저 밟아 포스가 풀린 뒤 홈 태그), 둘 다 포스로 잡는 확실한 병살도 좋은 판단으로 인정한다
+  let forceDp: Outcome | undefined;
+  if (ideal.outsMade >= 2 && !allForce(ideal)) {
+    forceDp = immediate
+      .filter((o) => o.outsMade >= ideal.outsMade && allForce(o) && (playMargin(o) ?? -1) >= VALUE.closeMargin)
+      .reduce<Outcome | undefined>((a, b) => (!a || b.value > a.value ? b : a), undefined);
+    if (forceDp && !answers.includes(forceDp.choice)) answers.push(forceDp.choice);
+    else forceDp = undefined;
+  }
   const follows: ThrowAnswers['follows'] = {};
   for (const c of answers) {
     const f = followAnswers(scn, c);
     if (f) follows[c] = f;
   }
-  return { answers, ideal, immediate, close, follows, loadedHome };
+  return { answers, ideal, immediate, close, follows, loadedHome, forceDp };
 }
 
 // 판단이 늦었을 때(d초) 가장 나은 선택: 점수가 아니라 야구의 기본 요령으로 고른다.
@@ -655,7 +669,8 @@ export function lateDoublePlays(scn: ThrowScenario, d: number, exec?: ThrowExec)
     .filter((o) => o.outsMade >= 2 && sureOut(o))
     .map((o) => ({ o, until: latestDecision(scn, o.choice, 2) ?? 0 }))
     .sort((a, b) => b.until - a.until || b.o.value - a.o.value)
-    .map((x) => x.o);
+    .map((x) => x.o)
+    .filter((o, _, all) => allForce(o) || !all.some(allForce)); // 포스로만 잡는 병살이 있으면 태그가 섞인 병살은 권하지 않는다
 }
 
 export function lateBest(scn: ThrowScenario, d: number, exec?: ThrowExec): Outcome {

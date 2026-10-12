@@ -71,7 +71,7 @@ export function explainThrow(scn: ThrowScenario): string {
     out.push(`${join(held.map((r) => NUM[r.origin]))} 주자는 멈춰 있어서 그 앞 베이스로 던져도 잡을 주자가 없어요.`);
   }
 
-  const { answers, close, immediate, follows, loadedHome } = throwAnswers(scn);
+  const { answers, close, immediate, follows, loadedHome, forceDp } = throwAnswers(scn);
   const best = bestAt(scn, 0);
   const totalOuts = best.outsMade + best.autoOuts;
   // 해설에서 이미 좋은 판단이라고 말한 선택지 (나머지는 뒤에서 따로 알려준다)
@@ -154,6 +154,15 @@ export function explainThrow(scn: ThrowScenario): string {
       mentioned.add('home');
     }
   }
+  // 최선의 병살에 태그가 섞여 있으면, 포스로만 잡는 병살도 함께 인정한다
+  let forceNote = '';
+  if (forceDp) {
+    const base = best.choice !== 'hold' ? NUM[best.choice as BaseId] : '';
+    forceNote =
+      (isCarry(scn, best.choice as BaseId) ? `${josa(base, '을', '를')} 먼저 밟으면 다른 주자들의 포스가 풀려서, 다음 아웃은 주자를 직접 태그해야 해요. ` : '') +
+      `태그가 부담되면 ${josa(NUM[forceDp.choice as BaseId], '으로', '로')} 던져 둘 다 포스로 잡는 병살도 좋은 판단이에요(${forceDp.resultState.replace(/ \((.+)\)$/, ', $1')}).`;
+    mentioned.add(forceDp.choice);
+  }
   // 점수 차이가 거의 없어서 같이 인정되는 선택지
   const others = answers.filter((c) => !mentioned.has(c));
   if (others.length) out.push(`${others.map((c) => choiceLabel(scn, c)).join(', ')}도 결과가 거의 같아서 좋은 판단이에요.`);
@@ -171,6 +180,7 @@ export function explainThrow(scn: ThrowScenario): string {
   }
   if (best.runs > 0 && !endsInning && !loadedHome) out.push('1점은 주지만, 아웃을 늘리는 게 더 나아요.');
   if (loadedNote) out.push(loadedNote);
+  if (forceNote) out.push(forceNote);
 
   // 4. 늦었을 때: 함께 인정되는 선택이면 '더 안전하다', 아니면 '차선'.
   // 2아웃이면 아웃 하나로 끝나서, 늦었을 때 엉뚱한 곳이 계산상 차선으로 나오는 경우가 있어 말하지 않는다.
