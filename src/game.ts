@@ -1084,6 +1084,12 @@ export class Game {
     this.glove.visible = !this.overhead;
     if (this.overhead) {
       const wide = this.scn.kind === 'choice' && (this.scn.setup === 'gap' || this.scn.setup === 'cutoff' || this.scn.setup === 'backup');
+      // 폭투는 홈 뒤쪽에서 플레이가 벌어지니 외야 쪽에서 홈을 내려다본다
+      if (this.scn.kind === 'choice' && this.scn.setup === 'wildpitch') {
+        this.camera.position.copy(P(0, 34, 24));
+        this.camera.lookAt(P(0, 2));
+        return;
+      }
       this.camera.position.copy(wide ? P(0, -22, 42) : P(0, -12, 20));
       this.camera.lookAt(wide ? P(0, 50) : P(0, 26));
       return;

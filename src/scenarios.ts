@@ -219,6 +219,88 @@ export const SCENARIOS: Scenario[] = [
       '그래서 투수는 3루 뒤 파울 지역으로 달려가 백업해요. "공이 가는 베이스의 뒤"가 투수의 자리라고 기억하면 쉬워요. 홈으로 던지면 홈 뒤, 3루로 던지면 3루 뒤예요.',
   },
 
+  {
+    id: 'p-wildpitch',
+    kind: 'choice',
+    setup: 'wildpitch',
+    title: '1사 3루 / 폭투',
+    event: '폭투 (공이 포수 뒤로 빠짐)',
+    position: 'P',
+    situation: { outs: 1, runners: { first: false, second: false, third: true }, batter: 'R' },
+    brief: '변화구가 원바운드로 들어가요. 포수가 못 막으면 공이 뒤로 빠지고, 3루 주자가 홈을 노려요.',
+    prompt: '공이 뒤로 빠졌다! 어디로?',
+    options: [
+      {
+        label: '홈 커버',
+        moveTo: P(-0.9, 1.2),
+        grade: 'best',
+        takes: true,
+        headline: '홈에서 태그아웃',
+        result: '2아웃 주자 없음',
+        feedback: '포수가 공을 주우러 간 사이 홈을 지키고 있다가, 포수 송구를 받아 3루 주자를 태그했어요.',
+      },
+      {
+        label: '마운드에 그대로',
+        moveTo: P(0, 18.44),
+        grade: 'bad',
+        headline: '홈이 비었어요',
+        result: '1아웃 주자 없음, 1점 내줌',
+        feedback: '포수가 공을 주웠지만 홈에 받아 줄 사람이 없어서 던지지 못했어요. 3루 주자가 그대로 들어왔어요.',
+      },
+      {
+        label: '3루 커버',
+        moveTo: P(-18.8, 19.6),
+        grade: 'bad',
+        headline: '홈이 비었어요',
+        result: '1아웃 주자 없음, 1점 내줌',
+        feedback: '3루 주자는 이미 홈으로 뛰었어요. 비어 있는 건 3루가 아니라 홈이에요. 포수가 던질 곳이 없어서 1점을 줬어요.',
+      },
+    ],
+    explanation:
+      '폭투나 패스트볼로 공이 포수 뒤로 빠지면, 포수는 공을 주우러 뒤로 가고 홈이 비어요. 이때 홈을 막을 수 있는 건 투수뿐이에요. ' +
+      '공이 빠지는 걸 보자마자 홈으로 달려가 포수 송구를 받아 태그하세요. 홈 플레이트 앞쪽(3루 쪽)에 서서, 주자를 몸으로 막지 말고 태그만 하는 게 안전해요.',
+  },
+  {
+    id: 'p-wildpitch-2',
+    kind: 'choice',
+    setup: 'wildpitch',
+    title: '2사 2, 3루 / 패스트볼',
+    event: '패스트볼 (공이 포수 뒤로 빠짐)',
+    position: 'P',
+    situation: { outs: 2, runners: { first: false, second: true, third: true }, batter: 'R' },
+    brief: '2사 2, 3루예요. 공이 포수 미트를 맞고 뒤로 빠지면 주자들이 한 베이스씩 노려요.',
+    prompt: '공이 뒤로 빠졌다! 어디로?',
+    options: [
+      {
+        label: '홈 커버',
+        moveTo: P(-0.9, 1.2),
+        grade: 'best',
+        takes: true,
+        headline: '홈에서 태그아웃',
+        result: '3아웃, 이닝 종료',
+        feedback: '홈으로 들어온 3루 주자를 태그해서 이닝을 끝냈어요.',
+      },
+      {
+        label: '3루 커버',
+        moveTo: P(-18.8, 19.6),
+        grade: 'bad',
+        headline: '홈이 비었어요',
+        result: '2아웃 3루, 1점 내줌',
+        feedback: '2루 주자가 3루로 오는 게 보였겠지만, 먼저 막아야 하는 건 점수가 나는 홈이에요. 홈이 비어서 3루 주자가 들어왔어요.',
+      },
+      {
+        label: '마운드에 그대로',
+        moveTo: P(0, 18.44),
+        grade: 'bad',
+        headline: '홈이 비었어요',
+        result: '2아웃 3루, 1점 내줌',
+        feedback: '포수가 공을 주웠지만 홈에 받아 줄 사람이 없어서 던지지 못했어요.',
+      },
+    ],
+    explanation:
+      '공이 뒤로 빠지면 투수는 무조건 홈 커버예요. 주자가 여럿이어도 점수가 나는 홈이 가장 중요해요. ' +
+      '2아웃이라 홈에서 3루 주자를 잡으면 그대로 이닝이 끝나요. 포수가 공을 줍는 동안 홈 앞(3루 쪽)에 자리 잡고 송구를 기다리세요.',
+  },
   // ---------------- 1루수 ----------------
   {
     id: '1b-hold',

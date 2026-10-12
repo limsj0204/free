@@ -47,7 +47,33 @@ export function josa(word: string, withFinal: string, withoutFinal: string) {
   return word + (hasFinal ? withFinal : withoutFinal);
 }
 
+// 직선타: 잡는 순간 타자 아웃, 귀루하지 못한 주자를 베이스에서 잡는다
+function explainLiner(scn: ThrowScenario): string {
+  const out: string[] = [];
+  const { answers, ideal, immediate } = throwAnswers(scn);
+  out.push(
+    '땅에 닿기 전에 잡은 타구(직선타)는 잡는 순간 타자가 아웃이에요. 주자는 원래 베이스로 돌아가야(귀루) 하고, 돌아오기 전에 공이 그 베이스에 먼저 닿으면 베이스만 밟아도 주자가 아웃이에요.',
+  );
+  const e = ideal.events.find((x) => x.out);
+  if (e && ideal.choice !== 'hold') {
+    const who = `${NUM[e.base]} 주자`;
+    const how = scn.hitAndRun ? '히트 앤드 런으로 멀리 뛰어나가 있어서' : '리드했다가 타구에 한 발 나와 있어서';
+    const act = isCarry(scn, ideal.choice) ? `${josa(NUM[ideal.choice as BaseId], '을', '를')} 직접 밟으면` : `${josa(NUM[ideal.choice as BaseId], '으로', '로')} 던지면`;
+    out.push(`${josa(who, '이', '가')} ${how} 아직 못 돌아왔어요. ${act} 한 번에 아웃 ${1 + ideal.outsMade}개예요.`);
+    const others = answers.filter((c) => c !== ideal.choice);
+    if (others.length) out.push(`${others.map((c) => choiceLabel(scn, c)).join(', ')}도 똑같이 귀루 아웃을 잡을 수 있어서 좋은 판단이에요.`);
+    // 다른 주자는 이미 돌아와서 잡을 수 없다 (함께 인정한 곳의 주자는 빼고)
+    const catchable = new Set(immediate.filter((o) => o.outsMade > 0).flatMap((o) => o.events.filter((x) => x.out).map((x) => x.base)));
+    const back = planRunners(scn).filter((r) => r.kind === 'return' && !catchable.has(r.origin));
+    if (back.length) out.push(`${back.map((r) => `${NUM[r.origin]} 주자`).join('·')}는 베이스 가까이 있어서 던져도 늦어요.`);
+  }
+  const total = scn.situation.outs + 1 + ideal.outsMade;
+  if (total >= 3) out.push(`${scn.situation.outs === 0 ? '무사' : `${scn.situation.outs}사`}라 타자 아웃에 귀루 아웃까지 더하면 3아웃, 그대로 이닝이 끝나요.`);
+  return out.join(' ');
+}
+
 export function explainThrow(scn: ThrowScenario): string {
+  if (scn.batted.type === 'liner') return explainLiner(scn);
   const out: string[] = [];
   const runners = planRunners(scn).filter((r) => r.id !== 'batter');
   const bunt = scn.batted.type === 'bunt';
@@ -165,7 +191,7 @@ export function explainThrow(scn: ThrowScenario): string {
   }
   // 2아웃이면 어디서든 확실한 포스아웃 하나로 이닝이 끝난다 (위의 '2아웃이라 …' 문장에 이어서)
   if (twoOutAny?.length) {
-    out.push(`어디서 잡아도 결과가 같으니, 여유 있게 잡을 수 있는 ${twoOutAny.map((c) => choiceLabel(scn, c)).join(', ')}도 똑같이 좋은 판단이에요.`);
+    out.push(`${scn.situation.outs === 2 ? '어디서 잡아도 결과가 같으니' : '1사에 병살이면 이닝이 끝나서 어느 쪽으로 병살을 잡아도 결과가 같으니'}, 여유 있게 잡을 수 있는 ${twoOutAny.map((c) => choiceLabel(scn, c)).join(', ')}도 똑같이 좋은 판단이에요.`);
     for (const c of twoOutAny) mentioned.add(c);
   }
   // 점수 차이가 거의 없어서 같이 인정되는 선택지

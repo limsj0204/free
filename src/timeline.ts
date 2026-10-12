@@ -644,6 +644,65 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       break;
     }
 
+    case 'wildpitch': {
+      // 폭투: 공이 포수 뒤로 빠져 백스톱까지 굴러간다. 포수가 주우러 간 사이 3루 주자가 홈으로 뛰고,
+      // 홈을 비운 포수 대신 투수가 홈 커버를 들어가 포수 송구를 받아 태그한다.
+      tl.batter = 'take';
+      const bounce = P(0.7, 0.4, 0.05);
+      const wall = P(5, -13.2, 0.1);
+      tl.ball.push({ from: releasePoint(), to: bounce, t0: tRelease, t1: -0.05, arc: 0.1 });
+      tl.ball.push({ from: bounce, to: wall, t0: -0.05, t1: 1.2, arc: 0.4, bounces: 2 });
+      decide(0.1, 1.2);
+      const pick = wall.clone().add(P(-0.4, 1.0)).setY(0);
+      const catcherAt = 0.5 + fielders.C.distanceTo(pick) / RUN.fielderSpeed;
+      tl.fielders.C = { waypoints: [fielders.C.clone(), pick], startTime: 0.5, speed: RUN.fielderSpeed };
+      fielderMovesFrom(0.3);
+      const throwT0 = Math.max(catcherAt, 1.2) + 0.3;
+      const from = pick.clone().setY(1.4);
+      const plate = bagSpot('home').setY(1.0);
+      const flight = from.distanceTo(plate) / THROW.speed;
+      // 3루 주자는 공이 빠지는 걸 보고 홈으로, 다른 주자도 한 베이스씩 간다
+      const lead3 = BASES.third.clone().add(BASES.home.clone().sub(BASES.third).normalize().multiplyScalar(RUN.leadOff));
+      const r3Path: Path = { waypoints: [lead3, BASES.home.clone()], startTime: 0.5, speed: RUN.speed };
+      tl.runners.set('r3', r3Path);
+      if (scn.situation.runners.second) {
+        const lead2 = BASES.second.clone().add(BASES.third.clone().sub(BASES.second).normalize().multiplyScalar(RUN.leadOff));
+        tl.runners.set('r2', { waypoints: [lead2, BASES.third.clone()], startTime: 0.5, speed: RUN.speed });
+      }
+      if (scn.situation.runners.first) {
+        tl.runners.set('r1', { waypoints: [lead1(), BASES.second.clone()], startTime: 0.5, speed: RUN.speed });
+      }
+      const runArrive = pathEnd(r3Path);
+      // 포수는 투수가 홈에 들어오는 걸 보고 던진다. 태그할 시간이 남을 때 홈에 들어와 있으면 제때다
+      deadline = runArrive - THROW.tagTime - 0.1;
+      lastChance = deadline;
+      arrival = movePlayer();
+      if (!input) break;
+      late = !!opt?.takes && arrival > deadline;
+      const received = !!opt?.takes && !late;
+      if (received) {
+        const throwAt = Math.max(throwT0, arrival - flight);
+        const catchT = throwAt + flight;
+        const out = catchT + THROW.tagTime < runArrive;
+        const tagT = out ? Math.max(catchT + THROW.tagTime, runArrive - TAG_REACH / RUN.speed) : runArrive;
+        tl.ball.push({ from, to: plate, t0: throwAt, t1: catchT, arc: 0.6, thrower: 'C' });
+        // 포수가 공을 주웠을 때 홈에 거의 와 있었으면 제때, 포수가 기다렸다 던졌으면 늦은 커버
+        if (throwAt > throwT0 + 0.25) {
+          waited = throwAt - throwT0;
+          closeBy = runArrive - (catchT + THROW.tagTime);
+        }
+        if (out) r3Path.stopAt = tagT;
+        tl.calls.push({ t: tagT, pos: BASES.home, text: callText('tag', out), good: out });
+        tl.plays.push({ t: tagT, base: 'home', runner: 'r3', kind: 'tag', out, receiver: 'player' });
+        tl.end = tagT + 1.8;
+      } else {
+        // 홈에 아무도 없어서 포수가 던질 곳이 없다
+        tl.calls.push({ t: runArrive, pos: BASES.home, text: '득점', good: false });
+        tl.end = runArrive + 1.8;
+      }
+      break;
+    }
+
     case 'cover': {
       const c = scn.play!;
       const bunt = c.batted === 'bunt';
@@ -807,6 +866,10 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
           : relayResult === 'safe'
           ? `${base.label}는 맞아요. 다만 1루 송구가 늦어서 병살은 놓쳤어요. 받자마자 몸을 빼면서 1루로 던지세요.`
           : `${base.label}는 맞아요. 다만 받은 다음 1루로 이어 던져야 병살이에요.`;
+    } else if (waited !== undefined && base && scn.setup === 'wildpitch') {
+      grade = 'ok';
+      headline = '아웃은 잡았지만 커버가 늦었어요';
+      feedback = `${base.label}가 맞아요. 다만 늦게 들어가서 포수가 공을 주운 뒤 ${waited.toFixed(2)}초 기다렸다 던졌고, 주자보다 ${(closeBy ?? 0).toFixed(2)}초 먼저 아슬아슬하게 태그했어요. 공이 빠지는 걸 보자마자 홈으로 출발하세요.`;
     } else if (waited !== undefined && base) {
       grade = 'ok';
       headline = '아웃은 잡았지만 커버가 늦었어요';

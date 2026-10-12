@@ -400,13 +400,13 @@ export class UI {
     const outsLabel = sit.outs === 0 ? '무사' : `${sit.outs}아웃`;
     const bases = (['first', 'second', 'third'] as const).filter((b) => sit.runners[b]);
     const runnersLabel = bases.length === 3 ? '만루' : bases.length ? `주자 ${bases.map((b) => BASE_LABEL[b].replace('루', '')).join(', ')}루` : '주자 없음';
-    const noBall = scn.kind === 'choice' && (scn.setup === 'steal' || scn.setup === 'pickoff' || scn.setup === 'bunt');
+    const noBall = scn.kind === 'choice' && (scn.setup === 'steal' || scn.setup === 'pickoff' || scn.setup === 'bunt' || scn.setup === 'wildpitch');
     const eventSub =
       scn.kind === 'throw'
         ? '내가 잡는 공'
         : scn.setup === 'pickoff' || scn.setup === 'bunt'
           ? '투구 전 판단'
-          : scn.setup === 'steal'
+          : scn.setup === 'steal' || scn.setup === 'wildpitch'
             ? '투구와 동시에 판단'
             : '다른 수비수가 잡는 공';
     // 전체 랜덤일 때만 포지션이 매번 바뀌니 알려준다

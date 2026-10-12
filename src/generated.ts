@@ -19,6 +19,7 @@ import {
 // 최선은 판정 엔진이 계산하고, 해설은 explain.ts가 규칙으로 쓴다. 랜덤 연습에만 쓴다.
 // 투수·1루수·3루수에는 번트 상황도 따로 만든다 (buildBunts).
 // 2루수·유격수에는 다른 키스톤이 땅볼을 잡을 때 2루를 커버하는 상황도 만든다 (buildCovers).
+// 모든 포지션에 직선타를 잡고 귀루하지 못한 주자를 잡는 상황도 만든다 (buildLiners).
 
 interface Ball {
   key: string;
@@ -411,11 +412,66 @@ function buildCovers(): ChoiceScenario[] {
   return list;
 }
 
+// ---------- 직선타 ----------
+// 정면 직선타를 잡으면 타자는 아웃, 리드했던 주자는 귀루해야 한다. 돌아오기 전에 그 베이스로 던지면(밟으면) 아웃 2개.
+// 히트 앤드 런(투구와 함께 주자가 스타트)이면 주자가 멀리 나가 있어 더 쉽게 잡힌다. 귀루 아웃을 잡을 수 있는 상황만 남긴다.
+
+const LINERS: Record<PositionId, { name: string; catchPoint: THREE.Vector3; travelTime: number; selfBases?: BaseId[] }> = {
+  P: { name: '투수 정면 직선타', catchPoint: P(0.4, 17.2), travelTime: 0.3 },
+  '1B': { name: '1루수 정면 직선타', catchPoint: P(20.4, 21.2), travelTime: 0.38, selfBases: ['first'] },
+  '2B': { name: '2루수 정면 직선타', catchPoint: P(8.4, 33), travelTime: 0.45 },
+  SS: { name: '유격수 정면 직선타', catchPoint: P(-8.4, 33), travelTime: 0.45 },
+  '3B': { name: '3루수 정면 직선타', catchPoint: P(-20.2, 23.2), travelTime: 0.35, selfBases: ['third'] },
+};
+
+function buildLiners(): ThrowScenario[] {
+  const list: ThrowScenario[] = [];
+  for (const position of POSITIONS) {
+    const ball = LINERS[position];
+    for (const set of RUNNER_SETS) {
+      // 2아웃이면 잡는 순간 이닝이 끝나서 판단할 게 없다
+      for (let outs = 0; outs < 2; outs++) {
+        // 히트 앤드 런은 1루 주자가 있을 때(1루, 1·2루)만 건다
+        const hrOk = set.includes('first') && !set.includes('third');
+        for (const hitAndRun of hrOk ? [false, true] : [false]) {
+          const name = hitAndRun ? `${ball.name} (히트 앤드 런)` : ball.name;
+          const scn: ThrowScenario = {
+            id: `gen-${position}-liner-${set.map((b) => SHORT[b]).join('')}-${outs}${hitAndRun ? '-hr' : ''}`,
+            kind: 'throw',
+            generated: true,
+            title: `${outsText(outs)} ${runnersText(set)} / ${name}`,
+            event: name,
+            position,
+            situation: {
+              outs,
+              runners: { first: set.includes('first'), second: set.includes('second'), third: set.includes('third') },
+              batter: 'R',
+            },
+            brief: hitAndRun
+              ? '투구와 동시에 주자가 스타트하는 히트 앤드 런이에요. 강한 타구가 정면으로 날아와요.'
+              : '주자들은 리드를 하고 있어요. 강한 타구가 정면으로 날아와요.',
+            explanation: '',
+            fielders: fieldersFor(position, set, outs),
+            batted: { type: 'liner', catchPoint: ball.catchPoint, travelTime: ball.travelTime },
+            covers: coversFor(position),
+            selfBases: ball.selfBases,
+            hitAndRun,
+          };
+          if (!THROW_CHOICES.some((c) => evaluate(scn, c, 0).outsMade > 0)) continue;
+          scn.explanation = explainThrow(scn);
+          list.push(scn);
+        }
+      }
+    }
+  }
+  return list;
+}
+
 let cache: Scenario[] | null = null;
 
 // 처음 쓸 때 한 번만 만든다
 export function generatedScenarios(): Scenario[] {
-  cache ??= [...build(), ...buildBunts(), ...buildCovers()];
+  cache ??= [...build(), ...buildBunts(), ...buildCovers(), ...buildLiners()];
   return cache;
 }
 

@@ -72,7 +72,7 @@ export interface ChoiceOption {
 // 공이 나에게 오지 않을 때 어디로 움직일지 고르는 상황. 선택지별 결과가 정해져 있다.
 export interface ChoiceScenario extends ScenarioBase {
   kind: 'choice';
-  setup: 'steal' | 'gap' | 'cutoff' | 'pickoff' | 'bunt' | 'cover' | 'backup';
+  setup: 'steal' | 'gap' | 'cutoff' | 'pickoff' | 'bunt' | 'cover' | 'backup' | 'wildpitch';
   side?: 'left' | 'right'; // gap: 좌중간/우중간
   // cover: 다른 수비수가 공을 잡아 base로 던질 때 내가 그 베이스를 커버하는지
   play?: {
@@ -603,7 +603,7 @@ export interface ThrowAnswers {
 }
 
 // 아웃이 전부 포스아웃인 병살인지 (태그가 섞이면 주자를 직접 태그해야 해서 더 어렵다)
-const allForce = (o: Outcome) => o.events.filter((e) => e.out).every((e) => e.kind === 'force');
+const allForce = (o: Outcome) => o.events.filter((e) => e.out).every((e) => e.kind === 'force' || e.kind === 'return');
 
 // 직접 밟은 뒤 이어 던지는 곳별 결과와 그중 최선 (점수 차이가 거의 없으면 함께 인정)
 export function followAnswers(scn: ThrowScenario, choice: Choice): { best: Choice[]; options: Outcome[] } | undefined {
@@ -641,11 +641,13 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
       loadedHome = true;
     }
   }
-  // 2아웃: 어디서든 아웃 하나면 이닝이 끝나니, 여유 있게 포스로 잡는 곳은 모두 좋은 판단이다 (송구 거리 차이는 따지지 않는다)
+  // 최선이 이닝을 끝내면(2아웃의 아웃 하나, 1사의 병살·직선타 귀루 아웃 등), 여유 있게 포스(귀루)로 이닝을 끝내는 곳은 모두 좋은 판단이다
+  // (송구 거리 차이는 따지지 않는다)
+  const endsInning = (o: Outcome) => o.outsMade > 0 && scn.situation.outs + o.outsMade + (scn.batted.type === 'liner' ? 1 : 0) >= 3;
   let twoOutAny: Choice[] = [];
-  if (scn.situation.outs === 2 && ideal.outsMade > 0) {
+  if (endsInning(ideal)) {
     twoOutAny = immediate
-      .filter((o) => o.outsMade > 0 && allForce(o) && (playMargin(o) ?? -1) >= VALUE.closeMargin && !answers.includes(o.choice))
+      .filter((o) => endsInning(o) && allForce(o) && (playMargin(o) ?? -1) >= VALUE.closeMargin && !answers.includes(o.choice))
       .map((o) => o.choice);
     answers.push(...twoOutAny);
   }
