@@ -106,7 +106,8 @@ function variantsFor(set: Base3[]): Partial<Record<Base3, 'advance' | 'hold'>>[]
   }
   let out: Partial<Record<Base3, 'advance' | 'hold'>>[] = [{}];
   for (const b of free) out = out.flatMap((v) => [{ ...v, [b]: 'advance' as const }, { ...v, [b]: 'hold' as const }]);
-  return out;
+  // 앞 베이스 주자가 멈춰 있으면 뒤 주자도 그 베이스로 뛸 수 없다 (2·3루에서 2루 주자만 뛰는 경우는 없다)
+  return out.filter((v) => !(v.second === 'advance' && v.third === 'hold'));
 }
 
 function build(): ThrowScenario[] {
