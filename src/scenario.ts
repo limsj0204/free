@@ -598,6 +598,8 @@ export interface ThrowAnswers {
   loadedHome?: boolean;
   // 최선의 병살이 태그 플레이를 끼고 있어서, 둘 다 포스로 잡는 병살도 함께 인정했다면 그 선택
   forceDp?: Outcome;
+  // 2아웃이라 함께 인정한 확실한 포스아웃들
+  twoOutAny?: Choice[];
 }
 
 // 아웃이 전부 포스아웃인 병살인지 (태그가 섞이면 주자를 직접 태그해야 해서 더 어렵다)
@@ -639,6 +641,14 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
       loadedHome = true;
     }
   }
+  // 2아웃: 어디서든 아웃 하나면 이닝이 끝나니, 여유 있게 포스로 잡는 곳은 모두 좋은 판단이다 (송구 거리 차이는 따지지 않는다)
+  let twoOutAny: Choice[] = [];
+  if (scn.situation.outs === 2 && ideal.outsMade > 0) {
+    twoOutAny = immediate
+      .filter((o) => o.outsMade > 0 && allForce(o) && (playMargin(o) ?? -1) >= VALUE.closeMargin && !answers.includes(o.choice))
+      .map((o) => o.choice);
+    answers.push(...twoOutAny);
+  }
   // 최선의 병살에 태그가 섞여 있으면(예: 1루를 먼저 밟아 포스가 풀린 뒤 홈 태그), 둘 다 포스로 잡는 확실한 병살도 좋은 판단으로 인정한다
   let forceDp: Outcome | undefined;
   if (ideal.outsMade >= 2 && !allForce(ideal)) {
@@ -653,7 +663,7 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
     const f = followAnswers(scn, c);
     if (f) follows[c] = f;
   }
-  return { answers, ideal, immediate, close, follows, loadedHome, forceDp };
+  return { answers, ideal, immediate, close, follows, loadedHome, forceDp, twoOutAny };
 }
 
 // 판단이 늦었을 때(d초) 가장 나은 선택: 점수가 아니라 야구의 기본 요령으로 고른다.
