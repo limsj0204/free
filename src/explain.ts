@@ -130,10 +130,18 @@ export function explainThrow(scn: ThrowScenario): string {
     );
     mentioned.add(close.safe.choice);
   }
-  // 무사 만루: 홈으로 실점을 막는 것과 병살은 타구·주자 속도에 따라 최선이 갈린다
+  // 무사 만루·무사 1·3루: 홈으로 실점을 막는 것과 병살은 상황에 따라 최선이 갈린다
   const sit = scn.situation;
   let loadedNote = '';
-  if (sit.outs === 0 && sit.runners.first && sit.runners.second && sit.runners.third) {
+  if (sit.outs === 0 && sit.runners.first && sit.runners.third && !sit.runners.second) {
+    const home = immediate.find((o) => o.choice === 'home');
+    if (loadedHome && home) {
+      loadedNote =
+        `3루 주자를 홈에서 태그로 확실하게 잡을 수 있으니 홈 승부도 좋은 판단이에요(${home.resultState}). 병살 대형이면 보통 1점을 주고 병살을 잡지만, ` +
+        '1점이 중요한 접전이나 경기 후반이면 홈에서 실점을 막는 게 나아요. 점수 차와 이닝에 따라 최선이 달라져요.';
+      mentioned.add('home');
+    }
+  } else if (sit.outs === 0 && sit.runners.first && sit.runners.second && sit.runners.third) {
     const home = immediate.find((o) => o.choice === 'home');
     if (best.choice === 'home' && best.outsMade >= 2) {
       loadedNote =

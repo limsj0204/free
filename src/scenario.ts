@@ -623,13 +623,13 @@ export function throwAnswers(scn: ThrowScenario): ThrowAnswers {
       close = { lead: ideal, safe, margin };
     }
   }
-  // 무사 만루: 홈에서 3루 주자를 확실하게 잡을 수 있으면, 점수가 낮더라도 실점을 막는 좋은 판단으로 인정한다.
-  // (병살로 1점 주고 2아웃 vs 홈 아웃으로 실점 없이 1아웃 만루는 실제 기대 득점이 거의 같다. 1사면 병살이 이닝을 끝내니 해당 없음)
+  // 무사 만루, 무사 1·3루(3루 주자가 뛸 때): 홈에서 3루 주자를 확실하게 잡을 수 있으면, 점수가 낮더라도 실점을 막는 좋은 판단으로 인정한다.
+  // (병살로 1점 주고 2아웃 vs 홈 아웃으로 실점 없이 1아웃은 실제 기대 득점이 거의 같거나 홈이 조금 낫다. 1사면 병살이 이닝을 끝내니 해당 없음)
   let loadedHome = false;
   const s = scn.situation;
-  if (s.outs === 0 && s.runners.first && s.runners.second && s.runners.third && !answers.includes('home')) {
+  if (s.outs === 0 && s.runners.first && s.runners.third && ideal.runs > 0 && !answers.includes('home')) {
     const home = immediate.find((o) => o.choice === 'home');
-    if (home && home.events[0]?.out && (playMargin(home) ?? -1) >= VALUE.closeMargin) {
+    if (home && home.events[0]?.out && home.events[0].runner === 'r3' && (playMargin(home) ?? -1) >= VALUE.closeMargin) {
       answers.push('home');
       loadedHome = true;
     }
