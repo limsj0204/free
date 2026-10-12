@@ -8,13 +8,13 @@ import {
   getIncludeGenerated,
   getMode,
   getRecord,
-  getShowRunners,
+  getHideRunners,
   getSkipIntro,
   getSoundOn,
   getVolume,
   setHideBall,
   setIncludeGenerated,
-  setShowRunners,
+  setHideRunners,
   setSkipIntro,
   setSoundOn,
   setVolume,
@@ -306,9 +306,9 @@ export class UI {
                   <input type="checkbox" id="hide-ball" ${getHideBall() ? 'checked' : ''} />
                   <span>타구 숨기기 <small>어떤 타구가 날아올지 모르는 상태로 시작해요.</small></span>
                 </label>
-                <label class="gen-toggle" for="show-runners">
-                  <input type="checkbox" id="show-runners" ${getShowRunners() ? 'checked' : ''} />
-                  <span>주자 움직임 미리 알려주기 <small>안 밀리는 주자가 뛸지 멈출지 브리핑에서 알려줘요.</small></span>
+                <label class="gen-toggle" for="hide-runners">
+                  <input type="checkbox" id="hide-runners" ${getHideRunners() ? 'checked' : ''} />
+                  <span>주자 움직임 숨기기 <small>안 밀리는 주자가 뛸지 멈출지 공을 잡는 순간에 알아요.</small></span>
                 </label>
               </div>
             </div>
@@ -350,7 +350,7 @@ export class UI {
     );
     $<HTMLInputElement>('gen-toggle').addEventListener('change', (e) => setIncludeGenerated((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('hide-ball').addEventListener('change', (e) => setHideBall((e.target as HTMLInputElement).checked));
-    $<HTMLInputElement>('show-runners').addEventListener('change', (e) => setShowRunners((e.target as HTMLInputElement).checked));
+    $<HTMLInputElement>('hide-runners').addEventListener('change', (e) => setHideRunners((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('sound-on').addEventListener('change', (e) => {
       const on = (e.target as HTMLInputElement).checked;
       setSoundOn(on);
@@ -418,10 +418,10 @@ export class UI {
     ]
       .filter(Boolean)
       .join(' · ');
-    // 안 밀리는 주자의 움직임: 설정을 켜면 브리핑에서 미리 보여준다 (끄면 공을 잡는 순간 동료의 콜로만 안다)
+    // 안 밀리는 주자의 움직임: 브리핑에서 미리 보여준다 (숨기기를 켜면 공을 잡는 순간 동료의 콜로만 안다)
     const NUM: Record<BaseId, string> = { home: '홈', first: '1루', second: '2루', third: '3루' };
     const moves =
-      scn.kind === 'throw' && getShowRunners()
+      scn.kind === 'throw' && !getHideRunners()
         ? planRunners(scn).filter((r) => r.id !== 'batter' && (r.kind === 'advance' || r.kind === 'hold'))
         : [];
     const runnerBox = moves.length

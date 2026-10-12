@@ -17,7 +17,7 @@ interface Saved {
   soundOn?: boolean;
   volume?: number; // 0~1
   skipIntro?: boolean; // 시작 화면(소개) 건너뛰기
-  showRunners?: boolean; // 안 밀리는 주자가 뛸지 멈출지 브리핑에서 미리 알려주기
+  hideRunners?: boolean; // 안 밀리는 주자가 뛸지 멈출지 브리핑에서 숨기기 (공을 잡는 순간 콜로만 안다)
 }
 
 const KEY = 'infield-iq-progress-v1';
@@ -125,11 +125,11 @@ export function setSkipIntro(on: boolean) {
   persist();
 }
 
-export function getShowRunners(): boolean {
-  return saved.showRunners ?? false;
+export function getHideRunners(): boolean {
+  return saved.hideRunners ?? false;
 }
 
-export function setShowRunners(on: boolean) {
-  saved.showRunners = on;
+export function setHideRunners(on: boolean) {
+  saved.hideRunners = on;
   persist();
 }
