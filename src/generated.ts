@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { P, type BaseId } from './coords';
 import { explainThrow } from './explain';
+import { SCENARIOS } from './scenarios';
 import {
   FIELDER_NAME,
   POSITIONS,
@@ -469,9 +470,22 @@ function buildLiners(): ThrowScenario[] {
 
 let cache: Scenario[] | null = null;
 
+// 기본 상황과 같은 상황(같은 포지션·아웃·주자·타구·주자 행동)은 자동 생성에서 뺀다
+function signature(s: Scenario) {
+  const r = s.situation.runners;
+  const base = `${s.position}|${s.situation.outs}|${+r.first}${+r.second}${+r.third}`;
+  if (s.kind === 'choice') return `${base}|${s.setup}|${s.play?.fielder ?? ''}|${s.play ? `${s.play.catchPoint.x.toFixed(1)},${s.play.catchPoint.z.toFixed(1)}` : ''}`;
+  // 행동을 안 적은 주자는 기본값(2아웃이면 뛰고 아니면 멈춤)으로 본다
+  const acts = (['first', 'second', 'third'] as const).map((b) => (r[b] ? (s.runnerActs?.[b] ?? (s.situation.outs === 2 ? 'advance' : 'hold'))[0] : '-')).join('');
+  return `${base}|${s.batted.type}|${s.batted.catchPoint.x.toFixed(1)},${s.batted.catchPoint.z.toFixed(1)}|${s.hitAndRun ? 'hr' : ''}|${acts}`;
+}
+
 // 처음 쓸 때 한 번만 만든다
 export function generatedScenarios(): Scenario[] {
-  cache ??= [...build(), ...buildBunts(), ...buildCovers(), ...buildLiners()];
+  if (!cache) {
+    const base = new Set(SCENARIOS.map(signature));
+    cache = [...build(), ...buildBunts(), ...buildCovers(), ...buildLiners()].filter((s) => !base.has(signature(s)));
+  }
   return cache;
 }
 

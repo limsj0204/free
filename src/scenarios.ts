@@ -301,6 +301,22 @@ export const SCENARIOS: Scenario[] = [
       '공이 뒤로 빠지면 투수는 무조건 홈 커버예요. 주자가 여럿이어도 점수가 나는 홈이 가장 중요해요. ' +
       '2아웃이라 홈에서 3루 주자를 잡으면 그대로 이닝이 끝나요. 포수가 공을 줍는 동안 홈 앞(3루 쪽)에 자리 잡고 송구를 기다리세요.',
   },
+  {
+    id: 'p-liner',
+    kind: 'throw',
+    title: '무사 1루 / 투수 직선타',
+    event: '투수 정면 직선타 (히트 앤드 런)',
+    position: 'P',
+    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
+    brief: '투구와 동시에 1루 주자가 2루로 뛰었어요(히트 앤드 런). 공을 던진 직후, 투수 정면으로 강한 타구가 날아와요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'liner', catchPoint: P(0.4, 17.2), travelTime: 0.3 },
+    covers: { first: '1B', second: 'SS', third: '3B', home: 'C' },
+    hitAndRun: true,
+    explanation:
+      '땅에 닿기 전에 잡은 타구(직선타)는 잡는 순간 타자가 아웃이에요. 주자는 원래 베이스로 돌아가야(귀루) 하고, 돌아오기 전에 공이 그 베이스에 먼저 닿으면 주자도 아웃이에요. ' +
+      '히트 앤드 런으로 1루 주자가 2루 쪽으로 멀리 나가 있으니, 잡자마자 1루로 던지면 한 번에 아웃 2개예요. 공을 던진 직후라 몸이 기울어 있어도, 잡았으면 서두르지 말고 1루수에게 정확히 던지세요. 2루에는 돌아오는 주자가 없어서 던져도 소용없어요.',
+  },
   // ---------------- 1루수 ----------------
   {
     id: '1b-hold',
@@ -495,6 +511,54 @@ export const SCENARIOS: Scenario[] = [
       '2루로 던져도 아웃은 되지만, 멀리 던질수록 실책 위험이 커지고 2루로 뛰는 1루 주자가 송구 길목에 있어요.',
   },
 
+  {
+    id: '1b-step',
+    kind: 'throw',
+    title: '무사 1루 / 1루 베이스 근처 땅볼',
+    event: '1루 베이스 근처 땅볼',
+    position: '1B',
+    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
+    brief: '병살 대형이에요. 1루수는 베이스에서 떨어져 수비 위치에 있고, 투수가 1루 커버를 들어가요. 1루 베이스 근처로 땅볼이 와요.',
+    fielders: { ...DP, '1B': P(21, 25) },
+    batted: { type: 'grounder', catchPoint: P(19.8, 22), travelTime: 1.3 },
+    covers: { first: 'P', second: 'SS', third: '3B', home: 'C' },
+    selfBases: ['first'],
+    explanation:
+      '1루 주자는 밀려서 뛰니 2루는 베이스만 밟아도 아웃(포스아웃)이에요. 2루로 먼저 던지고 1루로 돌려받으면(투수 커버) 둘 다 포스아웃이라 가장 확실한 병살이에요(3-6-1). ' +
+      '1루를 먼저 밟아도 병살은 되지만, 타자가 아웃되는 순간 1루 주자의 포스가 풀려서 2루에서는 주자를 직접 태그해야 해요. 유격수가 그걸 모르고 베이스만 밟으면 세이프예요. 1루를 먼저 밟았다면 2루로 던지면서 "태그!"라고 알려 주세요.',
+  },
+  {
+    id: '1b-loaded',
+    kind: 'throw',
+    title: '무사 만루 / 1루 베이스 근처 땅볼',
+    event: '1루 베이스 근처 땅볼',
+    position: '1B',
+    situation: { outs: 0, runners: { first: true, second: true, third: true }, batter: 'R' },
+    brief: '무사 만루예요. 내야는 병살 대형이고, 1루수는 베이스에서 떨어져 있어요. 1루 베이스 근처로 땅볼이 와요.',
+    fielders: { ...DP, '1B': P(21, 25) },
+    batted: { type: 'grounder', catchPoint: P(19.8, 22), travelTime: 1.3 },
+    covers: { first: 'P', second: 'SS', third: '3B', home: 'C' },
+    selfBases: ['first'],
+    explanation:
+      '만루에서는 홈까지 모든 베이스가 포스예요. 홈으로 던지면 포수가 홈을 밟아 3루 주자를 잡고, 1루로 이어 던져 병살(3-2-3)까지 돼서 실점 없이 아웃 2개예요. ' +
+      '1루가 가깝다고 먼저 밟으면 다른 주자들의 포스가 모두 풀려요. 그러면 홈은 주자를 직접 태그해야 하는 어려운 플레이가 되고 실점 위험이 커져요. 만루에서는 "1루부터 밟지 말고 홈부터"를 기억하세요.',
+  },
+  {
+    id: '1b-advance',
+    kind: 'throw',
+    title: '무사 2루 / 1루수 땅볼',
+    event: '1루수 정면 땅볼',
+    position: '1B',
+    situation: { outs: 0, runners: { first: false, second: true, third: false }, batter: 'R' },
+    brief: '보통 수비 위치예요. 1루수 정면으로 땅볼이 오면 2루 주자는 3루로 뛰어요.',
+    batted: { type: 'grounder', catchPoint: P(20, 27), travelTime: 1.4 },
+    covers: { first: 'P', second: 'SS', third: '3B', home: 'C' },
+    selfBases: ['first'],
+    runnerActs: { second: 'advance' },
+    explanation:
+      '2루 주자는 뒤에 1루 주자가 없어서 밀려 뛰는 게 아니에요. 3루에서 잡으려면 베이스가 아니라 주자를 태그해야 하고, 1루수 자리에서 3루까지는 송구도 멀어요. ' +
+      '이럴 땐 확실한 1루 아웃을 챙기는 게 기본이에요. 1루 베이스가 가까우면 직접 밟는 게 가장 빨라요. 주자가 3루에 가더라도 아웃 하나를 확실히 늘리는 게 우선이에요.',
+  },
   // ---------------- 2루수 ----------------
   {
     id: '2b-dp',
@@ -734,6 +798,36 @@ export const SCENARIOS: Scenario[] = [
       '유격수 쪽 땅볼이면 2루수가 2루 커버를 들어가 병살의 중간 연결을 맡아요(6-4-3). 2루수 쪽 땅볼이면 반대로 유격수가 들어가요. ' +
       '2루수는 2루에서 받으면 몸이 1루 쪽을 향하고 있어서 바로 던지기 편하지만, 1루 주자가 슬라이딩해 들어오니 받자마자 베이스를 밟고 빠지면서 던지세요.',
   },
+  {
+    id: '2b-liner',
+    kind: 'throw',
+    title: '1사 1, 2루 / 2루수 직선타',
+    event: '정면 직선타 (히트 앤드 런)',
+    position: '2B',
+    situation: { outs: 1, runners: { first: true, second: true, third: false }, batter: 'R' },
+    brief: '투구와 동시에 1루 주자와 2루 주자가 스타트했어요(히트 앤드 런). 2루수 정면으로 강한 타구가 날아와요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'liner', catchPoint: P(8.4, 33), travelTime: 0.45 },
+    covers: { first: '1B', second: 'SS', third: '3B', home: 'C' },
+    hitAndRun: true,
+    explanation:
+      '직선타는 잡는 순간 타자가 아웃이에요. 히트 앤드 런이라 1루 주자와 2루 주자 모두 다음 베이스 쪽으로 멀리 나가 있어서, 원래 베이스로 돌아가기 전에 그 베이스로 던지면 귀루 아웃이에요. ' +
+      '1사라 아웃 하나만 더하면 이닝이 끝나요. 유격수가 들어오는 2루가 가깝지만 1루도 여유가 있어서, 둘 중 정확히 던질 수 있는 쪽이면 돼요.',
+  },
+  {
+    id: '2b-2out',
+    kind: 'throw',
+    title: '2사 1, 2루 / 2루수 땅볼',
+    event: '2루수 정면 땅볼',
+    position: '2B',
+    situation: { outs: 2, runners: { first: true, second: true, third: false }, batter: 'R' },
+    brief: '2사 1, 2루예요. 2아웃이라 공이 맞으면 주자들은 모두 뛰어요. 2루수 정면으로 땅볼이 와요.',
+    batted: { type: 'grounder', catchPoint: P(10, 33), travelTime: 1.45 },
+    covers: { first: '1B', second: 'SS', third: '3B', home: 'C' },
+    explanation:
+      '2아웃이면 아웃 하나로 이닝이 끝나요. 주자가 1, 2루라 1루·2루·3루가 모두 포스아웃이라, 여유 있게 잡을 수 있는 곳 어디로 던져도 좋은 판단이에요. ' +
+      '보통은 송구가 짧고 확실한 1루나, 유격수가 들어오는 2루로 토스하는 게 가장 안전해요. 3루도 아웃은 되지만 송구가 길어서 굳이 고를 이유는 없어요.',
+  },
   // ---------------- 유격수 ----------------
   {
     id: 'ss-dp',
@@ -930,6 +1024,52 @@ export const SCENARIOS: Scenario[] = [
       '2루를 거치는 병살도 가능하지만, 그러면 3루에 주자가 남아요.',
   },
 
+  {
+    id: 'ss-loaded',
+    kind: 'throw',
+    title: '무사 만루 / 유격수 땅볼',
+    event: '유격수 정면 땅볼',
+    position: 'SS',
+    situation: { outs: 0, runners: { first: true, second: true, third: true }, batter: 'R' },
+    brief: '무사 만루예요. 내야는 병살 대형이에요. 유격수 정면으로 땅볼이 와요.',
+    fielders: DP,
+    batted: { type: 'grounder', catchPoint: P(-8.5, 31.5), travelTime: 1.45 },
+    covers: { first: '1B', second: '2B', third: '3B', home: 'C' },
+    explanation:
+      '만루에서는 홈도 포스예요. 홈으로 던지면 포수가 홈을 밟아 3루 주자를 잡고 1루로 이어 던져 병살까지 노릴 수 있어서, 실점 없이 아웃 2개예요. ' +
+      '2루나 3루로 시작하는 병살도 아웃 2개지만 그 사이 3루 주자가 들어와 1점을 줘요. 무사라 실점을 막는 홈이 가장 좋아요. 다만 판단이 늦어 홈이 아슬아슬해지면, 2루(6-4-3)로 병살을 노리세요.',
+  },
+  {
+    id: 'ss-corners',
+    kind: 'throw',
+    title: '무사 1, 3루 / 유격수 땅볼',
+    event: '유격수 정면 땅볼',
+    position: 'SS',
+    situation: { outs: 0, runners: { first: true, second: false, third: true }, batter: 'R' },
+    brief: '무사 1, 3루예요. 병살 대형이고, 3루 주자는 공이 맞으면 홈으로 뛰어요. 유격수 정면으로 땅볼이 와요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'grounder', catchPoint: P(-8.5, 31.5), travelTime: 1.45 },
+    covers: { first: '1B', second: '2B', third: '3B', home: 'C' },
+    runnerActs: { third: 'advance' },
+    explanation:
+      '병살 대형의 기본은 1점을 주더라도 2루로 던져 병살(6-4-3)로 아웃 2개를 잡는 거예요. 무사에 아웃 2개를 잡으면 큰 위기를 넘겨요. ' +
+      '다만 3루 주자를 홈에서 확실하게 태그할 수 있으면 홈 승부도 좋은 판단이에요. 1점이 중요한 접전이나 경기 후반이면 홈, 아니면 병살이 보통이에요. 홈은 포스가 아니라서 포수가 주자를 직접 태그해야 해요.',
+  },
+  {
+    id: 'ss-runner2',
+    kind: 'throw',
+    title: '무사 2루 / 유격수 땅볼',
+    event: '유격수 정면 땅볼',
+    position: 'SS',
+    situation: { outs: 0, runners: { first: false, second: true, third: false }, batter: 'R' },
+    brief: '무사 2루예요. 유격수 쪽 땅볼인데 2루 주자가 3루로 뛰어요.',
+    batted: { type: 'grounder', catchPoint: P(-10, 32), travelTime: 1.4 },
+    covers: { first: '1B', second: '2B', third: '3B', home: 'C' },
+    runnerActs: { second: 'advance' },
+    explanation:
+      '유격수 쪽 땅볼은 2루 주자 앞으로 굴러가는 타구라 원래는 뛰면 안 되는 상황이에요. 그런데 주자가 3루로 뛰었다면, 바로 옆 3루로 던져 앞 주자를 잡을 기회예요. ' +
+      '3루는 포스가 아니라 3루수가 주자를 태그해야 하지만, 송구가 짧고 시간 여유가 커서 충분히 잡혀요. 앞 주자를 지우면 득점권 주자가 사라져서 1루 아웃보다 훨씬 이득이에요.',
+  },
   // ---------------- 3루수 ----------------
   {
     id: '3b-bunt-charge',
@@ -1069,6 +1209,56 @@ export const SCENARIOS: Scenario[] = [
     explanation:
       '느린 땅볼은 앞으로 뛰어나와 잡자마자 1루로 던져야 해요. 공이 느린 만큼 타자 주자는 이미 1루 가까이 와 있어서, 잠깐만 망설여도 세이프가 돼요. ' +
       '다른 베이스에는 주자가 없으니 고민할 것도 없이 1루예요. 이 상황은 판단보다 속도를 연습하는 상황이에요.',
+  },
+  {
+    id: '3b-liner',
+    kind: 'throw',
+    title: '무사 2, 3루 / 3루수 직선타',
+    event: '3루수 정면 직선타',
+    position: '3B',
+    situation: { outs: 0, runners: { first: false, second: true, third: true }, batter: 'R' },
+    brief: '무사 2, 3루예요. 주자들은 리드하고 있다가 타구를 보고 움직여요. 3루수 정면으로 강한 타구가 날아와요.',
+    batted: { type: 'liner', catchPoint: P(-20.2, 23.2), travelTime: 0.35 },
+    covers: { first: '1B', second: 'SS', home: 'C' },
+    selfBases: ['third'],
+    explanation:
+      '직선타는 잡는 순간 타자가 아웃이에요. 3루 주자는 리드했다가 타구에 한 발 나와 있어서, 원래 베이스로 돌아가기 전에 3루를 밟으면 귀루 아웃이에요. ' +
+      '3루가 바로 옆이니 던지지 말고 직접 밟는 게 가장 빨라요. 2루 주자는 2루 가까이 있어서 2루로 던져도 늦어요.',
+  },
+  {
+    id: '3b-step',
+    kind: 'throw',
+    title: '1사 1, 2루 / 3루 베이스 근처 땅볼',
+    event: '3루 베이스 근처 땅볼',
+    position: '3B',
+    situation: { outs: 1, runners: { first: true, second: true, third: false }, batter: 'R' },
+    brief: '1사 1, 2루예요. 병살 대형이고, 3루 베이스 근처로 땅볼이 와요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'grounder', catchPoint: P(-20, 22), travelTime: 1.2 },
+    covers: { first: '1B', second: '2B', home: 'C' },
+    selfBases: ['third'],
+    explanation:
+      '주자가 1, 2루라 2루와 3루가 모두 포스예요. 3루 베이스 근처에서 잡았다면 직접 3루를 밟아 2루 주자를 잡고, 2루나 1루로 이어 던지면 병살이에요. ' +
+      '3루를 밟아 2루 주자를 잡아도, 그 뒤의 1루 주자와 타자는 여전히 밀려서 뛰니까 2루와 1루는 계속 포스예요. 포스가 풀리는 건 아웃된 주자보다 앞에 있는 주자뿐이에요. ' +
+      '2루로 바로 던져 시작하는 병살(5-4-3)도 좋은 판단이에요. 1사라 병살이면 이닝이 끝나요.',
+  },
+  {
+    id: '3b-corners',
+    kind: 'throw',
+    title: '무사 1, 3루 / 3루수 땅볼',
+    event: '3루수 정면 땅볼',
+    position: '3B',
+    situation: { outs: 0, runners: { first: true, second: false, third: true }, batter: 'R' },
+    brief: '무사 1, 3루예요. 병살 대형이고, 3루 주자는 공이 맞으면 홈으로 뛰어요. 3루수 정면으로 땅볼이 와요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'grounder', catchPoint: P(-20, 25.5), travelTime: 1.25 },
+    covers: { first: '1B', second: '2B', home: 'C' },
+    selfBases: ['third'],
+    runnerActs: { third: 'advance' },
+    explanation:
+      '병살 대형의 기본은 2루로 던져 병살(5-4-3)로 아웃 2개를 잡는 거예요. 1점은 주지만 무사에 아웃 2개를 잡아요. ' +
+      '3루수는 홈과 가까워서 홈에서 3루 주자를 태그로 잡기도 쉬워요. 1점이 중요한 접전이나 경기 후반이면 홈 승부도 좋은 판단이에요. ' +
+      '3루 주자가 홈으로 뛰는 걸 보고 3루를 밟아도 소용없어요. 3루 주자는 밀려서 뛰는 게 아니라서 3루는 포스아웃이 안 돼요.',
   },
 ];
 

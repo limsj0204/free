@@ -1267,6 +1267,41 @@ button:focus-visible {
 }
 
 /* 세로 길이가 짧은 화면(가로로 든 휴대폰): 결정 패널을 작게, 아래로 */
+/* 낮은 화면(1280×720 등): 목록 화면을 스크롤 없이 담도록 조금씩 줄인다 */
+@media (min-width: 900px) and (max-height: 740px) {
+  .menu-card {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .menu-main .items {
+    gap: 4px;
+  }
+
+  .menu-main .item {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .modes button {
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+
+  .difficulties button {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  .menu-side h1 {
+    font-size: 24px;
+  }
+
+  .menu-side h2 {
+    margin-top: 8px;
+  }
+}
+
 @media (max-height: 500px) {
   .decision {
     bottom: 6px;
