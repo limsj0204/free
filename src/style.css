@@ -940,6 +940,57 @@ button:focus-visible {
   color: var(--muted);
 }
 
+/* 브리핑: 주자 움직임 (설정을 켰을 때) */
+.brief-runners {
+  grid-column: 1 / -1;
+}
+
+.runner-moves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.runner-move {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 15px;
+  border: 1px solid var(--line);
+}
+
+.runner-move b {
+  font-size: 17px;
+}
+
+.runner-move.go {
+  background: rgba(255, 120, 80, 0.16);
+  border-color: rgba(255, 120, 80, 0.55);
+}
+
+.runner-move.go b {
+  color: #ff9a76;
+}
+
+.runner-move.stay {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.runner-move.stay b {
+  color: var(--muted);
+}
+
+.setting-toggles {
+  display: flex;
+  flex-direction: column;
+}
+
+.setting-toggles .gen-toggle {
+  padding-bottom: 4px;
+}
+
 /* 공을 잡기 전에 미리 고른 선택 */
 .decision-buttons button.pending,
 .tag.pending {
@@ -1248,16 +1299,20 @@ button:focus-visible {
   margin-top: 0 !important;
 }
 
-.setting-row > .gen-toggle {
+.setting-row > .gen-toggle,
+.setting-row > .setting-toggles {
   flex: 1;
 }
 
 .sound-ctl {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
+}
+
+.channel-links {
+  align-items: center;
 }
 
 .sound-ctl input[type='range'] {

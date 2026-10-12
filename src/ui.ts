@@ -8,11 +8,13 @@ import {
   getIncludeGenerated,
   getMode,
   getRecord,
+  getShowRunners,
   getSkipIntro,
   getSoundOn,
   getVolume,
   setHideBall,
   setIncludeGenerated,
+  setShowRunners,
   setSkipIntro,
   setSoundOn,
   setVolume,
@@ -299,16 +301,15 @@ export class UI {
               ).join('')}
             </div>
             <div class="setting-row">
-              <label class="gen-toggle" for="hide-ball">
-                <input type="checkbox" id="hide-ball" ${getHideBall() ? 'checked' : ''} />
-                <span>타구 숨기기 <small>어떤 타구가 날아올지 모르는 상태로 시작해요.</small></span>
-              </label>
-              <div class="sound-ctl">
-                <label class="gen-toggle" for="sound-on">
-                  <input type="checkbox" id="sound-on" ${getSoundOn() ? 'checked' : ''} />
-                  <span>소리</span>
+              <div class="setting-toggles">
+                <label class="gen-toggle" for="hide-ball">
+                  <input type="checkbox" id="hide-ball" ${getHideBall() ? 'checked' : ''} />
+                  <span>타구 숨기기 <small>어떤 타구가 날아올지 모르는 상태로 시작해요.</small></span>
                 </label>
-                <input type="range" id="volume" min="0" max="1" step="0.05" value="${getVolume()}" aria-label="음량" ${getSoundOn() ? '' : 'disabled'} />
+                <label class="gen-toggle" for="show-runners">
+                  <input type="checkbox" id="show-runners" ${getShowRunners() ? 'checked' : ''} />
+                  <span>주자 움직임 미리 알려주기 <small>안 밀리는 주자가 뛸지 멈출지 브리핑에서 알려줘요.</small></span>
+                </label>
               </div>
             </div>
             <h2>조작법</h2>
@@ -329,6 +330,13 @@ export class UI {
             </div>
             <div class="channel-links">
               <button class="intro-link" id="intro-btn">ⓘ 소개</button>
+              <div class="sound-ctl">
+                <label class="gen-toggle" for="sound-on">
+                  <input type="checkbox" id="sound-on" ${getSoundOn() ? 'checked' : ''} />
+                  <span>소리</span>
+                </label>
+                <input type="range" id="volume" min="0" max="1" step="0.05" value="${getVolume()}" aria-label="음량" ${getSoundOn() ? '' : 'disabled'} />
+              </div>
             </div>
           </div>
         </div>
@@ -342,6 +350,7 @@ export class UI {
     );
     $<HTMLInputElement>('gen-toggle').addEventListener('change', (e) => setIncludeGenerated((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('hide-ball').addEventListener('change', (e) => setHideBall((e.target as HTMLInputElement).checked));
+    $<HTMLInputElement>('show-runners').addEventListener('change', (e) => setShowRunners((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('sound-on').addEventListener('change', (e) => {
       const on = (e.target as HTMLInputElement).checked;
       setSoundOn(on);
@@ -409,6 +418,25 @@ export class UI {
     ]
       .filter(Boolean)
       .join(' · ');
+    // 안 밀리는 주자의 움직임: 설정을 켜면 브리핑에서 미리 보여준다 (끄면 공을 잡는 순간 동료의 콜로만 안다)
+    const NUM: Record<BaseId, string> = { home: '홈', first: '1루', second: '2루', third: '3루' };
+    const moves =
+      scn.kind === 'throw' && getShowRunners()
+        ? planRunners(scn).filter((r) => r.id !== 'batter' && (r.kind === 'advance' || r.kind === 'hold'))
+        : [];
+    const runnerBox = moves.length
+      ? `<section class="brief-box brief-runners">
+          <div class="brief-label">주자 움직임 · 공이 맞으면</div>
+          <div class="runner-moves">${moves
+            .map((r) =>
+              r.kind === 'advance'
+                ? `<span class="runner-move go">${NUM[r.origin]} 주자 <b>${r.target === 'home' ? '홈으로' : `${NUM[r.target]}로`} 뛴다</b></span>`
+                : `<span class="runner-move stay">${NUM[r.origin]} 주자 <b>멈춤</b></span>`,
+            )
+            .join('')}</div>
+        </section>`
+      : '';
+    const briefText = moves.length ? scn.brief.replace(/ ?안 밀리는 주자가 뛸지 멈출지는[^.]*\. 공을 잡는 순간 동료의 콜을 확인하세요\./, '').trim() : scn.brief;
     this.briefing.innerHTML = `
       <div class="card">
         <div class="eyebrow">${eyebrow}</div>
@@ -432,8 +460,9 @@ export class UI {
             <b class="brief-main ${hidden ? 'hidden-ball' : ''}">${hidden ? '?' : scn.event}</b>
             <span class="brief-sub">${hidden ? '공이 맞는 순간 공개돼요' : eventSub} · ${sit.batter === 'R' ? '우타자' : '좌타자'}</span>
           </section>
+          ${runnerBox}
         </div>
-        ${hidden ? `<p>수비 위치: ${defenseLabel(scn)}</p>` : scn.brief ? `<p>${scn.brief}</p>` : ''}
+        ${hidden ? `<p>수비 위치: ${defenseLabel(scn)}</p>` : briefText ? `<p>${briefText}</p>` : ''}
         <p class="note">${
           action
             ? scn.kind === 'choice'
