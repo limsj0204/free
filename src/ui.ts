@@ -205,10 +205,6 @@ export class UI {
           <input type="checkbox" id="intro-skip" ${getSkipIntro() ? 'checked' : ''} />
           <span>다음부터 이 화면 건너뛰기</span>
         </label>
-        <div class="channel-links intro-channels">
-          <a class="channel soop" href="https://www.sooplive.com/station/yangdoki" target="_blank" rel="noopener noreferrer"><b>SOOP</b>양도끼 방송국</a>
-          <a class="channel youtube" href="https://www.youtube.com/@%EC%96%91%EB%8F%84%EB%81%BC" target="_blank" rel="noopener noreferrer"><b>YouTube</b>양도끼</a>
-        </div>
       </div>`;
     const close = () => {
       setSkipIntro($<HTMLInputElement>('intro-skip').checked);
@@ -333,8 +329,6 @@ export class UI {
             </div>
             <div class="channel-links">
               <button class="intro-link" id="intro-btn">ⓘ 소개</button>
-              <a class="channel soop" href="https://www.sooplive.com/station/yangdoki" target="_blank" rel="noopener noreferrer"><b>SOOP</b>양도끼 방송국</a>
-              <a class="channel youtube" href="https://www.youtube.com/@%EC%96%91%EB%8F%84%EB%81%BC" target="_blank" rel="noopener noreferrer"><b>YouTube</b>양도끼</a>
             </div>
           </div>
         </div>
