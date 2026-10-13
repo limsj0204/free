@@ -992,6 +992,10 @@ details.more h2:first-child {
   margin-top: 8px;
 }
 
+.result-card:not(.more-open) .more-side {
+  display: none;
+}
+
 .principles-link {
   margin-top: 10px;
   padding-left: 0;

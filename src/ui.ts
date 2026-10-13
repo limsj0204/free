@@ -751,12 +751,16 @@ export class UI {
   private openResult(main: string, side: string) {
     this.hideAll();
     this.hud.classList.remove('hidden');
-    this.result.innerHTML = `<div class="card result-card"><div class="result-grid">
+    this.result.innerHTML = `<div class="card result-card ${this.moreOpen ? 'more-open' : ''}"><div class="result-grid">
       <div class="result-main">${main}</div>
       <div class="result-side">${side}${this.resultActions()}</div>
     </div></div>`;
     this.bindResultActions();
-    document.getElementById('result-more')?.addEventListener('toggle', (e) => (this.moreOpen = (e.target as HTMLDetailsElement).open));
+    // '자세히 보기'를 펼치면 왼쪽 표와 함께 오른쪽 판단 기준도 보여준다
+    document.getElementById('result-more')?.addEventListener('toggle', (e) => {
+      this.moreOpen = (e.target as HTMLDetailsElement).open;
+      this.result.querySelector('.result-card')?.classList.toggle('more-open', this.moreOpen);
+    });
     const pl = document.getElementById('result-principles');
     pl?.addEventListener('click', () => this.showPrinciples(pl.dataset.pos as PositionId));
     this.result.classList.remove('hidden');
@@ -878,11 +882,11 @@ export class UI {
           ${timingRows}
         </table></div>
         <h2>내 판단 시간(${sec(o.decisionDelay)}) 그대로 다른 곳에 던졌다면</h2>
-        ${alts}
-        ${basis ? `<h2>판단 기준: 잡자마자 던졌다면</h2>${basis}` : ''}`)}`, `
+        ${alts}`)}`, `
       <h2>해설</h2>
       <p class="explain">${annotate(`${scn.batted.type === 'bunt' && !scn.generated ? `${BUNT_RULE} ` : ''}${scn.explanation}`)}</p>
       ${followBlock ? `<h2>${throwLabel(scn, followChoice!)} 다음 어디로? (밟자마자 던졌다면)</h2>${followBlock}` : ''}
+      ${basis ? `<div class="more-side"><h2>판단 기준: 잡자마자 던졌다면</h2>${basis}</div>` : ''}
       ${this.principlesLink(scn.position)}`);
   }
 
