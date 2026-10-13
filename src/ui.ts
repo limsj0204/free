@@ -420,7 +420,8 @@ export class UI {
             <div class="channel-links">
               <button class="intro-link" id="intro-btn">ⓘ 소개</button>
               <button class="intro-link basics-link" id="basics-btn">📘 기초 개념</button>
-              <button class="intro-link basics-link push" id="principles-btn">📌 ${FIELDER_NAME[this.tab]} 핵심 원칙</button>
+              <button class="intro-link basics-link" id="principles-btn">📌 ${FIELDER_NAME[this.tab]} 핵심 원칙</button>
+              <span class="update-note">틈날 때마다 업데이트하고 있어요.<br />조금씩 달라져도 놀라지 마세요.</span>
               <div class="sound-ctl">
                 <label class="gen-toggle" for="sound-on">
                   <input type="checkbox" id="sound-on" ${getSoundOn() ? 'checked' : ''} />
