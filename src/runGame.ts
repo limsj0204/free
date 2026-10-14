@@ -167,7 +167,8 @@ export class RunGame {
     this.canvas.addEventListener('touchmove', (e) => {
       const t = [...e.changedTouches].find((x) => x.identifier === touch?.id);
       if (!this.active || !touch || !t) return;
-      if (this.playing || this.phase === 'replay' || this.phase === 'result') look((t.clientX - touch.x) * TOUCH_LOOK, (t.clientY - touch.y) * TOUCH_LOOK);
+      // 휴대폰은 화면을 끄는 방향으로 시야가 따라온다 (지도처럼 끌기). 마우스와 반대 방향이다
+      if (this.playing || this.phase === 'replay' || this.phase === 'result') look(-(t.clientX - touch.x) * TOUCH_LOOK, -(t.clientY - touch.y) * TOUCH_LOOK);
       touch.x = t.clientX;
       touch.y = t.clientY;
       if (Math.hypot(t.clientX - touch.sx, t.clientY - touch.sy) > 10) touch.moved = true;
