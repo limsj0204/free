@@ -130,6 +130,12 @@ export function recordId(id: string) {
 }
 
 // 타구 숨기기 설정이 켜져 있으면 타격 전까지 타구를 가린다. 투구 전에 판단하는 상황은 원래 보이는 정보라 가리지 않는다.
+// 상황 종류: 송구 판단(어디로 던질까) / 위치 판단(어디로 갈까) / 태그·포스 판단(받으면 밟을까 태그할까)
+function kindLabel(scn: Scenario) {
+  if (scn.kind === 'throw') return '송구 판단';
+  return scn.setup === 'receive' ? '태그·포스 판단' : '위치 판단';
+}
+
 export function ballHidden(scn: Scenario) {
   if (!getHideBall()) return false;
   return !(scn.kind === 'choice' && (scn.setup === 'pickoff' || scn.setup === 'bunt'));
@@ -343,7 +349,7 @@ export class UI {
           </span>
           <span class="item-side">
             <span class="level lv${s.level ?? 2}">${['', '기초', '응용', '심화'][s.level ?? 2]}</span>
-            <span class="kind">${s.kind === 'throw' ? '송구 판단' : '위치 판단'}</span>
+            <span class="kind">${kindLabel(s)}</span>
             ${status}
           </span>
         </button>`;
@@ -510,7 +516,7 @@ export class UI {
       this.randomLabel,
       this.randomLabel === '전체 랜덤' ? `내 포지션: ${FIELDER_NAME[scn.position]}` : null,
       // 타구를 숨기면 공이 나에게 오는지도 알 수 없어야 한다
-      hidden ? '타구 숨김' : scn.kind === 'throw' ? '송구 판단' : '위치 판단',
+      hidden ? '타구 숨김' : kindLabel(scn),
     ]
       .filter(Boolean)
       .join(' · ');
