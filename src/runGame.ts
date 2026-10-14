@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { DIFFICULTIES, PITCH, type DifficultyId } from './config';
 import { BASES, P } from './coords';
 import { TEAM_DEFENSE, TEAM_OFFENSE, createMannequin, faceTowards, nameSprite, poseCrouch, poseIdle, poseRun, poseSlide, poseTag, poseThrow, type Mannequin } from './players';
-import { addResult, getIncludeGenerated, getRecord, getRunHideBall } from './progress';
+import { addResult, getRecord, getRunHideBall, getRunIncludeGenerated } from './progress';
 import { firstStep, nextStep, playResult, playTimeline, type Play } from './runPlay';
 import { RUN_KIND_LABEL, batterBoxOf, gradeStep, sampleThrowNoise, trackAt, type Key, type RunKind, type RunScenario, type RunTimeline, type Step } from './runner';
 import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
@@ -292,7 +292,7 @@ export class RunGame {
   // 목록에서 상황을 골랐을 때 (random이면 그 종류의 랜덤 연습, 'all'이면 전체 랜덤)
   open(id: string | null, random: RunKind | 'all' | null) {
     this.world.visible = true;
-    const pool = [...RUN_SCENARIOS, ...(getIncludeGenerated() ? generatedRunScenarios() : [])];
+    const pool = [...RUN_SCENARIOS, ...(getRunIncludeGenerated() ? generatedRunScenarios() : [])];
     this.randomPool = random ? pool.filter((s) => random === 'all' || s.kind === random) : null;
     this.randomLabel = random ? `${random === 'all' ? '전체' : RUN_KIND_LABEL[random]} 랜덤` : null;
     this.randomAll = random === 'all';

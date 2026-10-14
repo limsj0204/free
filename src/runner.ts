@@ -39,6 +39,7 @@ export interface RunScenario {
   brief: string;
   explanation?: string;
   generated?: boolean;
+  level?: 1 | 2 | 3; // 기본 상황의 난이도: 기초 / 응용 / 심화 (목록 순서와 배지)
 }
 
 export const OF_NAME: Record<OutfielderId, string> = { LF: '좌익수', CF: '중견수', RF: '우익수' };

@@ -2,6 +2,8 @@ import { BASE_LABEL, type BaseId } from './coords';
 import type { Play, PlayResult } from './runPlay';
 import { ME_NAME, RUN_KIND_LABEL, stateLabel, type RunScenario, type RunVerdict, type StepGrade } from './runner';
 import { explainRun } from './runExplain';
+import { annotateRun } from './runGlossary';
+import { showRunPrinciples } from './runMenu';
 import type { Grade } from './scenario';
 import type { UI } from './ui';
 
@@ -170,7 +172,8 @@ export function showRunResult(ui: UI, r: RunResultData) {
     </details>`,
     `
     <h2>해설</h2>
-    <p class="explain">${explainRun(scn)}</p>
+    <p class="explain">${annotateRun(explainRun(scn))}</p>
+    <button class="intro-link principles-link" id="result-principles">📌 ${RUN_KIND_LABEL[scn.kind]} 핵심 원칙 보기</button>
     <div class="more-side">
       <h2>기대 득점이란?</h2>
       <p class="note">아웃 카운트와 주자 상황에서 이닝이 끝날 때까지 평균 몇 점이 나는지예요 (MLB 평균). 선택마다 일어날 수 있는 결과를 확률로 따져서, 평균이 더 높은 쪽이 최선이에요.
@@ -179,6 +182,7 @@ export function showRunResult(ui: UI, r: RunResultData) {
     </div>`,
   );
   // '자세히 보기'를 펼치면 왼쪽 숫자와 함께 오른쪽 기대 득점 설명도 보여준다
+  document.getElementById('result-principles')!.addEventListener('click', () => showRunPrinciples(scn.kind));
   const card = document.querySelector('#result .result-card')!;
   card.classList.toggle('more-open', moreOpen);
   document.getElementById('result-more')!.addEventListener('toggle', (e) => {

@@ -15,6 +15,7 @@ interface Saved {
   hideBall?: boolean;
   runHideBall?: boolean; // 주루 판단 시뮬레이터의 타구 숨기기 (내야 수비와 따로)
   runSkipIntro?: boolean; // 주루 판단 시작 화면(소개) 건너뛰기
+  runIncludeGenerated?: boolean; // 주루 판단 랜덤 연습에 자동 생성 상황 섞기 (내야 수비와 따로, 기본은 끔)
   mode?: 'judge' | 'action';
   soundOn?: boolean;
   volume?: number; // 0~1
@@ -99,6 +100,15 @@ export function getRunSkipIntro(): boolean {
 
 export function setRunSkipIntro(on: boolean) {
   saved.runSkipIntro = on;
+  persist();
+}
+
+export function getRunIncludeGenerated(): boolean {
+  return saved.runIncludeGenerated ?? false;
+}
+
+export function setRunIncludeGenerated(on: boolean) {
+  saved.runIncludeGenerated = on;
   persist();
 }
 

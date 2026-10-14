@@ -236,7 +236,7 @@ const BASICS: RunScenario[] = [
     id: 'run-t3-0out',
     generated: false,
     explanation:
-      '바로 앞의 1아웃 상황과 같은 타구, 같은 중견수예요. 무사라면 판단이 달라져요. 잡혀도 1사 3루라 다음 타자의 땅볼이나 플라이로도 점수가 나요. ' +
+      '"1사 3루 / 중견수 플라이"와 같은 타구, 같은 중견수예요. 무사라면 판단이 달라져요. 잡혀도 1사 3루라 다음 타자의 땅볼이나 플라이로도 점수가 나요. ' +
       '홈에서 아웃되면 2사 주자 없음이 되니, 아슬아슬하면 3루에 머무는 게 나아요.',
   },
   {
@@ -292,7 +292,7 @@ const BASICS: RunScenario[] = [
     id: 'run-f2-gap1',
     generated: false,
     explanation:
-      '바로 앞과 같은 타구인데 1아웃이에요. 이번에도 하프웨이와 태그업 준비 둘 다 좋은 판단이지만, 이번엔 하프웨이가 조금 더 나아요. ' +
+      '"무사 2루 / 우중간 깊은 타구"와 같은 타구인데 1아웃이에요. 이번에도 하프웨이와 태그업 준비 둘 다 좋은 판단이지만, 이번엔 하프웨이가 조금 더 나아요. ' +
       '잡히면 2아웃이 돼서 태그업으로 3루에 가도 얻는 게 적어요(2사 3루와 2사 2루는 거의 같아요. 둘 다 안타가 나와야 점수가 나요). 그래서 떨어졌을 때 홈까지 들어오는 쪽에 무게를 둬요.',
   },
   {
@@ -322,9 +322,28 @@ const BASICS: RunScenario[] = [
     '수비가 홈으로 던져서 잡혀도 1사 1, 2루라 기회가 남아요. 남아 있다가 병살을 당하면 2사 3루가 되고 점수도 없어서, 그게 가장 손해예요.'),
 ];
 
-// 목록 순서: 종류별로, 그 안에서는 1루 → 2루 → 3루 → 타자 주자 순 (같은 주자끼리는 쓴 순서대로)
+// 기본 상황 난이도: 1 기초(먼저 익힐 기본 원칙) / 2 응용 / 3 심화(아웃 카운트에 따라 갈리는 판단)
+const LEVELS: Record<string, 1 | 2 | 3> = {
+  'run-r1-lf': 1, 'run-r1-cf': 1, 'run-b-gap': 1, 'run-b-lf': 1,
+  'run-r1-rc': 2, 'run-r2-lf': 2, 'run-r2-rf': 2, 'run-r2-2out': 2,
+  'run-r1-2out': 3,
+  'run-f1-half': 1, 'run-f2-2out': 1, 'run-t3-1out': 1, 'run-t3-short': 1,
+  'run-f1-bloop': 2, 'run-t2-rf': 2, 'run-f2-gap0': 2,
+  'run-t3-0out': 3, 'run-t2-1out': 3, 'run-f2-gap1': 3,
+  'run-g1-forced': 1, 'run-g12-forced': 1, 'run-g2-front': 1, 'run-g3-front': 1,
+  'run-g2-behind': 2, 'run-g13-dp': 2,
+};
+for (const s of BASICS) s.level = LEVELS[s.id] ?? 2;
+
+// 목록 순서: 종류별로 기초 → 응용 → 심화, 같은 난이도 안에서는 1루 → 2루 → 3루 → 타자 주자 순 (같은 주자끼리는 쓴 순서대로)
 const KIND_ORDER: RunScenario['kind'][] = ['extra', 'fly', 'ground'];
 const ME_ORDER: RunMe[] = ['r1', 'r2', 'r3', 'batter'];
 export const RUN_SCENARIOS: RunScenario[] = BASICS.map((s, i) => ({ s, i }))
-  .sort((a, b) => KIND_ORDER.indexOf(a.s.kind) - KIND_ORDER.indexOf(b.s.kind) || ME_ORDER.indexOf(a.s.me) - ME_ORDER.indexOf(b.s.me) || a.i - b.i)
+  .sort(
+    (a, b) =>
+      KIND_ORDER.indexOf(a.s.kind) - KIND_ORDER.indexOf(b.s.kind) ||
+      a.s.level! - b.s.level! ||
+      ME_ORDER.indexOf(a.s.me) - ME_ORDER.indexOf(b.s.me) ||
+      a.i - b.i,
+  )
   .map((x) => x.s);
