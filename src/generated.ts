@@ -9,7 +9,9 @@ import {
   THROW_CHOICES,
   coverResult,
   evaluate,
+  throwAnswers,
   type Base3,
+  type Choice,
   type ChoiceScenario,
   type FielderId,
   type PositionId,
@@ -505,6 +507,38 @@ function receiveExplain(base: 'second' | 'third', force: boolean, via: Throw['vi
   return `${runner} 뒤(1루)에 주자가 없어서, ${runner}는 밀려서 뛰는 게 아니라 스스로 ${bag}를 노린 거예요. 그래서 ${bag}에서는 베이스만 밟아서는 아웃이 안 되고 주자를 직접 태그해야 해요. 주자가 1, 2루였다면 밟기만 해도 아웃이에요.`;
 }
 
+// 공을 잡은 수비수의 송구가 그 상황의 최선이 아니었으면 한 줄 덧붙인다 (받는 쪽 연습을 위해 일부러 만든 상황임을 알려 준다)
+const BASE_KO: Record<BaseId, string> = { home: '홈', first: '1루', second: '2루', third: '3루' };
+function throwerNote(scn: ChoiceScenario): string {
+  const r = scn.receive!;
+  if (r.fielder === 'C' || !POSITIONS.includes(r.fielder as PositionId)) return '';
+  const pos = r.fielder as PositionId;
+  const ts: ThrowScenario = {
+    id: `${scn.id}-thrower`,
+    kind: 'throw',
+    title: '',
+    event: '',
+    position: pos,
+    situation: scn.situation,
+    brief: '',
+    explanation: '',
+    fielders: scn.fielders,
+    batted: { type: 'grounder', catchPoint: r.catchPoint, travelTime: r.travelTime },
+    covers: coversFor(pos),
+    selfBases: r.via === 'step1' ? ['first'] : undefined,
+    runnerActs: r.base === 'third' && !scn.situation.runners.first ? { second: 'advance' } : undefined,
+  };
+  const { answers, follows } = throwAnswers(ts);
+  const did: Choice = r.via === 'step1' ? 'first' : r.base;
+  const okFollow = r.via !== 'step1' || (follows.first?.best ?? []).includes(r.base);
+  if (answers.includes(did) && okFollow) return '';
+  const best = answers.filter((c) => c !== 'hold').map((c) => BASE_KO[c as BaseId]);
+  const fname = FIELDER_NAME[pos];
+  const what = r.via === 'step1' ? `1루를 먼저 밟고 ${BASE_KO[r.base]}로 던졌더라도` : `${BASE_KO[r.base]}로 던졌더라도`;
+  const last = best[best.length - 1] ?? '';
+  return ` 참고로 이 상황에서 ${fname}의 최선은 ${best.join(' 또는 ')}${last === '홈' ? '으로' : '로'} 던지는 거예요. 하지만 ${fname}가 ${what}, 받는 쪽은 그 공을 정확히 처리해야 해요.`;
+}
+
 function buildReceives(): ChoiceScenario[] {
   const list: ChoiceScenario[] = [];
   for (const g of RECEIVES) {
@@ -536,6 +570,7 @@ function buildReceives(): ChoiceScenario[] {
             options: receiveOptions(situation, g.base, force, !!th.via, spot),
             explanation: receiveExplain(g.base, force, th.via, set),
           };
+          scn.explanation += throwerNote(scn);
           // 맞는 선택으로 실제 아웃이 되는 상황만 남긴다
           const best = scn.options.findIndex((o) => o.grade === 'best');
           const tl = buildChoiceTimeline(scn, 0.5, { index: best, d: 0 });
