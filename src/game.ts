@@ -58,7 +58,7 @@ type Phase = 'menu' | 'briefing' | 'live' | 'decision' | 'play' | 'result' | 're
 
 const EYE_HEIGHT = 1.62;
 const PICK_ANGLE = 0.3; // 시선으로 고를 때 허용 각도 (rad)
-const TOUCH_LOOK = 2.7; // 휴대폰: 화면을 끄는 거리 대비 시점 회전 (마우스 감도의 배수)
+const TOUCH_LOOK = 2.7; // 휴대폰: 화면을 끄는 거리 대비 시점 회전 (마우스 감도의 배수). 화면을 잡아 끄는 느낌이라 마우스와 방향이 반대다
 const TAP_RADIUS = 70; // 휴대폰: 베이스를 이 거리(px) 안에서 누르면 그곳을 고른다
 const REPLAY_SPEED = 0.6;
 const FOLLOW_WINDOW = 1.5; // 직접 밟은 뒤 이어 던질 곳을 고르는 시간 (게임 시간)
@@ -273,7 +273,7 @@ export class Game {
       (e) => {
         const t = [...e.changedTouches].find((x) => x.identifier === touch?.id);
         if (!touch || !t) return;
-        if (this.playing || this.phase === 'replay' || this.phase === 'result') look((t.clientX - touch.x) * TOUCH_LOOK, (t.clientY - touch.y) * TOUCH_LOOK);
+        if (this.playing || this.phase === 'replay' || this.phase === 'result') look(-(t.clientX - touch.x) * TOUCH_LOOK, -(t.clientY - touch.y) * TOUCH_LOOK);
         touch.x = t.clientX;
         touch.y = t.clientY;
         if (Math.hypot(t.clientX - touch.sx, t.clientY - touch.sy) > 10) touch.moved = true;
