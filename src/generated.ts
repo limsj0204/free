@@ -485,12 +485,10 @@ const P_FRONT: Throw = { fielder: 'P', name: '투수 땅볼', catchPoint: P(0.3,
 const B3_FRONT: Throw = { fielder: '3B', name: '3루수 땅볼', catchPoint: P(-20, 25.5), travelTime: 1.25 };
 const B2_FRONT: Throw = { fielder: '2B', name: '2루수 땅볼', catchPoint: P(8.5, 31.5), travelTime: 1.45 };
 const B1_STEP: Throw = { fielder: '1B', name: '1루수 땅볼', catchPoint: P(19.8, 22), travelTime: 1.3, via: 'step1' };
-const P_FIRST: Throw = { fielder: 'P', name: '투수 땅볼', catchPoint: P(0.3, 16.3), travelTime: 0.6, via: 'throw1' };
 
 const RECEIVES: { position: '2B' | 'SS' | '3B'; base: 'second' | 'third'; throws: Throw[]; sets: Base3[][] }[] = [
   { position: '3B', base: 'third', throws: [SS_FRONT, P_FRONT], sets: [['second'], ['first', 'second'], ['first', 'second', 'third']] },
   { position: '2B', base: 'second', throws: [SS_FRONT, B3_FRONT], sets: [['first'], ['first', 'second']] },
-  { position: '2B', base: 'second', throws: [P_FIRST], sets: [['first'], ['first', 'third']] },
   { position: 'SS', base: 'second', throws: [B2_FRONT, P_FRONT], sets: [['first'], ['first', 'second']] },
   { position: 'SS', base: 'second', throws: [B1_STEP], sets: [['first'], ['first', 'second'], ['first', 'third']] },
 ];
