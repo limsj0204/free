@@ -13,6 +13,7 @@ interface Saved {
   difficulty?: DifficultyId;
   includeGenerated?: boolean;
   hideBall?: boolean;
+  runHideBall?: boolean; // 주루 판단 시뮬레이터의 타구 숨기기 (내야 수비와 따로)
   mode?: 'judge' | 'action';
   soundOn?: boolean;
   volume?: number; // 0~1
@@ -79,6 +80,15 @@ export function getHideBall(): boolean {
 
 export function setHideBall(on: boolean) {
   saved.hideBall = on;
+  persist();
+}
+
+export function getRunHideBall(): boolean {
+  return saved.runHideBall ?? false;
+}
+
+export function setRunHideBall(on: boolean) {
+  saved.runHideBall = on;
   persist();
 }
 

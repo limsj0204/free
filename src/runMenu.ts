@@ -1,5 +1,5 @@
 import { DIFFICULTIES, type DifficultyId } from './config';
-import { getIncludeGenerated, getRecord, getSoundOn, getVolume, setIncludeGenerated, setSoundOn, setVolume } from './progress';
+import { getIncludeGenerated, getRecord, getRunHideBall, getSoundOn, getVolume, setIncludeGenerated, setRunHideBall, setSoundOn, setVolume } from './progress';
 import { RUN_KIND_LABEL, type RunKind } from './runner';
 import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
 import type { Grade } from './scenario';
@@ -72,7 +72,11 @@ export class RunMenu {
               ).join('')}
             </div>
             <div class="setting-row">
-              <div class="sound-ctl inline">
+              <label class="gen-toggle" for="hide-ball">
+                <input type="checkbox" id="hide-ball" ${getRunHideBall() ? 'checked' : ''} />
+                <span>타구 숨기기 <small>브리핑에서 타구를 가리고, 공이 맞는 순간 공개해요</small></span>
+              </label>
+              <div class="sound-ctl">
                 <label class="gen-toggle" for="sound-on">
                   <input type="checkbox" id="sound-on" ${getSoundOn() ? 'checked' : ''} />
                   <span>소리</span>
@@ -128,6 +132,7 @@ export class RunMenu {
     );
     $('random-kind').addEventListener('click', () => this.onRandom(this.tab));
     $('random-all').addEventListener('click', () => this.onRandom('all'));
+    $<HTMLInputElement>('hide-ball').addEventListener('change', (e) => setRunHideBall((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('gen-toggle').addEventListener('change', (e) => setIncludeGenerated((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('sound-on').addEventListener('change', (e) => {
       const on = (e.target as HTMLInputElement).checked;

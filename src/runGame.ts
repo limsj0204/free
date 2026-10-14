@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { DIFFICULTIES, PITCH, type DifficultyId } from './config';
 import { BASES, P } from './coords';
 import { TEAM_DEFENSE, TEAM_OFFENSE, createMannequin, faceTowards, nameSprite, poseCrouch, poseIdle, poseRun, poseSlide, poseTag, poseThrow, type Mannequin } from './players';
-import { addResult, getIncludeGenerated, getRecord } from './progress';
+import { addResult, getIncludeGenerated, getRecord, getRunHideBall } from './progress';
 import { firstStep, nextStep, playResult, playTimeline, type Play } from './runPlay';
 import { RUN_KIND_LABEL, batterBoxOf, gradeStep, sampleThrowNoise, trackAt, type Key, type RunKind, type RunScenario, type RunTimeline, type Step } from './runner';
 import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
@@ -329,7 +329,7 @@ export class RunGame {
     this.camera.position.copy(trackAt(this.tl.me, this.t).pos).setY(EYE_HEIGHT);
     // 타자는 투수를, 주자는 타자를 보고 시작한다
     this.lookAtPoint(scn.me === 'batter' ? P(0, 18.44, 1.6) : P(0, 0, 1.0));
-    this.ui.setHudInfo(scn.event, scn.situation, this.pitchKmh);
+    this.ui.setHudInfo(getRunHideBall() ? '타구 대기' : scn.event, scn.situation, this.pitchKmh);
     this.update(0);
   }
 

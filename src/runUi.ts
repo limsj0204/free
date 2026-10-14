@@ -4,6 +4,7 @@ import { ME_NAME, RUN_KIND_LABEL, stateLabel, type RunScenario, type RunVerdict,
 import { explainRun } from './runExplain';
 import type { Grade } from './scenario';
 import type { UI } from './ui';
+import { getRunHideBall } from './progress';
 
 // 주루 판단의 브리핑과 결과 화면. 수비 화면과 같은 카드·표 스타일을 쓴다.
 
@@ -16,7 +17,11 @@ const KEY_HELP: Record<RunScenario['kind'], string> = {
   ground: '<kbd>A</kbd> 귀루, <kbd>D</kbd> 진루',
 };
 
+// 타구를 숨겼을 때 브리핑에 보여주는 조작 안내 (어떤 판단이 나올지 모르니 다 보여준다)
+const KEY_HELP_ALL = '<kbd>A</kbd> 뒤로(멈춤·베이스로·귀루), <kbd>S</kbd> 중간까지(하프웨이, 플라이일 때), <kbd>D</kbd> 앞으로(간다·스타트·진루)';
+
 export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null) {
+  const hidden = getRunHideBall();
   ui.hideAll();
   ui.setHelp('마우스: 고개 돌리기 · A: 뒤로(멈춤·베이스로) · S: 중간까지(하프웨이) · D: 앞으로(간다) · 클릭: 바라보는 곳 · Esc: 마우스 풀기');
   document.getElementById('hud')!.classList.remove('hidden');
@@ -27,7 +32,7 @@ export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null
   const el = $('briefing');
   el.innerHTML = `
     <div class="card">
-      <div class="eyebrow">${[eyebrow, RUN_KIND_LABEL[scn.kind]].filter(Boolean).join(' · ')}</div>
+      <div class="eyebrow">${[eyebrow, hidden ? '타구 숨김' : RUN_KIND_LABEL[scn.kind]].filter(Boolean).join(' · ')}</div>
       <div class="brief-grid">
         <section class="brief-box">
           <div class="brief-label">카운트 · 주자</div>
@@ -46,11 +51,11 @@ export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null
         <section class="brief-box">
           <div class="brief-label">나</div>
           <b class="brief-main">${ME_NAME[scn.me]}</b>
-          <span class="brief-sub">${scn.event}</span>
+          <span class="brief-sub">${hidden ? '타구는 공이 맞는 순간 공개돼요' : scn.event}</span>
         </section>
       </div>
-      <p>${scn.brief}</p>
-      <p class="note">타격 순간부터 선택지가 떠요. ${KEY_HELP[scn.kind]}. 미리 고르면 판단 순간 바로 실행되고, 안 고르면 판단 순간 화면이 느려져요.
+      <p>${hidden ? `${ME_NAME[scn.me]}예요. 공이 맞는 순간 타구를 보고 판단해요. 외야 안타면 한 베이스 더, 플라이면 베이스로·중간까지·스타트, 땅볼이면 진루·귀루예요.` : scn.brief}</p>
+      <p class="note">타격 순간부터 선택지가 떠요. ${hidden ? KEY_HELP_ALL : KEY_HELP[scn.kind]}. 미리 고르면 판단 순간 바로 실행되고, 안 고르면 판단 순간 화면이 느려져요.
         시점은 공을 따라가고, 마우스로 직접 돌리면 그때부터는 내가 보는 대로 둬요.</p>
       <div class="actions">
         <button class="secondary" id="brief-menu-btn">목록</button>
