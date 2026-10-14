@@ -234,7 +234,7 @@ function deepNote(scn: RunScenario, options: OptionValue[]) {
   const half = options.find((o) => o.id === 'half')!.ev;
   const tag = options.find((o) => o.id === 'tag')!.ev;
   const head = '깊은 플라이라 <b>하프웨이</b>와 <b>베이스로(태그업 준비)</b> 둘 다 좋은 판단이에요.';
-  if (Math.abs(half - tag) < RUNNER.closeTolerance) return `${head} 이 상황에선 기대 득점도 거의 같아요.`;
+  if (Math.abs(half - tag) < RUNNER.closeTolerance) return `${head} 이 상황에선 어느 쪽이든 거의 같아요.`;
   const o = scn.situation.outs;
   if (tag > half) {
     const why = scn.me === 'r2' && o === 0 ? ' 무사라 잡혀도 태그업으로 1사 3루를 만들면 땅볼이나 플라이로도 점수가 나요.' : '';

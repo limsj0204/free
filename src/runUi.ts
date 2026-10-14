@@ -102,11 +102,11 @@ function stepHead(g: StepGrade, multi: boolean) {
     <p class="note">${notes.join('<br/>')}</p>`;
 }
 
-// 선택지마다 결과와 기대 득점 (자세히 보기 안에 접어 둔다). 선택지 하나가 한 덩어리라 왼쪽·오른쪽 칸에 나눠 넣을 수 있다.
+// 선택지마다 결과와 점수 (자세히 보기 안에 접어 둔다). 선택지 하나가 한 덩어리라 왼쪽·오른쪽 칸에 나눠 넣을 수 있다.
 // 단계 제목은 첫 선택지에 붙이고, 나머지 선택지에는 오른쪽 칸 맨 위로 넘어갔을 때만 보이는 '(이어서)' 제목을 둔다
 function stepRows(g: StepGrade, multi: boolean) {
   const im = g.immediate;
-  const title = `${multi ? `${g.step.name} ` : ''}선택지별 기대 득점`;
+  const title = `${multi ? `${g.step.name} ` : ''}선택지별 결과`;
   return g.step.options
     .map((o, i) => {
       const v = im.options.find((x) => x.id === o.id)!;
@@ -122,7 +122,7 @@ function stepRows(g: StepGrade, multi: boolean) {
     .join('');
 }
 
-// 결과 화면의 자세한 숫자(타이밍 표, 선택지별 기대 득점)는 접어 둔다. 한 번 펼치면 다음 결과에서도 펼친 채로 보여준다
+// 결과 화면의 자세한 숫자(타이밍 표, 선택지별 결과)는 접어 둔다. 한 번 펼치면 다음 결과에서도 펼친 채로 보여준다
 let moreOpen = false;
 
 export function showRunResult(ui: UI, r: RunResultData) {
@@ -164,7 +164,7 @@ export function showRunResult(ui: UI, r: RunResultData) {
     </div>
     ${[...res.lines, ...luck].length ? `<p class="note">${[...res.lines, ...luck].join('<br/>')}</p>` : ''}
     ${r.grades.map((g) => stepHead(g, multi)).join('')}
-    <details class="more" id="result-more" ${moreOpen ? 'open' : ''}><summary>자세히 보기 (${timing ? '타이밍 비교 · ' : ''}선택지별 기대 득점)</summary>
+    <details class="more" id="result-more" ${moreOpen ? 'open' : ''}><summary>자세히 보기 (${timing ? '타이밍 비교 · ' : ''}선택지별 결과)</summary>
       <div id="more-left">
         ${timing || throwNote ? `<section class="more-block">${timing}${throwNote}</section>` : ''}
         ${r.grades.map((g) => stepRows(g, multi)).join('')}
@@ -175,13 +175,10 @@ export function showRunResult(ui: UI, r: RunResultData) {
     <p class="explain">${annotateRun(explainRun(scn))}</p>
     <button class="intro-link principles-link" id="result-principles">📌 ${RUN_KIND_LABEL[scn.kind]} 핵심 원칙 보기</button>
     <div class="more-side">
-      <h2>기대 득점이란?</h2>
-      <p class="note">아웃 카운트와 주자 상황에서 이닝이 끝날 때까지 평균 몇 점이 나는지예요 (MLB 평균). 선택마다 일어날 수 있는 결과를 확률로 따져서, 평균이 더 높은 쪽이 최선이에요.
-      그래서 같은 타구라도 아웃 카운트에 따라 판단이 달라져요.</p>
       <div id="more-right"></div>
     </div>`,
   );
-  // '자세히 보기'를 펼치면 왼쪽 숫자와 함께 오른쪽 기대 득점 설명도 보여준다
+  // '자세히 보기'를 펼치면 펼친 내용을 오른쪽 칸에도 나눠 보여준다
   document.getElementById('result-principles')!.addEventListener('click', () => showRunPrinciples(scn.kind));
   const card = document.querySelector('#result .result-card')!;
   card.classList.toggle('more-open', moreOpen);
@@ -193,7 +190,7 @@ export function showRunResult(ui: UI, r: RunResultData) {
   balanceMore();
 }
 
-// 펼친 내용(타이밍 표, 선택지별 기대 득점)을 앞에서부터 몇 개는 왼쪽, 나머지는 오른쪽에 둔다.
+// 펼친 내용(타이밍 표, 선택지별 결과)을 앞에서부터 몇 개는 왼쪽, 나머지는 오른쪽에 둔다.
 // 두 칸 중 긴 쪽이 가장 짧아지게 나눠서 스크롤이 덜 생기게 한다. 한 칸 화면(휴대폰)에서는 모두 왼쪽.
 function balanceMore() {
   const left = document.getElementById('more-left');

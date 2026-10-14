@@ -134,7 +134,7 @@ export class RunMenu {
         <ul class="intro-points">
           <li>주자가 되어 타구를 보고 <b>더 갈지, 멈출지, 베이스로 돌아갈지</b> 판단을 반복해서 연습해요.</li>
           <li>실제 VR 야구의 <b>주루 속도와 송구 속도</b>와는 다소 차이가 있을 수 있어요.</li>
-          <li>결과와 해설은 하나의 기준(기대 득점)이에요. 실제 경기에서는 <b>팀 약속과 상황</b>에 따라 달라질 수 있어요.</li>
+          <li>결과와 해설은 하나의 기준이에요. 실제 경기에서는 <b>팀 약속과 상황</b>에 따라 달라질 수 있어요.</li>
         </ul>
         <button class="primary intro-start" id="intro-start">시작하기 <kbd>Enter</kbd></button>
         <button class="secondary intro-basics" id="intro-basics">야구 규칙이 낯설다면: 기초 개념 먼저 보기</button>
@@ -202,7 +202,7 @@ export class RunMenu {
           <div class="menu-side">
             <div class="eyebrow">VR 야구 대비 · 주루</div>
             <h1>주루 판단 시뮬레이터</h1>
-            <p class="note">주자가 되어 1인칭으로 뛰면서 판단해요. 판정은 <b>기대 득점</b>(이닝이 끝날 때까지 평균 몇 점이 나는지)으로 해서, 같은 타구라도 아웃 카운트에 따라 답이 달라져요.</p>
+            <p class="note">주자가 되어 1인칭으로 뛰면서 판단해요. 같은 타구라도 <b>아웃 카운트</b>에 따라 답이 달라져요.</p>
             <h2>난이도 (판단 순간의 슬로모션)</h2>
             <div class="difficulties">
               ${DIFFICULTIES.map(
