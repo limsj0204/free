@@ -1298,3 +1298,24 @@ details.more h2:first-child {
 .result-card:not(.more-open) .more-side {
   display: none;
 }
+
+/* 주루 판단 결과: 오른쪽 칸으로 넘어간 선택지 목록의 '(이어서)' 제목 */
+.more-block h2.cont {
+  display: none;
+}
+
+#more-right > .more-block:first-child h2.cont {
+  display: block;
+}
+
+/* 주루 판단 결과: 선택지 평균 기대 득점은 이름 줄 오른쪽에 둬서 한 줄 아낀다 */
+.alt-avg {
+  float: right;
+  margin-left: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.alt-avg b {
+  color: var(--text);
+}

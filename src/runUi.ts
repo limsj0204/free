@@ -100,23 +100,24 @@ function stepHead(g: StepGrade, multi: boolean) {
     <p class="note">${notes.join('<br/>')}</p>`;
 }
 
-// 선택지마다 결과와 기대 득점 (자세히 보기 안에 접어 둔다)
+// 선택지마다 결과와 기대 득점 (자세히 보기 안에 접어 둔다). 선택지 하나가 한 덩어리라 왼쪽·오른쪽 칸에 나눠 넣을 수 있다.
+// 단계 제목은 첫 선택지에 붙이고, 나머지 선택지에는 오른쪽 칸 맨 위로 넘어갔을 때만 보이는 '(이어서)' 제목을 둔다
 function stepRows(g: StepGrade, multi: boolean) {
   const im = g.immediate;
-  const rows = g.step.options
-    .map((o) => {
+  const title = `${multi ? `${g.step.name} ` : ''}선택지별 기대 득점`;
+  return g.step.options
+    .map((o, i) => {
       const v = im.options.find((x) => x.id === o.id)!;
       const mine = o.id === g.choice && !g.timedOut;
       const badge = g.best.includes(o.id) ? `<span class="badge">${g.best.length > 1 ? '좋은 판단' : '최선'}</span>` : '';
       // 포스인데 귀루처럼 규칙상 답이 될 수 없는 선택은 평균 점수 대신 이유만 보여준다
-      const avg = v.invalid ? '' : `<br/>평균 <b>${v.ev.toFixed(2)}점</b>`;
-      return `<div class="alt col ${mine ? 'chosen' : ''}">
-        <span class="alt-name">${o.label}${mine ? ' (내 선택)' : ''}${badge}</span>
-        <span class="alt-res">${v.lines.join('<br/>')}${avg}</span>
-      </div>`;
+      const avg = v.invalid ? '' : `<span class="alt-avg">평균 <b>${v.ev.toFixed(2)}점</b></span>`;
+      return `<section class="more-block">${i === 0 ? `<h2>${title}</h2>` : `<h2 class="cont">${title} (이어서)</h2>`}<div class="alt col ${mine ? 'chosen' : ''}">
+        <span class="alt-name">${o.label}${mine ? ' (내 선택)' : ''}${badge}${avg}</span>
+        <span class="alt-res">${v.lines.join('<br/>')}</span>
+      </div></section>`;
     })
     .join('');
-  return `<h2>${multi ? `${g.step.name} ` : ''}선택지별 기대 득점</h2>${rows}`;
 }
 
 // 결과 화면의 자세한 숫자(타이밍 표, 선택지별 기대 득점)는 접어 둔다. 한 번 펼치면 다음 결과에서도 펼친 채로 보여준다
@@ -162,17 +163,19 @@ export function showRunResult(ui: UI, r: RunResultData) {
     ${[...res.lines, ...luck].length ? `<p class="note">${[...res.lines, ...luck].join('<br/>')}</p>` : ''}
     ${r.grades.map((g) => stepHead(g, multi)).join('')}
     <details class="more" id="result-more" ${moreOpen ? 'open' : ''}><summary>자세히 보기 (${timing ? '타이밍 비교 · ' : ''}선택지별 기대 득점)</summary>
-      ${timing}
-      ${throwNote}
-      ${r.grades.map((g) => stepRows(g, multi)).join('')}
+      <div id="more-left">
+        ${timing || throwNote ? `<section class="more-block">${timing}${throwNote}</section>` : ''}
+        ${r.grades.map((g) => stepRows(g, multi)).join('')}
+      </div>
     </details>`,
     `
     <h2>해설</h2>
     <p class="explain">${explainRun(scn)}</p>
     <div class="more-side">
       <h2>기대 득점이란?</h2>
-      <p class="explain">아웃 카운트와 주자 상황에서 이닝이 끝날 때까지 평균 몇 점이 나는지예요 (MLB 평균). 선택마다 일어날 수 있는 결과를 확률로 따져서, 평균이 더 높은 쪽이 최선이에요.
+      <p class="note">아웃 카운트와 주자 상황에서 이닝이 끝날 때까지 평균 몇 점이 나는지예요 (MLB 평균). 선택마다 일어날 수 있는 결과를 확률로 따져서, 평균이 더 높은 쪽이 최선이에요.
       그래서 같은 타구라도 아웃 카운트에 따라 판단이 달라져요.</p>
+      <div id="more-right"></div>
     </div>`,
   );
   // '자세히 보기'를 펼치면 왼쪽 숫자와 함께 오른쪽 기대 득점 설명도 보여준다
@@ -181,5 +184,44 @@ export function showRunResult(ui: UI, r: RunResultData) {
   document.getElementById('result-more')!.addEventListener('toggle', (e) => {
     moreOpen = (e.target as HTMLDetailsElement).open;
     card.classList.toggle('more-open', moreOpen);
+    balanceMore();
   });
+  balanceMore();
+}
+
+// 펼친 내용(타이밍 표, 선택지별 기대 득점)을 앞에서부터 몇 개는 왼쪽, 나머지는 오른쪽에 둔다.
+// 두 칸 중 긴 쪽이 가장 짧아지게 나눠서 스크롤이 덜 생기게 한다. 한 칸 화면(휴대폰)에서는 모두 왼쪽.
+function balanceMore() {
+  const left = document.getElementById('more-left');
+  const right = document.getElementById('more-right');
+  if (!left || !right) return;
+  const blocks = [...document.querySelectorAll<HTMLElement>('#result .more-block')];
+  const place = (k: number) => blocks.forEach((b, i) => (i < k ? left : right).appendChild(b));
+  place(blocks.length);
+  const main = document.querySelector<HTMLElement>('#result .result-main')!;
+  const side = document.querySelector<HTMLElement>('#result .result-side')!;
+  if (!moreOpen || side.offsetTop > main.offsetTop + 10) return;
+  let best = blocks.length;
+  let bestH = Infinity;
+  for (let k = blocks.length; k >= 0; k--) {
+    place(k);
+    const h = Math.max(contentHeight(main), contentHeight(side));
+    if (h < bestH - 1) {
+      best = k;
+      bestH = h;
+    }
+  }
+  place(best);
+}
+
+window.addEventListener('resize', () => balanceMore());
+
+// 칸 안의 내용 높이 (오른쪽 칸은 버튼을 아래로 밀어 두므로 늘어난 여백은 빼고 잰다)
+function contentHeight(col: HTMLElement) {
+  let h = 0;
+  for (const el of col.children) {
+    const cs = getComputedStyle(el);
+    h += (el as HTMLElement).offsetHeight + (el.classList.contains('actions') ? 0 : parseFloat(cs.marginTop) + parseFloat(cs.marginBottom));
+  }
+  return h;
 }
