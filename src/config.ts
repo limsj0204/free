@@ -91,7 +91,8 @@ export const RUNNER = {
   liner2Delay: 0.55, // 2루 주자: 라이너 안타는 잡히는지 보고 출발한다 (2아웃이면 바로)
   grounder2Delay: 0.35, // 2루 주자: 땅볼 안타는 내야를 빠져나가는지 보고 출발한다 (2아웃이면 바로)
   // 외야수가 공을 잡고 던지기까지 (앞으로 오면서 잡으면 빠르고, 뒤로 물러나거나 멈춰서 잡으면 느리다)
-  release: { charging: 0.8, standing: 1.0, back: 1.3 },
+  // infield: 내야수가 직선타·뜬공을 잡고 바로 베이스로 던질 때
+  release: { charging: 0.8, standing: 1.0, back: 1.3, infield: 0.5 },
   // 외야수 송구 속도 (포물선 때문에 실제 구속보다 느린 평균 속도). 모든 외야수가 같다.
   // WBD 영상: 우익선 구석 → 2루 약 61m를 2.7초 (약 22 m/s)
   throwSpeed: 23,
@@ -111,6 +112,14 @@ export const RUNNER = {
   // 땅볼: 타구 방향이 보이는 순간 진루 / 귀루를 고른다
   groundRead: 0.25,
   groundWindow: 0.9,
+  // 직선타: 타구가 낮고 빨라서 판단할 시간이 짧다
+  linerRead: 0.12,
+  linerWindow: 0.6,
+  // 폭투·패스트볼: 공이 포수 뒤로 빠지는 게 보이면 다음 베이스로 갈지 정한다
+  wildRead: 0.3,
+  wildWindow: 0.9,
+  catcherReact: 0.3, // 포수가 공이 빠진 걸 보고 쫓아가기 시작하기까지
+  catcherPickup: 0.4, // 공을 주워서 던지기까지
 };
 
 // 아웃 카운트·주자 상황별로 그 이닝 끝까지 평균 몇 점이 나는지 (기대 득점, MLB 2010~2015 평균).

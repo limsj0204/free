@@ -317,3 +317,8 @@
     margin-top: 8px;
   }
 }
+
+/* 탭 네 개 (한 베이스 더 / 플라이 / 땅볼 / 드문 상황) */
+.tabs.four {
+  grid-template-columns: repeat(4, 1fr);
+}

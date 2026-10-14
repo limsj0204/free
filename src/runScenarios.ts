@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { P } from './coords';
-import type { Situation } from './scenario';
-import type { OutfieldHit, OutfielderId, RunMe, RunScenario } from './runner';
+import type { FielderId, Situation } from './scenario';
+import { tabOf, type OutfieldHit, type OutfielderId, type RunMe, type RunScenario, type RunTab } from './runner';
 import { generatedGroundScenarios, groundBasic } from './runGround';
 
 // 주루 판단 상황. 기본 상황은 해설을 직접 쓰고, 생성 상황은 타구 × 아웃 카운트(땅볼은 타구 × 주자 × 아웃)를 조합한다. 외야수 어깨는 모두 같다.
@@ -321,6 +321,94 @@ const BASICS: RunScenario[] = [
     '수비가 홈으로 던져서 잡혀도 1사 1, 2루라 기회가 남아요. 남아 있다가 병살을 당하면 2사 3루가 되고 점수도 없어서, 그게 가장 손해예요.'),
 ];
 
+// ---------- 드문 상황: 직선타, 내야 뜬공, 폭투·패스트볼 ----------
+
+// 내야 직선타: 잡히면 내야수가 바로 베이스로 던진다. 빠지면 외야수(of)가 drop에서 줍는다.
+const infieldLiner = (by: FielderId, at: THREE.Vector3, T: number, catchProb: number, drop: { field: THREE.Vector3; t: number }): Hit => ({
+  type: 'liner',
+  field: at,
+  fieldT: T,
+  release: 'infield',
+  catchProb,
+  infielder: by,
+  drop,
+});
+// 내야 뜬공: 거의 다 잡힌다
+const infieldPop = (by: FielderId, at: THREE.Vector3, T: number): Hit => ({
+  type: 'fly',
+  field: at,
+  fieldT: T,
+  release: 'infield',
+  catchProb: 1,
+  infielder: by,
+  drop: { field: at, t: T + 0.8 },
+});
+
+const BASE_NAME: Record<RunMe, string> = { batter: '타자', r1: '1루', r2: '2루', r3: '3루' };
+
+function rareHit(id: string, me: RunMe, outs: number, name: string, of: OutfielderId, hit: Hit, level: 1 | 2 | 3, explanation: string): RunScenario {
+  const liner = hit.type === 'liner';
+  return {
+    id,
+    kind: 'fly',
+    rare: true,
+    title: titleOf(me, outs, name),
+    event: name,
+    me,
+    situation: situationOf(me, outs),
+    fielder: of,
+    hit,
+    brief: liner
+      ? `${BASE_NAME[me]} 주자예요. 내야로 낮고 빠른 직선타가 날아와요. 베이스로 돌아갈지, 그 자리에 멈출지, 스타트할지 정해요.`
+      : `${BASE_NAME[me]} 주자예요. 내야에 높이 뜬 공이에요. 베이스로 돌아갈지, 하프웨이로 나갈지, 스타트할지 정해요.`,
+    generated: false,
+    level,
+    explanation,
+  };
+}
+
+function rareWild(id: string, me: RunMe, outs: number, label: '폭투' | '패스트볼', where: string, spot: THREE.Vector3, t: number, level: 1 | 2 | 3, explanation: string): RunScenario {
+  return {
+    id,
+    kind: 'wild',
+    rare: true,
+    title: titleOf(me, outs, `${label} (${where})`),
+    event: label,
+    me,
+    situation: situationOf(me, outs),
+    wild: { label, spot, t },
+    brief: `${BASE_NAME[me]} 주자예요. 투구가 포수 뒤로 빠지면 다음 베이스로 갈지 정해요.`,
+    generated: false,
+    level,
+    explanation,
+  };
+}
+
+const RARE: RunScenario[] = [
+  rareHit('run-x-liner-2b', 'r1', 0, '2루수 직선타', 'RF', infieldLiner('2B', P(10, 34), 1.0, 0.7, { field: P(16, 56), t: 2.9 }), 1,
+    '직선타는 공이 뜨는 순간 <b>그 자리에 멈춰요</b>(프리즈). 잡히면 2루수가 바로 1루로 던져서, 뛰어나간 주자는 돌아오지 못하고 더블아웃이에요. ' +
+    '리드 자리에 멈춰 있으면 잡혀도 돌아올 수 있고, 빠지면 거기서 바로 2루로 가요. 베이스까지 돌아가 버리면 빠졌을 때 2루가 빠듯해요.'),
+  rareHit('run-x-liner-ss', 'r2', 1, '유격수 직선타', 'LF', infieldLiner('SS', P(-10, 33.5), 1.0, 0.7, { field: P(-15, 56), t: 2.9 }), 1,
+    '유격수 직선타는 2루 바로 옆에서 잡혀요. 뛰어나가 있으면 유격수가 2루를 밟거나 던져서 바로 더블아웃이에요. 그 자리에 멈추거나 베이스로 돌아가고, 빠지는 걸 보고 움직이세요.'),
+  rareHit('run-x-liner-p', 'r3', 0, '투수 직선타', 'CF', infieldLiner('P', P(0.5, 17), 0.55, 0.6, { field: P(0, 58), t: 2.6 }), 2,
+    '투수 쪽 직선타는 눈 깜짝할 새 지나가요. 3루 주자가 홈으로 스타트하면 투수가 잡는 순간 3루로 던져서 더블아웃이에요. 멈춰 있다가 빠지면 그때 홈으로 가도 충분해요.'),
+  rareHit('run-x-liner-2out', 'r1', 2, '3루수 직선타', 'LF', infieldLiner('3B', P(-20, 23), 0.75, 0.7, { field: P(-24, 52), t: 2.8 }), 1,
+    '2아웃이면 직선타라도 타격과 동시에 스타트예요. 잡히면 어차피 이닝이 끝나고, 빠지면 한 베이스를 더 갈 수 있어요.'),
+  rareHit('run-x-pop-ss', 'r1', 0, '유격수 뜬공', 'LF', infieldPop('SS', P(-8, 30), 3.6), 1,
+    '내야 뜬공은 거의 다 잡혀요. 하프웨이로 나가 있어도 유격수가 가까이서 잡아 바로 1루로 던지니 돌아오기 빠듯해요. 베이스에 붙어 있으세요.'),
+  rareHit('run-x-pop-3b', 'r2', 1, '3루수 뜬공', 'LF', infieldPop('3B', P(-18, 16), 3.4), 1,
+    '3루수 뜬공은 3루 바로 앞이라 태그업으로 3루를 노릴 수도 없어요. 2루에 붙어 있다가 다음 타자를 기다려요.'),
+  rareWild('run-x-wp-r1', 'r1', 0, '폭투', '백네트까지', P(-3, -14), 1.4, 1,
+    '공이 백네트까지 굴러가면 포수가 주워서 2루까지 던지는 데 한참 걸려요. 1루 주자는 바로 2루로 가요.'),
+  rareWild('run-x-pb-r2', 'r2', 1, '패스트볼', '1루 쪽 뒤로', P(8, -10), 1.2, 2,
+    '포수가 공을 쫓아 1루 쪽 뒤로 가면, 3루까지 던지는 송구는 몸을 돌려 길게 던져야 해요. 2루 주자는 3루로 가요.'),
+  rareWild('run-x-wp-short', 'r3', 0, '폭투', '바로 앞에 떨어짐', P(1.5, -3.5), 0.5, 2,
+    '포수 바로 앞에 떨어진 공은 금방 주워요. 투수가 홈 커버로 들어오면 홈에서 잡혀요. 3루 주자는 머무세요. 공이 멀리 빠졌을 때만 홈으로 가요.'),
+  rareWild('run-x-wp-r3', 'r3', 1, '폭투', '백네트까지', P(-6, -18), 1.8, 1,
+    '공이 백네트까지 멀리 빠지면 3루 주자는 홈으로 가요. 포수가 공을 줍고 홈 커버로 들어온 투수에게 던지기 전에 들어올 수 있어요.'),
+];
+
+
 // 기본 상황 난이도: 1 기초(먼저 익힐 기본 원칙) / 2 응용 / 3 심화(아웃 카운트에 따라 갈리는 판단)
 const LEVELS: Record<string, 1 | 2 | 3> = {
   'run-r1-lf': 1, 'run-r1-cf': 1, 'run-b-gap': 1, 'run-b-lf': 1,
@@ -335,12 +423,12 @@ const LEVELS: Record<string, 1 | 2 | 3> = {
 for (const s of BASICS) s.level = LEVELS[s.id] ?? 2;
 
 // 목록 순서: 종류별로 기초 → 응용 → 심화, 같은 난이도 안에서는 1루 → 2루 → 3루 → 타자 주자 순 (같은 주자끼리는 쓴 순서대로)
-const KIND_ORDER: RunScenario['kind'][] = ['extra', 'fly', 'ground'];
+const TAB_ORDER: RunTab[] = ['extra', 'fly', 'ground', 'rare'];
 const ME_ORDER: RunMe[] = ['r1', 'r2', 'r3', 'batter'];
-export const RUN_SCENARIOS: RunScenario[] = BASICS.map((s, i) => ({ s, i }))
+export const RUN_SCENARIOS: RunScenario[] = [...BASICS, ...RARE].map((s, i) => ({ s, i }))
   .sort(
     (a, b) =>
-      KIND_ORDER.indexOf(a.s.kind) - KIND_ORDER.indexOf(b.s.kind) ||
+      TAB_ORDER.indexOf(tabOf(a.s)) - TAB_ORDER.indexOf(tabOf(b.s)) ||
       a.s.level! - b.s.level! ||
       ME_ORDER.indexOf(a.s.me) - ME_ORDER.indexOf(b.s.me) ||
       a.i - b.i,

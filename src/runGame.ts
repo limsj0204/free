@@ -4,7 +4,7 @@ import { BASES, P } from './coords';
 import { TEAM_DEFENSE, TEAM_OFFENSE, createMannequin, faceTowards, nameSprite, poseCrouch, poseIdle, poseRun, poseSlide, poseTag, poseThrow, type Mannequin } from './players';
 import { addResult, getRecord, getRunHideBall, getRunIncludeGenerated } from './progress';
 import { firstStep, nextStep, playResult, playTimeline, type Play } from './runPlay';
-import { RUN_KIND_LABEL, batterBoxOf, gradeStep, sampleThrowNoise, trackAt, type Key, type RunKind, type RunScenario, type RunTimeline, type Step } from './runner';
+import { RUN_TAB_LABEL, batterBoxOf, tabOf, type RunTab, gradeStep, sampleThrowNoise, trackAt, type Key, type RunScenario, type RunTimeline, type Step } from './runner';
 import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
 import { showRunBriefing, showRunResult } from './runUi';
 import type { FielderId, Grade } from './scenario';
@@ -290,11 +290,11 @@ export class RunGame {
   // ---------- 흐름 ----------
 
   // 목록에서 상황을 골랐을 때 (random이면 그 종류의 랜덤 연습, 'all'이면 전체 랜덤)
-  open(id: string | null, random: RunKind | 'all' | null) {
+  open(id: string | null, random: RunTab | 'all' | null) {
     this.world.visible = true;
     const pool = [...RUN_SCENARIOS, ...(getRunIncludeGenerated() ? generatedRunScenarios() : [])];
-    this.randomPool = random ? pool.filter((s) => random === 'all' || s.kind === random) : null;
-    this.randomLabel = random ? `${random === 'all' ? '전체' : RUN_KIND_LABEL[random]} 랜덤` : null;
+    this.randomPool = random ? pool.filter((s) => random === 'all' || tabOf(s) === random) : null;
+    this.randomLabel = random ? `${random === 'all' ? '전체' : RUN_TAB_LABEL[random]} 랜덤` : null;
     this.randomAll = random === 'all';
     const scn = id ? RUN_SCENARIOS.find((s) => s.id === id)! : this.pickRandom();
     this.openBriefing(scn);
@@ -366,7 +366,7 @@ export class RunGame {
       return;
     }
     // 같은 탭(종류)의 다음 기본 상황
-    const list = RUN_SCENARIOS.filter((s) => s.kind === this.scn.kind);
+    const list = RUN_SCENARIOS.filter((s) => tabOf(s) === tabOf(this.scn));
     this.openBriefing(list[(list.indexOf(this.scn) + 1) % list.length]);
   }
 
@@ -615,7 +615,7 @@ export class RunGame {
     faceTowards(m, BASES.home.clone().add(P(0, 0.2)));
     poseIdle(m, true);
     this.bat.visible = !mine || this.overhead;
-    const swing = THREE.MathUtils.clamp((t + 0.15) / 0.25, 0, 1);
+    const swing = this.tl.noSwing ? 0 : THREE.MathUtils.clamp((t + 0.15) / 0.25, 0, 1);
     this.bat.rotation.set(-0.3, 0, 1.0 - swing * 2.6);
     m.body.rotation.y = -swing * 1.2;
   }
@@ -643,10 +643,10 @@ export class RunGame {
     if (!(this.playing || this.phase === 'replay') || b <= a) return;
     const crossed = (x: number) => a < x && x <= b;
     const ball = this.tl.ball;
-    if (crossed(0)) sfx.bat();
+    if (crossed(0) && !this.tl.noSwing) sfx.bat();
     // 타구를 수비가 잡는 순간 (뒤로 튀어 굴러가는 공은 잡은 게 아니다)
     const hit = ball[1];
-    if (hit && crossed(hit.t1) && !ball.some((s) => !s.thrower && s !== hit && Math.abs(s.t0 - hit.t1) < 0.01)) sfx.glove();
+    if (hit && !this.tl.noSwing && crossed(hit.t1) && !ball.some((s) => !s.thrower && s !== hit && Math.abs(s.t0 - hit.t1) < 0.01)) sfx.glove();
     for (const s of ball) {
       if (!s.thrower) continue;
       if (crossed(s.t0)) sfx.whoosh();

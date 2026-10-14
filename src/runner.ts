@@ -13,8 +13,14 @@ import { CONTACT_POINT, PRE_PITCH, grounderHops, releasePoint, type BallSeg, typ
 
 export type RunMe = 'batter' | 'r1' | 'r2' | 'r3';
 export type OutfielderId = 'LF' | 'CF' | 'RF';
-export type RunKind = 'extra' | 'fly' | 'ground';
-export const RUN_KIND_LABEL: Record<RunKind, string> = { extra: '한 베이스 더', fly: '플라이', ground: '땅볼' };
+export type RunKind = 'extra' | 'fly' | 'ground' | 'wild';
+export const RUN_KIND_LABEL: Record<RunKind, string> = { extra: '한 베이스 더', fly: '플라이', ground: '땅볼', wild: '폭투·패스트볼' };
+// 목록 탭: 자주 나오는 세 종류와, 드물게 나오고 판단이 비교적 쉬운 상황을 모은 '드문 상황'
+export type RunTab = 'extra' | 'fly' | 'ground' | 'rare';
+export const RUN_TAB_LABEL: Record<RunTab, string> = { extra: '한 베이스 더', fly: '플라이', ground: '땅볼', rare: '드문 상황' };
+export const tabOf = (s: RunScenario): RunTab => (s.rare ? 'rare' : (s.kind as RunTab));
+// 상황 종류 이름 (드문 상황의 플라이는 직선타·내야 뜬공으로 부른다)
+export const kindLabel = (s: RunScenario) => (s.kind === 'fly' && s.hit?.infielder ? (s.hit.type === 'liner' ? '직선타' : '내야 뜬공') : RUN_KIND_LABEL[s.kind]);
 
 export interface OutfieldHit {
   type: 'grounder' | 'liner' | 'fly';
@@ -23,6 +29,7 @@ export interface OutfieldHit {
   fieldT: number;
   release: keyof typeof RUNNER.release;
   catchProb?: number; // fly: 잡힐 확률
+  infielder?: FielderId; // 내야수가 잡는 타구 (직선타·내야 뜬공). 안 잡히면 외야(fielder)가 줍는다
   drop?: { field: THREE.Vector3; t: number }; // fly: 안 잡히면 외야수가 공을 줍는 곳과 시간
 }
 
@@ -39,7 +46,16 @@ export interface RunScenario {
   brief: string;
   explanation?: string;
   generated?: boolean;
+  rare?: boolean; // 드문 상황 탭에 모으는 상황 (직선타, 내야 뜬공, 폭투·패스트볼)
+  wild?: WildPitch; // wild: 공이 빠지는 곳
   level?: 1 | 2 | 3; // 기본 상황의 난이도: 기초 / 응용 / 심화 (목록 순서와 배지)
+}
+
+// 폭투·패스트볼: 포수 뒤로 빠진 공이 멈추는 곳과 시간 (투구가 홈에 온 순간이 0초)
+export interface WildPitch {
+  label: '폭투' | '패스트볼';
+  spot: THREE.Vector3;
+  t: number;
 }
 
 export const OF_NAME: Record<OutfielderId, string> = { LF: '좌익수', CF: '중견수', RF: '우익수' };
@@ -157,7 +173,7 @@ export interface StepValue {
 }
 
 export interface Step {
-  key: 'extra' | 'read' | 'tagup' | 'ground';
+  key: 'extra' | 'read' | 'tagup' | 'ground' | 'wild';
   name: string; // 결과 화면의 단계 이름
   prompt: string; // 결정 패널 제목
   urgent: string; // 판단 순간(슬로모션) 제목
@@ -287,6 +303,7 @@ export interface RunTimeline {
   plays: RunPlay[];
   slides: { runner: 'me' | number; base: BaseId; t: number }[];
   end: number;
+  noSwing?: boolean; // 타자가 치지 않는 플레이 (폭투·패스트볼)
 }
 
 export function pitchTimes(pitchFlight: number) {

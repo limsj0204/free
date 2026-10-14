@@ -2,6 +2,7 @@ import { extraResult, extraStep, extraTimeline } from './runExtra';
 import { flyResult, flyTimeline, needsTagup, readStep, tagupStep, type ReadChoice } from './runFly';
 import { groundResult, groundStep, groundTimeline } from './runGround';
 import type { BaseState, RunScenario, RunTimeline, Step } from './runner';
+import { wildResult, wildStep, wildTimeline } from './runWild';
 
 // 한 번의 주루 플레이: 단계별 판단을 모으고, 지금까지의 판단으로 타임라인과 결과를 만든다.
 
@@ -22,7 +23,7 @@ export interface Play {
 }
 
 export function firstStep(scn: RunScenario): Step {
-  return scn.kind === 'extra' ? extraStep(scn) : scn.kind === 'fly' ? readStep(scn) : groundStep(scn);
+  return scn.kind === 'extra' ? extraStep(scn) : scn.kind === 'fly' ? readStep(scn) : scn.kind === 'wild' ? wildStep(scn) : groundStep(scn);
 }
 
 // 다음 판단 (없으면 null). 플라이에서 베이스를 밟고 있다가 공이 잡히면 태그업 판단이 이어진다.
@@ -37,6 +38,7 @@ export function playTimeline(play: Play): RunTimeline {
   const c = (i: number) => (decided[i] ? { id: decided[i].id, td: decided[i].td } : null);
   if (scn.kind === 'extra') return extraTimeline(scn, pitchFlight, c(0), noise);
   if (scn.kind === 'fly') return flyTimeline(scn, pitchFlight, c(0), play.caught, c(1), noise);
+  if (scn.kind === 'wild') return wildTimeline(scn, pitchFlight, c(0), noise);
   return groundTimeline(scn, pitchFlight, c(0));
 }
 
@@ -66,6 +68,10 @@ export function playResult(play: Play): PlayResult {
   if (scn.kind === 'fly') {
     const r = flyResult(scn, first, play.caught, decided[1] ? { id: decided[1].id, td: decided[1].td } : null, noise);
     return { state: r.state, headline: r.headline, lines: r.lines, timing: r.timing };
+  }
+  if (scn.kind === 'wild') {
+    const r = wildResult(scn, first, noise);
+    return { state: r.state, headline: r.headline, lines: [], timing: r.timing };
   }
   const r = groundResult(scn, first);
   return { state: r.state, headline: r.headline, lines: r.lines };

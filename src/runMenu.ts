@@ -15,20 +15,21 @@ import {
 import { RUN_BASIC_CARDS } from './runBasics';
 import { annotateRun } from './runGlossary';
 import { RUN_PRINCIPLES } from './runPrinciples';
-import { RUN_KIND_LABEL, type RunKind } from './runner';
+import { RUN_TAB_LABEL, tabOf, type RunTab } from './runner';
 import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
 import type { Grade } from './scenario';
 import { sfx } from './sound';
 
 // 주루 판단 시뮬레이터의 첫 화면(상황 목록)과 시작 화면(소개). 내야 수비 목록과 같은 모양: 왼쪽에 설정·조작법, 오른쪽에 종류별 탭.
 
-const KINDS: RunKind[] = ['extra', 'fly', 'ground'];
+const TABS: RunTab[] = ['extra', 'fly', 'ground', 'rare'];
 const GRADE_SHORT: Record<Grade, string> = { best: '최선', ok: '아쉬움', bad: '오답' };
 
-const KIND_DESC: Record<RunKind, string> = {
+const TAB_DESC: Record<RunTab, string> = {
   extra: '외야 안타 때 한 베이스 더 갈지 정해요.',
   fly: '공이 뜨는 순간 스타트·하프웨이·태그업 준비 중에 고르고, 잡히면 태그업할지 정해요.',
   ground: '땅볼에 진루할지 귀루할지 정해요. 포스(의무 진루)인지 먼저 생각하세요.',
+  rare: '직선타, 내야 뜬공, 폭투·패스트볼처럼 드물게 나오고 판단은 비교적 쉬운 상황이에요.',
 };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -88,12 +89,12 @@ export function showRunBasics(index = 0) {
 }
 
 // 종류별 핵심 원칙 (기초 개념 카드와 같은 창을 쓴다)
-export function showRunPrinciples(kind: RunKind) {
+export function showRunPrinciples(kind: RunTab) {
   const el = $('basics');
   el.innerHTML = `
     <div class="card basics-card">
       <div class="eyebrow">핵심 원칙</div>
-      <h1>${RUN_KIND_LABEL[kind]}: 기억할 것</h1>
+      <h1>${RUN_TAB_LABEL[kind]}: 기억할 것</h1>
       <ul class="principles">${RUN_PRINCIPLES[kind].map((p) => `<li>${annotateRun(p)}</li>`).join('')}</ul>
       <p class="principles-note">팀 약속에 따라 다를 수 있어요. 기본 상황을 풀면서 왜 그런지 해설로 확인해 보세요.</p>
       <div class="actions"><button class="primary" id="principles-close">닫기</button></div>
@@ -118,9 +119,9 @@ export function showRunPrinciples(kind: RunKind) {
 
 export class RunMenu {
   onPick: (id: string) => void = () => {};
-  onRandom: (scope: RunKind | 'all') => void = () => {};
+  onRandom: (scope: RunTab | 'all') => void = () => {};
   onDifficulty: (d: DifficultyId) => void = () => {};
-  private tab: RunKind = 'extra';
+  private tab: RunTab = 'extra';
   private el = $('menu');
   private intro = $('intro');
 
@@ -164,7 +165,7 @@ export class RunMenu {
     this.intro.classList.remove('hidden');
   }
 
-  show(difficulty: DifficultyId, tab?: RunKind) {
+  show(difficulty: DifficultyId, tab?: RunTab) {
     if (tab) this.tab = tab;
     this.render(difficulty);
     this.el.classList.remove('hidden');
@@ -176,12 +177,12 @@ export class RunMenu {
 
   private render(difficulty: DifficultyId) {
     const done = (id: string) => getRecord(id)?.best === 'best';
-    const tabs = KINDS.map((k) => {
-      const list = RUN_SCENARIOS.filter((s) => s.kind === k);
+    const tabs = TABS.map((k) => {
+      const list = RUN_SCENARIOS.filter((s) => tabOf(s) === k);
       return `<button class="tab ${k === this.tab ? 'selected' : ''}" data-tab="${k}" id="tab-${k}">
-        <b>${RUN_KIND_LABEL[k]}</b><span>${list.filter((s) => done(s.id)).length}/${list.length}</span></button>`;
+        <b>${RUN_TAB_LABEL[k]}</b><span>${list.filter((s) => done(s.id)).length}/${list.length}</span></button>`;
     }).join('');
-    const items = RUN_SCENARIOS.filter((s) => s.kind === this.tab)
+    const items = RUN_SCENARIOS.filter((s) => tabOf(s) === this.tab)
       .map((s) => {
         const rec = getRecord(s.id);
         const status = rec ? `<span class="status ${rec.best}">${GRADE_SHORT[rec.best]}</span>` : '<span class="status none">도전 전</span>';
@@ -192,9 +193,9 @@ export class RunMenu {
       })
       .join('');
     const gen = generatedRunScenarios();
-    const genCount = gen.filter((s) => s.kind === this.tab).length;
-    const basicCount = RUN_SCENARIOS.filter((s) => s.kind === this.tab).length;
-    const name = RUN_KIND_LABEL[this.tab];
+    const genCount = gen.filter((s) => tabOf(s) === this.tab).length;
+    const basicCount = RUN_SCENARIOS.filter((s) => tabOf(s) === this.tab).length;
+    const name = RUN_TAB_LABEL[this.tab];
 
     this.el.innerHTML = `
       <div class="card menu-card">
@@ -227,18 +228,23 @@ export class RunMenu {
             <p class="controls-note">선택지는 타격 순간부터 떠 있어서 미리 고를 수 있어요. 결과(세이프·아웃, 잡힘·떨어짐)에는 운이 섞이고, 판정은 판단 자체로 해요.</p>
           </div>
           <div class="menu-main">
-            <div class="tabs three" role="tablist">${tabs}</div>
+            <div class="tabs four" role="tablist">${tabs}</div>
             <div class="items">
-              <p class="random-desc">${KIND_DESC[this.tab]}</p>
+              <p class="random-desc">${TAB_DESC[this.tab]}</p>
               ${items}
               <div class="random-row">
                 <button class="primary" id="random-kind">${name} 랜덤 연습</button>
                 <button class="secondary" id="random-all">전체 랜덤</button>
               </div>
-              <label class="gen-toggle" for="gen-toggle">
+              ${
+                // 드문 상황은 자동 생성이 없다
+                genCount
+                  ? `<label class="gen-toggle" for="gen-toggle">
                 <input type="checkbox" id="gen-toggle" ${getRunIncludeGenerated() ? 'checked' : ''} />
                 <span>자동 생성 상황도 섞기 <small>(기본 ${basicCount}개 + 자동 생성 ${genCount}개 · 기본 상황을 다 해봤다면 켜 보세요)</small></span>
-              </label>
+              </label>`
+                  : ''
+              }
             </div>
             <div class="channel-links">
               <button class="intro-link" id="intro-btn">ⓘ 소개</button>
@@ -259,7 +265,7 @@ export class RunMenu {
 
     this.el.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) =>
       b.addEventListener('click', () => {
-        this.tab = b.dataset.tab as RunKind;
+        this.tab = b.dataset.tab as RunTab;
         this.render(difficulty);
       }),
     );
@@ -277,7 +283,7 @@ export class RunMenu {
     $('basics-btn').addEventListener('click', () => showRunBasics());
     $('principles-btn').addEventListener('click', () => showRunPrinciples(this.tab));
     $<HTMLInputElement>('hide-ball').addEventListener('change', (e) => setRunHideBall((e.target as HTMLInputElement).checked));
-    $<HTMLInputElement>('gen-toggle').addEventListener('change', (e) => setRunIncludeGenerated((e.target as HTMLInputElement).checked));
+    document.getElementById('gen-toggle')?.addEventListener('change', (e) => setRunIncludeGenerated((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('sound-on').addEventListener('change', (e) => {
       const on = (e.target as HTMLInputElement).checked;
       setSoundOn(on);

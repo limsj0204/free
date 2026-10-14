@@ -1,5 +1,6 @@
 import { RUN, RUNNER } from './config';
-import { BASES, BASE_LABEL, type BaseId } from './coords';
+import * as THREE from 'three';
+import { BASES, BASE_LABEL, bagSpot, type BaseId } from './coords';
 import { goStopValue } from './runExtra';
 import {
   BASE_PATH,
@@ -28,7 +29,9 @@ import {
   type RunScenario,
   type RunTimeline,
   type Step,
+  walkKeys,
 } from './runner';
+import { DEFAULT_FIELDERS } from './scenarios';
 import type { FielderId } from './scenario';
 import { CONTACT_POINT, type BallSeg } from './timeline';
 
@@ -37,12 +40,14 @@ import { CONTACT_POINT, type BallSeg } from './timeline';
 //   잡히면 베이스에서 떨어져 있던 주자는 귀루해야 하고(늦으면 더블아웃), 태그업을 하려면 잡히는 순간 베이스를 밟고 있어야 한다.
 //   떨어지면(안타) 1루 주자는 포스라 2루까지 가야 하고, 그 밖의 주자는 갈 수 있는 데까지 간다.
 // 2단계(태그업): 베이스를 밟고 있다가 잡히면 다음 베이스로 뛸지 정한다.
+// 내야수가 잡는 타구(직선타, 내야 뜬공)도 같은 방식으로 계산한다. 다만 잡히면 바로 베이스로 던지고, 태그업 판단은 없다.
 
 const REACT = 0.1; // 판단 뒤 첫발까지
 const LEAD0 = RUN.leadOff + RUNNER.secondaryLead; // 타격 순간 리드 거리
 const BASE_INDEX: Record<BaseId, number> = { home: 0, first: 1, second: 2, third: 3 };
 
-export type ReadChoice = 'go' | 'half' | 'tag';
+// freeze: 직선타 때 리드 자리에 그대로 멈춰서 타구를 본다
+export type ReadChoice = 'go' | 'half' | 'tag' | 'freeze';
 
 export function flyBases(scn: RunScenario) {
   const origin = ORIGIN[scn.me];
@@ -52,8 +57,11 @@ export function flyBases(scn: RunScenario) {
 const READ_LABEL = (scn: RunScenario): Record<ReadChoice, string> => ({
   go: `스타트 (${BASE_LABEL[NEXT[ORIGIN[scn.me]]]} 쪽으로)`,
   half: '중간까지 (하프웨이)',
-  tag: '베이스로 (태그업 준비)',
+  tag: scn.hit?.infielder ? '베이스로 (귀루)' : '베이스로 (태그업 준비)',
+  freeze: '그 자리에 멈춤',
 });
+
+const isLiner = (scn: RunScenario) => scn.hit?.type === 'liner';
 
 export function readLabel(scn: RunScenario, id: string) {
   return READ_LABEL(scn)[id as ReadChoice];
@@ -67,7 +75,7 @@ export function tagupLabel(scn: RunScenario, id: string) {
 // 1단계 선택에 따른 위치: 베이스에서 다음 베이스 쪽으로 몇 m 나가 있는지
 export function progress(choice: ReadChoice | null, td: number, t: number) {
   const tm = td + REACT;
-  if (choice === null || t <= tm) return LEAD0;
+  if (choice === null || choice === 'freeze' || t <= tm) return LEAD0;
   const v = RUNNER.speed;
   if (choice === 'tag') return Math.max(0, LEAD0 - v * (t - tm));
   if (choice === 'half') return Math.min(RUNNER.halfway * BASE_PATH, LEAD0 + v * (t - tm));
@@ -150,6 +158,11 @@ function caughtValue(scn: RunScenario, choice: ReadChoice, td: number): Caught {
     return { state: st, ev: 0, onBase: progress(choice, td, T) <= ON_BASE, lines: ['잡히면 3아웃, 이닝 종료 (무엇을 했든 같아요)'] };
   }
   const x = progress(choice, td, T);
+  if (x <= ON_BASE && hit.infielder) {
+    // 내야수가 잡은 타구: 베이스에 붙어 있으면 그대로 (태그업으로 갈 수 있는 거리가 아니다)
+    const st = tagupStates(scn).stay;
+    return { state: st, ev: expectancy(st), onBase: true, lines: [`잡히면: 베이스에 붙어 있어서 그대로 → ${evText(st)}`] };
+  }
   if (x <= ON_BASE) {
     // 베이스를 밟고 있다: 태그업 판단으로 이어진다 (최선의 2단계를 했다고 보고 계산)
     const v = tagupStep(scn).value(T);
@@ -250,11 +263,13 @@ export function readStep(scn: RunScenario): Step {
   const labels = READ_LABEL(scn);
   const b = flyBases(scn);
   const value = (td: number) => {
-    const options: OptionValue[] = (['go', 'half', 'tag'] as ReadChoice[]).map((c) => {
+    const choices: ReadChoice[] = isLiner(scn) ? ['go', 'freeze', 'tag'] : ['go', 'half', 'tag'];
+    const options: OptionValue[] = choices.map((c) => {
       const caught = caughtValue(scn, c, td);
       const drop = dropOutcome(scn, c, td);
       const ev = pc * caught.ev + (1 - pc) * expectancy(drop.state);
-      return { id: c, ev, lines: [`${caught.lines[0]} (${pct(pc)})`, `${dropLine(scn, drop)} (${pct(1 - pc)})`] };
+      // 거의 다 잡히는 타구(내야 뜬공)는 떨어졌을 때를 따로 보여주지 않는다
+      return { id: c, ev, lines: pc >= 0.99 ? [caught.lines[0]] : [`${caught.lines[0]} (${pct(pc)})`, `${dropLine(scn, drop)} (${pct(1 - pc)})`] };
     });
     if (scn.situation.outs === 2) {
       // 2아웃이면 잡히는 순간 이닝이 끝나서 돌아올 이유가 없다. 결과가 비슷해 보여도 스타트만 답이다.
@@ -266,6 +281,22 @@ export function readStep(scn: RunScenario): Step {
         o.lines.push('2아웃이면 잡혀도 이닝이 끝나서 베이스로 돌아올 이유가 없어요. 무조건 스타트예요.');
       }
       return { options, note: '<b>2아웃</b>이에요. 공이 잡히면 이닝이 끝나니, 타격과 동시에 무조건 스타트해요.' };
+    }
+    if (hit.infielder) {
+      // 직선타: 잡히면 내야수가 바로 던져서, 뛰어나간 주자는 더블아웃이다. 스타트는 답이 아니다.
+      // 내야 뜬공: 거의 다 잡히고 내야수가 가까이서 던진다. 베이스로 돌아가는 것만 답이다.
+      const liner = isLiner(scn);
+      const safeIds = liner ? ['freeze', 'tag'] : ['tag'];
+      const best = Math.max(...options.filter((o) => safeIds.includes(o.id)).map((o) => o.ev));
+      for (const o of options) {
+        if (safeIds.includes(o.id) || o.ev < best - 0.15) continue;
+        o.ev = best - 0.15;
+        o.lines.push(liner ? '직선타는 잡히는 순간 내야수가 바로 베이스로 던져요. 뛰어나가 있으면 돌아오지 못해요.' : '내야 뜬공은 거의 다 잡혀요. 잡히면 내야수가 바로 던지니 베이스에 붙어 있으세요.');
+      }
+      const note = isLiner(scn)
+        ? `직선타가 잡힐 확률은 <b>${pct(pc)}</b>예요. 잡히면 베이스에서 떨어진 주자는 바로 더블아웃이 돼요.`
+        : '내야 뜬공은 거의 다 잡혀요. 내야수가 가까이서 잡아 바로 던지니, 베이스에서 떨어져 있으면 돌아오기 어려워요.';
+      return { options, note };
     }
     const note = `이 타구가 잡힐 확률은 <b>${pct(pc)}</b>예요. 잡혔을 때와 떨어졌을 때를 함께 따져서 정해요.`;
     // 2아웃 전에는 잡히면 돌아오지 못해 더블아웃이라, 잡힐 수 있는 타구에 스타트는 답이 아니다 (떨어졌을 때 얻는 게 커 보여도)
@@ -291,27 +322,31 @@ export function readStep(scn: RunScenario): Step {
     if (hit.release === 'back' && scn.me !== 'r3') return { options, note: `${note}<br/>${deepNote(scn, options)}`, peers: ['half', 'tag'] };
     return { options, note };
   };
+  const liner = isLiner(scn);
+  const what = liner ? '직선타' : hit.infielder ? '내야 뜬공' : '플라이';
+  const read = liner ? RUNNER.linerRead : RUNNER.flyRead;
   return {
     key: 'read',
     name: '타구 판단',
-    prompt: '플라이! 어떻게 할까?',
-    urgent: '지금 정하세요! 플라이를 보고 어떻게 할까?',
+    prompt: `${what}! 어떻게 할까?`,
+    urgent: `지금 정하세요! ${what}를 보고 어떻게 할까?`,
     options: [
       { id: 'tag', key: 'A', label: labels.tag, short: '베이스로', pos: BASES[b.origin] },
       // 하프웨이 자리는 스타트(다음 베이스)와 같은 방향이라 화면 표시가 겹쳐서 표시하지 않는다 (버튼과 S키로 고른다)
-      { id: 'half', key: 'S', label: labels.half, short: '하프웨이', pos: null },
+      // 직선타는 S가 '그 자리에 멈춤'
+      liner ? { id: 'freeze', key: 'S' as const, label: labels.freeze, short: '멈춤', pos: null } : { id: 'half', key: 'S' as const, label: labels.half, short: '하프웨이', pos: null },
       { id: 'go', key: 'D', label: labels.go, short: '스타트', pos: BASES[b.next] },
     ],
-    decisionAt: RUNNER.flyRead,
-    deadline: RUNNER.flyRead + RUNNER.flyWindow,
-    timeout: 'tag',
+    decisionAt: read,
+    deadline: read + (liner ? RUNNER.linerWindow : RUNNER.flyWindow),
+    timeout: liner ? 'freeze' : 'tag',
     value,
   };
 }
 
 // 1단계에서 베이스를 밟고 있어서 공이 잡히면 2단계(태그업)로 가는지
 export function needsTagup(scn: RunScenario, choice: ReadChoice, td: number, caught: boolean) {
-  return caught && scn.situation.outs + 1 < 3 && progress(choice, td, scn.hit!.fieldT) <= ON_BASE;
+  return caught && !scn.hit!.infielder && scn.situation.outs + 1 < 3 && progress(choice, td, scn.hit!.fieldT) <= ON_BASE;
 }
 
 // ---------- 결과 ----------
@@ -387,12 +422,16 @@ export function flyTimeline(
   const ball: BallSeg[] = [PITCH_SEG(tRelease)];
   const drop = hit.drop!;
   const playBase = caught ? (tag ? b.next : b.origin) : b.next;
-  const def = outfieldDefense(scn.fielder!, caught ? hit.field : drop.field, caught ? T - 0.4 : drop.t, playBase, b.origin);
+  const def = hit.infielder && caught ? infieldDefense(hit.infielder, hit.field, T, playBase) : outfieldDefense(scn.fielder!, caught ? hit.field : drop.field, caught ? T - 0.4 : drop.t, playBase, b.origin);
+  // 직선타가 빠지면 내야수는 뛰어들었다가 그 자리에 남는다
+  if (hit.infielder && !caught) def.moves[hit.infielder] = [{ t: 0.1, pos: DEFAULT_FIELDERS[hit.infielder].clone() }, { t: T, pos: hit.field.clone().setY(0) }];
 
-  if (caught) ball.push({ from: CONTACT_POINT, to: hit.field.clone().setY(1.9), t0: 0, t1: T, arc: (9.8 * T * T) / 8 });
+  const liner = hit.type === 'liner';
+  const arc = liner ? 0.4 : (9.8 * T * T) / 8;
+  if (caught) ball.push({ from: CONTACT_POINT, to: hit.field.clone().setY(liner ? 1.2 : 1.9), t0: 0, t1: T, arc });
   else {
-    ball.push({ from: CONTACT_POINT, to: hit.field.clone().setY(0.1), t0: 0, t1: T, arc: (9.8 * T * T) / 8 });
-    ball.push({ from: hit.field.clone().setY(0.1), to: drop.field.clone().setY(0.3), t0: T, t1: drop.t, arc: 0.8, bounces: 2 });
+    ball.push({ from: CONTACT_POINT, to: hit.field.clone().setY(liner ? 0.6 : 0.1), t0: 0, t1: T, arc });
+    ball.push({ from: hit.field.clone().setY(liner ? 0.6 : 0.1), to: drop.field.clone().setY(0.3), t0: T, t1: drop.t, arc: 0.8, bounces: 2 });
   }
 
   // 나: 투구 때 리드, 타격 순간 세컨드 리드, 판단할 때까지 그 자리에서 타구를 본다
@@ -429,7 +468,7 @@ export function flyTimeline(
   const xT = x(T);
 
   if (caught) {
-    tl.calls.push({ t: T, pos: hit.field, text: '잡았다! 플라이 아웃', good: true });
+    tl.calls.push({ t: T, pos: hit.field, text: liner ? '잡았다! 직선타 아웃' : '잡았다! 플라이 아웃', good: true });
     tl.others.push(batterRun(scn, T + 0.3));
     if (o + 1 >= 3) {
       tl.end = T + 2;
@@ -437,8 +476,11 @@ export function flyTimeline(
     }
     const release = T + RUNNER.release[hit.release];
     if (xT <= ON_BASE) {
-      // 베이스를 밟고 있다: 2단계 (태그업)
-      if (!tag) return tl;
+      // 베이스를 밟고 있다: 2단계 (태그업). 내야수가 잡은 타구는 태그업 없이 끝난다.
+      if (!tag) {
+        if (hit.infielder) tl.end = T + 1.6;
+        return tl;
+      }
       if (tag.id === 'go') {
         const tm = tagupTiming(scn);
         const go = tagupArrival(scn, tag.td);
@@ -466,7 +508,7 @@ export function flyTimeline(
     }
     // 귀루: 송구보다 늦으면 더블아웃
     const thr = outfieldThrow(hit.field, b.origin, release, noise);
-    ball.push({ from: thr.from, to: thr.to, t0: thr.t0, t1: thr.t1, arc: throwArc(thr.from, thr.to), thrower: scn.fielder });
+    ball.push({ from: thr.from, to: thr.to, t0: thr.t0, t1: thr.t1, arc: throwArc(thr.from, thr.to), thrower: hit.infielder ?? scn.fielder });
     const back0 = T + RUNNER.returnReaction;
     const backT = back0 + xT / RUNNER.speed;
     const safe = backT < thr.t1;
@@ -482,7 +524,7 @@ export function flyTimeline(
   }
 
   // 떨어졌다: 안타
-  tl.calls.push({ t: T + 0.1, pos: hit.field, text: '떨어졌다! 안타', good: false });
+  tl.calls.push({ t: T + 0.1, pos: hit.field, text: liner ? '빠졌다! 안타' : '떨어졌다! 안타', good: false });
   tl.others.push(batterRun(scn));
   const d = dropOutcome(scn, choice!, td);
   const release = drop.t + RUNNER.release.charging;
@@ -511,6 +553,19 @@ export function flyTimeline(
   tl.calls.push({ t: Math.max(lastT, T + 0.5), pos: d.scored ? BASES.home : BASES[d.final!], text: d.scored ? '홈인!' : '세이프', good: false });
   tl.end = Math.max(lastT, thr.t1) + 1.6;
   return tl;
+}
+
+// 내야수가 잡는 타구: 잡는 수비수는 공 쪽으로, 귀루하는 베이스에는 그 베이스 수비수가 들어간다
+function infieldDefense(catcher: FielderId, at: THREE.Vector3, T: number, playBase: BaseId) {
+  const moves: Partial<Record<FielderId, Key[]>> = {};
+  moves[catcher] = [
+    { t: 0.1, pos: DEFAULT_FIELDERS[catcher].clone() },
+    { t: Math.max(0.2, T - 0.05), pos: at.clone().setY(0) },
+  ];
+  let receiver = receiverOfBase(playBase);
+  if (receiver === catcher) receiver = playBase === 'second' ? '2B' : playBase === 'first' ? 'P' : 'SS';
+  if (receiver !== 'C') moves[receiver] = walkKeys(DEFAULT_FIELDERS[receiver], bagSpot(playBase), 0.3);
+  return { moves, receiver };
 }
 
 function receiverOfBase(base: BaseId): FielderId {

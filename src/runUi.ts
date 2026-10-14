@@ -1,6 +1,6 @@
 import { BASE_LABEL, type BaseId } from './coords';
 import type { Play, PlayResult } from './runPlay';
-import { ME_NAME, RUN_KIND_LABEL, stateLabel, type RunScenario, type RunVerdict, type StepGrade } from './runner';
+import { ME_NAME, RUN_TAB_LABEL, kindLabel, stateLabel, tabOf, type RunScenario, type RunVerdict, type StepGrade } from './runner';
 import { explainRun } from './runExplain';
 import { annotateRun } from './runGlossary';
 import { showRunPrinciples } from './runMenu';
@@ -16,7 +16,15 @@ const KEY_HELP: Record<RunScenario['kind'], string> = {
   extra: '<kbd>A</kbd> 멈춘다, <kbd>D</kbd> 간다',
   fly: '<kbd>A</kbd> 베이스로(태그업 준비), <kbd>S</kbd> 중간까지(하프웨이), <kbd>D</kbd> 스타트. 잡히면 태그업 판단이 이어져요: <kbd>A</kbd> 머문다, <kbd>D</kbd> 뛴다',
   ground: '<kbd>A</kbd> 귀루, <kbd>D</kbd> 진루',
+  wild: '<kbd>A</kbd> 머문다, <kbd>D</kbd> 진루',
 };
+
+const keyHelp = (scn: RunScenario) =>
+  scn.kind === 'fly' && scn.hit?.infielder
+    ? scn.hit.type === 'liner'
+      ? '<kbd>A</kbd> 베이스로(귀루), <kbd>S</kbd> 그 자리에 멈춤, <kbd>D</kbd> 스타트'
+      : '<kbd>A</kbd> 베이스로(귀루), <kbd>S</kbd> 중간까지(하프웨이), <kbd>D</kbd> 스타트'
+    : KEY_HELP[scn.kind];
 
 // 타구를 숨겼을 때 브리핑에 보여주는 조작 안내 (어떤 판단이 나올지 모르니 다 보여준다)
 const KEY_HELP_ALL = '<kbd>A</kbd> 뒤로(멈춤·베이스로·귀루), <kbd>S</kbd> 중간까지(하프웨이, 플라이일 때), <kbd>D</kbd> 앞으로(간다·스타트·진루)';
@@ -32,7 +40,7 @@ export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null
   const el = $('briefing');
   el.innerHTML = `
     <div class="card">
-      <div class="eyebrow">${[eyebrow, hidden ? '타구 숨김' : RUN_KIND_LABEL[scn.kind]].filter(Boolean).join(' · ')}</div>
+      <div class="eyebrow">${[eyebrow, hidden ? '타구 숨김' : kindLabel(scn)].filter(Boolean).join(' · ')}</div>
       <div class="brief-grid">
         <section class="brief-box">
           <div class="brief-label">카운트 · 주자</div>
@@ -55,7 +63,7 @@ export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null
         </section>
       </div>
       <p>${hidden ? `${ME_NAME[scn.me]}예요. 공이 맞는 순간 타구를 보고 판단해요. 외야 안타면 한 베이스 더, 플라이면 베이스로·중간까지·스타트, 땅볼이면 진루·귀루예요.` : scn.brief}</p>
-      <p class="note">타격 순간부터 선택지가 떠요. ${hidden ? KEY_HELP_ALL : KEY_HELP[scn.kind]}. 미리 고르면 판단 순간 바로 실행되고, 안 고르면 판단 순간 화면이 느려져요.
+      <p class="note">타격 순간부터 선택지가 떠요. ${hidden ? KEY_HELP_ALL : keyHelp(scn)}. 미리 고르면 판단 순간 바로 실행되고, 안 고르면 판단 순간 화면이 느려져요.
         시점은 공을 따라가고, 마우스로 직접 돌리면 그때부터는 내가 보는 대로 둬요.</p>
       <div class="actions">
         <button class="secondary" id="brief-menu-btn">목록</button>
@@ -173,13 +181,13 @@ export function showRunResult(ui: UI, r: RunResultData) {
     `
     <h2>해설</h2>
     <p class="explain">${annotateRun(explainRun(scn))}</p>
-    <button class="intro-link principles-link" id="result-principles">📌 ${RUN_KIND_LABEL[scn.kind]} 핵심 원칙 보기</button>
+    <button class="intro-link principles-link" id="result-principles">📌 ${RUN_TAB_LABEL[tabOf(scn)]} 핵심 원칙 보기</button>
     <div class="more-side">
       <div id="more-right"></div>
     </div>`,
   );
   // '자세히 보기'를 펼치면 펼친 내용을 오른쪽 칸에도 나눠 보여준다
-  document.getElementById('result-principles')!.addEventListener('click', () => showRunPrinciples(scn.kind));
+  document.getElementById('result-principles')!.addEventListener('click', () => showRunPrinciples(tabOf(scn)));
   const card = document.querySelector('#result .result-card')!;
   card.classList.toggle('more-open', moreOpen);
   document.getElementById('result-more')!.addEventListener('toggle', (e) => {
