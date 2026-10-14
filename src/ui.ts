@@ -130,6 +130,9 @@ export function recordId(id: string) {
 }
 
 // 타구 숨기기 설정이 켜져 있으면 타격 전까지 타구를 가린다. 투구 전에 판단하는 상황은 원래 보이는 정보라 가리지 않는다.
+// 해설에서 '참고로'로 시작하는 덧붙임은 줄을 바꿔 눈에 띄게 한다
+const breakNote = (text: string) => text.replace(/\s*참고로/g, '<br/>참고로');
+
 // 상황 종류: 송구 판단(어디로 던질까) / 위치 판단(어디로 갈까) / 태그·포스 판단(받으면 밟을까 태그할까)
 function kindLabel(scn: Scenario) {
   if (scn.kind === 'throw') return '송구 판단';
@@ -893,7 +896,7 @@ export class UI {
         <h2>내 판단 시간(${sec(o.decisionDelay)}) 그대로 다른 곳에 던졌다면</h2>
         ${alts}`)}`, `
       <h2>해설</h2>
-      <p class="explain">${annotate(`${scn.batted.type === 'bunt' && !scn.generated ? `${BUNT_RULE} ` : ''}${scn.explanation}`)}</p>
+      <p class="explain">${annotate(breakNote(`${scn.batted.type === 'bunt' && !scn.generated ? `${BUNT_RULE} ` : ''}${scn.explanation}`))}</p>
       ${followBlock ? `<h2>${throwLabel(scn, followChoice!)} 다음 어디로? (밟자마자 던졌다면)</h2>${followBlock}` : ''}
       ${basis ? `<div class="more-side"><h2>판단 기준: 잡자마자 던졌다면</h2>${basis}</div>` : ''}
       ${this.principlesLink(scn.position)}`);
@@ -934,7 +937,7 @@ export class UI {
       <h2>선택지별 설명</h2>
       ${alts}`, `
       <h2>해설</h2>
-      <p class="explain">${annotate(scn.explanation)}</p>
+      <p class="explain">${annotate(breakNote(scn.explanation))}</p>
       ${this.principlesLink(scn.position)}`);
   }
 }
