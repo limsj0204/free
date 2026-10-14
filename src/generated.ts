@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { P, type BaseId } from './coords';
 import { explainThrow } from './explain';
-import { SCENARIOS } from './scenarios';
+import { RECEIVE_SPOT, SCENARIOS, receiveOptions } from './scenarios';
+import { buildChoiceTimeline } from './timeline';
 import {
   FIELDER_NAME,
   POSITIONS,
@@ -468,13 +469,97 @@ function buildLiners(): ThrowScenario[] {
   return list;
 }
 
+// ---------- 받는 쪽 판단: 밟기 vs 태그 ----------
+// 다른 수비수가 땅볼을 잡아 내가 지키는 베이스(2루·3루)로 던진다. 오는 주자가 밀려서 오면 밟기, 아니면(또는 포스가 풀렸으면) 태그.
+
+interface Throw {
+  fielder: FielderId;
+  name: string;
+  catchPoint: THREE.Vector3;
+  travelTime: number;
+  via?: 'step1' | 'throw1';
+}
+
+const SS_FRONT: Throw = { fielder: 'SS', name: '유격수 땅볼', catchPoint: P(-8.5, 31.5), travelTime: 1.45 };
+const P_FRONT: Throw = { fielder: 'P', name: '투수 땅볼', catchPoint: P(0.3, 16.3), travelTime: 0.6 };
+const B3_FRONT: Throw = { fielder: '3B', name: '3루수 땅볼', catchPoint: P(-20, 25.5), travelTime: 1.25 };
+const B2_FRONT: Throw = { fielder: '2B', name: '2루수 땅볼', catchPoint: P(8.5, 31.5), travelTime: 1.45 };
+const B1_STEP: Throw = { fielder: '1B', name: '1루수 땅볼', catchPoint: P(19.8, 22), travelTime: 1.3, via: 'step1' };
+const P_FIRST: Throw = { fielder: 'P', name: '투수 땅볼', catchPoint: P(0.3, 16.3), travelTime: 0.6, via: 'throw1' };
+
+const RECEIVES: { position: '2B' | 'SS' | '3B'; base: 'second' | 'third'; throws: Throw[]; sets: Base3[][] }[] = [
+  { position: '3B', base: 'third', throws: [SS_FRONT, P_FRONT], sets: [['second'], ['first', 'second'], ['first', 'second', 'third']] },
+  { position: '2B', base: 'second', throws: [SS_FRONT, B3_FRONT], sets: [['first'], ['first', 'second']] },
+  { position: '2B', base: 'second', throws: [P_FIRST], sets: [['first'], ['first', 'third']] },
+  { position: 'SS', base: 'second', throws: [B2_FRONT, P_FRONT], sets: [['first'], ['first', 'second']] },
+  { position: 'SS', base: 'second', throws: [B1_STEP], sets: [['first'], ['first', 'second'], ['first', 'third']] },
+];
+
+function receiveExplain(base: 'second' | 'third', force: boolean, via: Throw['via'], set: Base3[]) {
+  const runner = base === 'second' ? '1루 주자' : '2루 주자';
+  const bag = base === 'second' ? '2루' : '3루';
+  if (via === 'step1')
+    return `1루수가 1루를 먼저 밟아 타자를 잡았어요. 타자가 아웃되는 순간 ${runner}는 더 이상 밀리지 않아서 포스가 풀려요. 그래서 ${bag}에서는 주자를 직접 태그해야 해요. 1루를 밟지 않고 바로 ${bag}로 던졌다면 밟기만 해도 아웃이었어요.`;
+  if (via === 'throw1')
+    return `투수가 1루로 먼저 던져 타자를 잡았어요. 타자가 아웃되는 순간 ${runner}의 포스가 풀려서, 1루수가 이어 던진 공을 ${bag}에서 받으면 주자를 직접 태그해야 해요. 앞에서 어떤 아웃이 먼저 나왔는지 보고 판단하세요.`;
+  if (force)
+    return `${runner}는 뒤에 ${set.includes('first') && base === 'third' ? '1루 주자와 타자' : '타자'}가 있어서 밀려서 뛰는 주자예요(포스). ${bag}에서 공을 받으면 베이스만 밟아도 아웃이에요. 태그해도 아웃이지만 느리고 놓칠 수 있어요.`;
+  return `${runner} 뒤(1루)에 주자가 없어서, ${runner}는 밀려서 뛰는 게 아니라 스스로 ${bag}를 노린 거예요. 그래서 ${bag}에서는 베이스만 밟아서는 아웃이 안 되고 주자를 직접 태그해야 해요. 주자가 1, 2루였다면 밟기만 해도 아웃이에요.`;
+}
+
+function buildReceives(): ChoiceScenario[] {
+  const list: ChoiceScenario[] = [];
+  for (const g of RECEIVES) {
+    for (const th of g.throws) {
+      for (const set of g.sets) {
+        for (let outs = 0; outs < 2; outs++) {
+          const situation = {
+            outs,
+            runners: { first: set.includes('first'), second: set.includes('second'), third: set.includes('third') },
+            batter: 'R' as const,
+          };
+          const force = !th.via && (g.base === 'second' || set.includes('first'));
+          const spot = g.base === 'third' ? RECEIVE_SPOT.third : RECEIVE_SPOT.second[g.position as '2B' | 'SS'];
+          const bag = g.base === 'second' ? '2루' : '3루';
+          const fname = FIELDER_NAME[th.fielder];
+          const scn: ChoiceScenario = {
+            id: `gen-${g.position}-receive-${th.fielder}${th.via ? `-${th.via}` : ''}-${set.map((b) => SHORT[b]).join('')}-${outs}`,
+            kind: 'choice',
+            setup: 'receive',
+            generated: true,
+            title: `${outsText(outs)} ${runnersText(set)} / ${th.name} (${bag}에서 받기)`,
+            event: th.via === 'step1' ? '1루수 땅볼 (1루 밟고 2루로)' : th.via === 'throw1' ? '투수 땅볼 (1루 먼저, 이어서 2루로)' : `${fname} 정면 땅볼`,
+            position: g.position,
+            situation,
+            brief: `${fname}가 땅볼을 잡아${th.via === 'step1' ? ' 1루를 먼저 밟고' : th.via === 'throw1' ? '(공을 한 번 더듬어서) 1루로 먼저 던지고, 1루수가 이어서' : ''} ${bag}로 던져요. ${FIELDER_NAME[g.position]}는 ${bag} 베이스에서 받아요. 받으면 밟을까, 태그할까?`,
+            fielders: { ...fieldersFor(g.position, set, outs), ...(th.via === 'step1' ? { '1B': P(21, 25) } : {}), [g.position]: spot },
+            receive: { fielder: th.fielder, catchPoint: th.catchPoint, travelTime: th.travelTime, base: g.base, force, via: th.via },
+            prompt: `${bag}로 송구! 받으면?`,
+            options: receiveOptions(situation, g.base, force, !!th.via, spot),
+            explanation: receiveExplain(g.base, force, th.via, set),
+          };
+          // 맞는 선택으로 실제 아웃이 되는 상황만 남긴다
+          const best = scn.options.findIndex((o) => o.grade === 'best');
+          const tl = buildChoiceTimeline(scn, 0.5, { index: best, d: 0 });
+          if (!tl.plays.some((p) => p.base === g.base && p.out)) continue;
+          list.push(scn);
+        }
+      }
+    }
+  }
+  return list;
+}
+
 let cache: Scenario[] | null = null;
 
 // 기본 상황과 같은 상황(같은 포지션·아웃·주자·타구·주자 행동)은 자동 생성에서 뺀다
 function signature(s: Scenario) {
   const r = s.situation.runners;
   const base = `${s.position}|${s.situation.outs}|${+r.first}${+r.second}${+r.third}`;
-  if (s.kind === 'choice') return `${base}|${s.setup}|${s.play?.fielder ?? ''}|${s.play ? `${s.play.catchPoint.x.toFixed(1)},${s.play.catchPoint.z.toFixed(1)}` : ''}`;
+  if (s.kind === 'choice') {
+    const p = s.play ?? s.receive;
+    return `${base}|${s.setup}|${p?.fielder ?? ''}|${p ? `${p.catchPoint.x.toFixed(1)},${p.catchPoint.z.toFixed(1)}` : ''}|${s.receive?.via ?? ''}`;
+  }
   // 행동을 안 적은 주자는 기본값(2아웃이면 뛰고 아니면 멈춤)으로 본다
   const acts = (['first', 'second', 'third'] as const).map((b) => (r[b] ? (s.runnerActs?.[b] ?? (s.situation.outs === 2 ? 'advance' : 'hold'))[0] : '-')).join('');
   return `${base}|${s.batted.type}|${s.batted.catchPoint.x.toFixed(1)},${s.batted.catchPoint.z.toFixed(1)}|${s.hitAndRun ? 'hr' : ''}|${acts}`;
@@ -484,7 +569,7 @@ function signature(s: Scenario) {
 export function generatedScenarios(): Scenario[] {
   if (!cache) {
     const base = new Set(SCENARIOS.map(signature));
-    cache = [...build(), ...buildBunts(), ...buildCovers(), ...buildLiners()].filter((s) => !base.has(signature(s)));
+    cache = [...build(), ...buildBunts(), ...buildCovers(), ...buildLiners(), ...buildReceives()].filter((s) => !base.has(signature(s)));
   }
   return cache;
 }

@@ -6,6 +6,7 @@ import {
   batterBox,
   coverPath,
   coverResult,
+  receiveResult,
   decisionDeadline,
   FIELDER_NAME,
   planRunners,
@@ -644,6 +645,84 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       break;
     }
 
+    case 'receive': {
+      // 다른 수비수가 땅볼을 잡아 내 베이스로 던진다. 나는 베이스에서 받아 밟을지(포스) 태그할지(포스 아님) 고른다
+      const r = scn.receive!;
+      tl.batter = 'swing';
+      tl.ball.push({ from: releasePoint(), to: CONTACT_POINT, t0: tRelease, t1: 0, arc: 0.15 });
+      tl.ball.push({ from: CONTACT_POINT, to: r.catchPoint.clone().setY(0.35), t0: 0, t1: r.travelTime, ...grounderHops(r.travelTime) });
+      const fStart = fielders[r.fielder];
+      tl.fielders[r.fielder] = { waypoints: [fStart.clone(), r.catchPoint.clone()], startTime: 0, speed: Math.max(0.1, fStart.distanceTo(r.catchPoint) / r.travelTime) };
+      fielderMovesFrom(0.2);
+      // 주자: 타자는 1루로, 밀리는 주자는 한 베이스씩. 안 밀리는 2루 주자는 3루 승부일 때만 뛴다 (3루 주자는 밀릴 때만)
+      const box = batterBox(scn);
+      const batterPath: Path = { waypoints: [box, BASES.first.clone()], startTime: RUN.batterStartDelay, speed: RUN.speed };
+      tl.runners.set('batter', batterPath);
+      const occ = scn.situation.runners;
+      const paths: Partial<Record<RunnerId, Path>> = {};
+      const leadOf = (b: 'first' | 'second' | 'third', next: BaseId) => BASES[b].clone().add(BASES[next].clone().sub(BASES[b]).normalize().multiplyScalar(RUN.leadOff));
+      if (occ.first) paths.r1 = { waypoints: [leadOf('first', 'second'), BASES.second.clone()], startTime: RUN.runnerStartDelay, speed: RUN.speed };
+      if (occ.second && (occ.first || r.base === 'third'))
+        paths.r2 = { waypoints: [leadOf('second', 'third'), BASES.third.clone()], startTime: occ.first ? RUN.runnerStartDelay : RUN.advanceStartDelay, speed: RUN.speed };
+      if (occ.third && occ.second && occ.first) paths.r3 = { waypoints: [leadOf('third', 'home'), BASES.home.clone()], startTime: RUN.runnerStartDelay, speed: RUN.speed };
+      for (const [id, p] of Object.entries(paths) as [RunnerId, Path][]) tl.runners.set(id, p);
+      const target = paths[r.base === 'second' ? 'r1' : 'r2']!;
+      // 공의 길: (1루 먼저) → 내 베이스
+      let t = r.travelTime + 0.5;
+      let from = r.catchPoint.clone().setY(GLOVE);
+      let thrower: FielderId = r.fielder;
+      if (r.via === 'step1') {
+        const bag = bagSpot('first');
+        const stepT = t + Math.max(0.2, r.catchPoint.distanceTo(bag) / RUN.fielderSpeed);
+        // 공을 들고 1루를 밟으러 간다 (1루 근처에서 잡는 타구라 거리가 짧다)
+        tl.ball.push({ from, to: bag.clone().setY(GLOVE), t0: r.travelTime, t1: stepT, arc: 0 });
+        batterPath.stopAt = stepT;
+        tl.calls.push({ t: stepT, pos: BASES.first, text: callText('force', true), good: true });
+        tl.plays.push({ t: stepT, base: 'first', runner: 'batter', kind: 'force', out: true, receiver: r.fielder });
+        from = bag.clone().setY(GLOVE);
+        t = stepT + THROW.transferTime;
+      } else if (r.via === 'throw1') {
+        const bag = bagSpot('first').setY(GLOVE);
+        const t1b = t + from.distanceTo(bag) / THROW.speed;
+        tl.ball.push({ from, to: bag, t0: t, t1: t1b, arc: 0.8, thrower: r.fielder });
+        batterPath.stopAt = t1b;
+        tl.calls.push({ t: t1b, pos: BASES.first, text: callText('force', true), good: true });
+        tl.plays.push({ t: t1b, base: 'first', runner: 'batter', kind: 'force', out: true, receiver: '1B' });
+        from = bag;
+        t = t1b + THROW.pivotTime;
+        thrower = '1B';
+      }
+      const dest = bagSpot(r.base).setY(GLOVE);
+      const t1 = t + from.distanceTo(dest) / THROW.speed;
+      decide(r.travelTime, Math.max(0.6, t1 - r.travelTime - 0.1));
+      deadline = t1;
+      arrival = movePlayer();
+      tl.ball.push({ from, to: dest, t0: t, t1, arc: 0.8, thrower });
+      if (!input) break;
+      const runArrive = pathEnd(target);
+      const runner: RunnerId = r.base === 'second' ? 'r1' : 'r2';
+      const tagging = input.index === 1;
+      if (input.index === null) {
+        tl.calls.push({ t: runArrive, pos: BASES[r.base], text: '세이프', good: false });
+        tl.end = Math.max(t1, runArrive) + 1.5;
+      } else if (!tagging && !r.force) {
+        // 포스가 아닌데 베이스만 밟았다: 주자는 그대로 들어온다
+        tl.calls.push({ t: runArrive, pos: BASES[r.base], text: '세이프! (태그해야 해요)', good: false });
+        tl.plays.push({ t: runArrive, base: r.base, runner, kind: 'force', out: false, receiver: 'player' });
+        tl.end = Math.max(t1, runArrive) + 1.5;
+      } else {
+        const kind = tagging ? 'tag' : 'force';
+        const outT = tagging ? t1 + THROW.tagTime : t1;
+        const out = outT < runArrive;
+        const at = out ? (tagging ? Math.max(outT, runArrive - TAG_REACH / RUN.speed) : outT) : runArrive;
+        if (out) target.stopAt = at;
+        tl.calls.push({ t: at, pos: BASES[r.base], text: callText(kind, out), good: out });
+        tl.plays.push({ t: at, base: r.base, runner, kind, out, receiver: 'player' });
+        tl.end = at + 1.5;
+      }
+      break;
+    }
+
     case 'wildpitch': {
       // 폭투: 공이 포수 뒤로 빠져 백스톱까지 굴러간다. 포수가 주우러 간 사이 3루 주자가 홈으로 뛰고,
       // 홈을 비운 포수 대신 투수가 홈 커버를 들어가 포수 송구를 받아 태그한다.
@@ -841,7 +920,11 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
     let grade: Grade = base ? base.grade : 'bad';
     let headline = base ? base.headline : '제자리에 멈춰 있었어요';
     let feedback = base ? base.feedback : '정해진 시간 안에 움직이지 못했어요. 상황을 보자마자 바로 움직여야 해요.';
-    let result = base ? base.result : scn.options.find((o) => o.grade === 'bad')?.result ?? '';
+    let result = base
+      ? base.result
+      : scn.setup === 'receive'
+        ? receiveResult(scn.situation, scn.receive!.base, !!scn.receive!.via, false)
+        : (scn.options.find((o) => o.grade === 'bad')?.result ?? '');
     if (late && base) {
       grade = 'bad';
       headline = '맞는 위치였지만 늦었어요';

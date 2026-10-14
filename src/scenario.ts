@@ -74,7 +74,7 @@ export interface ChoiceOption {
 // 공이 나에게 오지 않을 때 어디로 움직일지 고르는 상황. 선택지별 결과가 정해져 있다.
 export interface ChoiceScenario extends ScenarioBase {
   kind: 'choice';
-  setup: 'steal' | 'gap' | 'cutoff' | 'pickoff' | 'bunt' | 'cover' | 'backup' | 'wildpitch';
+  setup: 'steal' | 'gap' | 'cutoff' | 'pickoff' | 'bunt' | 'cover' | 'backup' | 'wildpitch' | 'receive';
   side?: 'left' | 'right'; // gap: 좌중간/우중간
   // cover: 다른 수비수가 공을 잡아 base로 던질 때 내가 그 베이스를 커버하는지
   play?: {
@@ -86,6 +86,16 @@ export interface ChoiceScenario extends ScenarioBase {
     // 이 값이 있으면 '공을 잡은 수비수보다 먼저'가 아니라 '주자보다 이만큼 먼저 들어가면' 최선 (투수 1루 커버처럼 원래 토스를 맞춰 주는 플레이)
     coverMargin?: number;
   };
+  // receive: 다른 수비수가 땅볼을 잡아 내가 지키는 베이스로 던진다. 베이스만 밟으면 되는지(포스), 주자를 태그해야 하는지 고른다
+  // via: step1 = 공을 잡은 1루수가 1루를 먼저 밟고 던짐, throw1 = 1루로 먼저 던져 타자를 잡고 1루수가 이어 던짐 (둘 다 포스가 풀린다)
+  receive?: {
+    fielder: FielderId;
+    catchPoint: THREE.Vector3;
+    travelTime: number;
+    base: 'second' | 'third';
+    force: boolean;
+    via?: 'step1' | 'throw1';
+  };
   // backup: 외야수가 안타를 잡아 base로 던지고, 그 송구가 뒤로 빠질 때 내가 뒤를 받쳐 주는지
   backup?: { fielder: FielderId; field: THREE.Vector3; travelTime: number; base: 'home' | 'third' };
   otherCovers?: boolean; // steal: 다른 수비수가 2루 커버를 들어가는지
@@ -94,6 +104,30 @@ export interface ChoiceScenario extends ScenarioBase {
 }
 
 export type Scenario = ThrowScenario | ChoiceScenario;
+
+// 받는 쪽 판단(receive)이 끝난 뒤 상황. via면 타자는 1루에서 먼저 아웃, out이면 내 베이스로 오던 주자도 아웃
+export function receiveResult(s: Situation, base: 'second' | 'third', via: boolean, out: boolean): string {
+  const r = s.runners;
+  let outs = s.outs + (via ? 1 : 0) + (out ? 1 : 0);
+  if (outs >= 3) return '3아웃, 이닝 종료';
+  const on = new Set<string>();
+  let runs = 0;
+  if (!via) on.add('1');
+  if (base === 'second') {
+    if (!out) on.add('2');
+    if (r.second) on.add('3');
+    if (r.third) runs += r.second ? 1 : 0;
+    if (r.third && !r.second) on.add('3');
+  } else {
+    if (r.first) on.add('2');
+    if (!out) on.add('3');
+    if (r.third) runs++;
+  }
+  const list = ['1', '2', '3'].filter((b) => on.has(b));
+  const bases = list.length === 3 ? '만루' : list.length ? `${list.join(', ')}루` : '주자 없음';
+  outs = Math.min(outs, 2);
+  return `${outs === 0 ? '무사' : `${outs}아웃`} ${bases}${runs ? `, ${runs}점 내줌` : ''}`;
+}
 
 // 2루 커버 플레이(1루 주자 포스)가 끝난 뒤 상황. 앞 주자는 한 베이스씩 밀리고 3루 주자는 들어온다.
 // dp: 2루·1루 둘 다 아웃, force: 2루만 아웃, safe: 2루도 세이프, past: 2루 송구가 빠졌다

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { P } from './coords';
-import type { FielderId, PositionId, Scenario } from './scenario';
+import { receiveResult, type ChoiceOption, type FielderId, type PositionId, type Scenario, type Situation } from './scenario';
 
 // 기본 수비 위치 (필드 좌표: fx는 1루 쪽, fz는 중견수 쪽)
 export const DEFAULT_FIELDERS: Record<FielderId, THREE.Vector3> = {
@@ -22,6 +22,36 @@ const INFIELD_IN = { '1B': P(17.5, 17), '2B': P(7, 26.5), SS: P(-7, 26.5), '3B':
 
 export function fieldersOf(scn: Scenario): Record<FielderId, THREE.Vector3> {
   return { ...DEFAULT_FIELDERS, ...scn.fielders };
+}
+
+// 받는 쪽 판단(밟기/태그)의 선택지. 포스면 밟기가 최선(태그도 아웃이지만 느림), 포스가 아니면 태그만 아웃
+export const RECEIVE_SPOT = { second: { '2B': P(0.6, 38.4), SS: P(-0.6, 38.4) }, third: P(-18.9, 20.0) };
+export function receiveOptions(situation: Situation, base: 'second' | 'third', force: boolean, via: boolean, spot: THREE.Vector3): ChoiceOption[] {
+  const runner = base === 'second' ? '1루 주자' : '2루 주자';
+  const outRes = receiveResult(situation, base, via, true);
+  const safeRes = receiveResult(situation, base, via, false);
+  return [
+    {
+      label: '베이스 밟기',
+      moveTo: spot,
+      grade: force ? 'best' : 'bad',
+      headline: force ? '포스아웃' : '세이프! 태그해야 했어요',
+      result: force ? outRes : safeRes,
+      feedback: force
+        ? `${runner}는 밀려서 뛰는 주자라, 공을 받고 베이스만 밟으면 아웃이에요. 가장 빠르고 확실해요.`
+        : `${runner}는 ${via ? '포스가 풀려서' : '밀려서 뛰는 주자가 아니라서'} 베이스만 밟아서는 아웃이 안 돼요. 주자를 직접 태그해야 해요.`,
+    },
+    {
+      label: '주자 태그',
+      moveTo: spot,
+      grade: force ? 'ok' : 'best',
+      headline: force ? '태그아웃 (밟기만 해도 됐어요)' : '태그아웃',
+      result: outRes,
+      feedback: force
+        ? `태그해도 아웃이지만, ${runner}는 밀려서 뛰는 주자라 베이스만 밟으면 돼요. 태그는 시간이 더 걸리고 놓칠 수 있어요.`
+        : `${runner}는 ${via ? '포스가 풀려서' : '밀려서 뛰는 주자가 아니라서'} 직접 태그해야 아웃이에요. 공을 받자마자 베이스 앞에 글러브를 내려 주자를 태그했어요.`,
+    },
+  ];
 }
 
 const NO_RUNNERS = { first: false, second: false, third: false };
@@ -740,22 +770,6 @@ export const SCENARIOS: Scenario[] = [
       '번트 수비는 정해진 순서대로 움직이는 게 전부예요. 1루수와 3루수가 앞으로 대시하고, 2루수는 1루, 유격수는 2루를 커버해요. ' +
       '2루수가 1루 커버를 늦게 들어가면 번트를 잘 잡아도 던질 곳이 없어요. 타자가 번트 자세를 잡는 순간 바로 1루로 출발하세요.',
   },
-  {
-    id: '2b-self',
-    kind: 'throw',
-    title: '1사 1루 / 2루 베이스 근처 땅볼',
-    event: '2루 베이스 근처 땅볼',
-    position: '2B',
-    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
-    brief: '병살 대형이에요. 2루 베이스 바로 옆으로 땅볼이 와요.',
-    fielders: { ...DP, ...HOLD_1B },
-    batted: { type: 'grounder', catchPoint: P(2.8, 36.5), travelTime: 1.45 },
-    covers: { first: '1B', second: 'SS', third: '3B', home: 'C' },
-    selfBases: ['second'],
-    explanation:
-      '2루 베이스 바로 옆에서 공을 잡았다면 유격수에게 토스할 필요 없이 직접 밟는 게 가장 빨라요. 밟고 나서 1루로 던지면 혼자서 병살을 완성해요. ' +
-      '1루 주자가 슬라이딩해 들어오니, 밟고 나서 바로 몸을 빼며 던지는 게 요령이에요.',
-  },
 
   {
     id: '2b-cover',
@@ -829,6 +843,23 @@ export const SCENARIOS: Scenario[] = [
     explanation:
       '2아웃이면 아웃 하나로 이닝이 끝나요. 주자가 1, 2루라 1루·2루·3루가 모두 포스아웃이라, 여유 있게 잡을 수 있는 곳 어디로 던져도 좋은 판단이에요. ' +
       '보통은 송구가 짧고 확실한 1루나, 유격수가 들어오는 2루로 토스하는 게 가장 안전해요. 3루도 아웃은 되지만 송구가 길어서 굳이 고를 이유는 없어요.',
+  },
+  {
+    id: '2b-receive',
+    kind: 'choice',
+    setup: 'receive',
+    title: '1사 1루 / 3루수 땅볼 (2루에서 받기)',
+    event: '3루수 정면 땅볼',
+    position: '2B',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '병살 대형이에요. 3루수 쪽 땅볼이라 2루수는 이미 2루 커버에 들어와 있어요. 3루수가 2루로 던져요. 받으면 밟을까, 태그할까?',
+    fielders: { ...DP, ...HOLD_1B, '2B': RECEIVE_SPOT.second['2B'] },
+    receive: { fielder: '3B', catchPoint: P(-20, 25.5), travelTime: 1.25, base: 'second', force: true },
+    prompt: '3루수가 2루로 던진다! 받으면?',
+    options: receiveOptions({ outs: 1, runners: ON_FIRST, batter: 'R' }, 'second', true, false, RECEIVE_SPOT.second['2B']),
+    explanation:
+      '1루 주자는 타자에게 밀려서 2루로 뛰는 주자예요(포스). 그래서 2루에서 공을 받으면 베이스만 밟아도 아웃이에요. ' +
+      '태그해도 아웃이 되긴 하지만, 주자를 찾아 글러브를 내리는 만큼 느려지고 슬라이딩에 놓칠 수도 있어요. 포스면 밟고, 바로 1루로 이어 던질 준비를 하세요.',
   },
   // ---------------- 유격수 ----------------
   {
@@ -1042,22 +1073,6 @@ export const SCENARIOS: Scenario[] = [
       '2루나 3루로 시작하는 병살도 아웃 2개지만 그 사이 3루 주자가 들어와 1점을 줘요. 무사라 실점을 막는 홈이 가장 좋아요. 다만 판단이 늦어 홈이 아슬아슬해지면, 2루(6-4-3)로 병살을 노리세요.',
   },
   {
-    id: 'ss-corners',
-    kind: 'throw',
-    title: '무사 1, 3루 / 유격수 땅볼',
-    event: '유격수 정면 땅볼',
-    position: 'SS',
-    situation: { outs: 0, runners: { first: true, second: false, third: true }, batter: 'R' },
-    brief: '무사 1, 3루예요. 병살 대형이고, 3루 주자는 공이 맞으면 홈으로 뛰어요. 유격수 정면으로 땅볼이 와요.',
-    fielders: { ...DP, ...HOLD_1B },
-    batted: { type: 'grounder', catchPoint: P(-8.5, 31.5), travelTime: 1.45 },
-    covers: { first: '1B', second: '2B', third: '3B', home: 'C' },
-    runnerActs: { third: 'advance' },
-    explanation:
-      '병살 대형의 기본은 1점을 주더라도 2루로 던져 병살(6-4-3)로 아웃 2개를 잡는 거예요. 무사에 아웃 2개를 잡으면 큰 위기를 넘겨요. ' +
-      '다만 3루 주자를 홈에서 확실하게 태그할 수 있으면 홈 승부도 좋은 판단이에요. 1점이 중요한 접전이나 경기 후반이면 홈, 아니면 병살이 보통이에요. 홈은 포스가 아니라서 포수가 주자를 직접 태그해야 해요.',
-  },
-  {
     id: 'ss-runner2',
     kind: 'throw',
     title: '무사 2루 / 유격수 땅볼',
@@ -1071,6 +1086,23 @@ export const SCENARIOS: Scenario[] = [
     explanation:
       '유격수 쪽 땅볼은 2루 주자 앞으로 굴러가는 타구라 원래는 뛰면 안 되는 상황이에요. 그런데 주자가 3루로 뛰었다면, 바로 옆 3루로 던져 앞 주자를 잡을 기회예요. ' +
       '3루는 포스가 아니라 3루수가 주자를 태그해야 하지만, 송구가 짧고 시간 여유가 커서 충분히 잡혀요. 앞 주자를 지우면 득점권 주자가 사라져서 1루 아웃보다 훨씬 이득이에요.',
+  },
+  {
+    id: 'ss-receive',
+    kind: 'choice',
+    setup: 'receive',
+    title: '1사 1루 / 1루수 땅볼 (2루에서 받기)',
+    event: '1루 베이스 근처 땅볼',
+    position: 'SS',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '병살 대형이에요. 1루수 쪽 땅볼이라 유격수는 2루 커버에 들어와 있어요. 1루수가 공을 잡아 1루를 먼저 밟고 2루로 던져요. 받으면 밟을까, 태그할까?',
+    fielders: { ...DP, '1B': P(21, 25), SS: RECEIVE_SPOT.second.SS },
+    receive: { fielder: '1B', catchPoint: P(19.8, 22), travelTime: 1.3, base: 'second', force: false, via: 'step1' },
+    prompt: '1루수가 1루를 밟고 2루로 던진다! 받으면?',
+    options: receiveOptions({ outs: 1, runners: ON_FIRST, batter: 'R' }, 'second', false, true, RECEIVE_SPOT.second.SS),
+    explanation:
+      '1루수가 1루를 먼저 밟아 타자를 잡았어요. 타자가 아웃되는 순간 1루 주자는 더 이상 밀리지 않아서 포스가 풀려요. ' +
+      '그래서 2루에서는 베이스만 밟아서는 아웃이 안 되고, 주자를 직접 태그해야 해요. 1루수가 던지기 전에 "태그!"라고 외쳐 주는 게 좋지만, 받는 쪽도 앞에서 무슨 일이 있었는지 보고 스스로 판단해야 해요.',
   },
   // ---------------- 3루수 ----------------
   {
@@ -1131,23 +1163,6 @@ export const SCENARIOS: Scenario[] = [
     explanation:
       '1, 2루에서는 두 주자 모두 밀려서 뛰기 때문에 3루도 베이스만 밟으면 아웃(포스아웃)이에요. 번트를 빨리 잡으면 3루로 던져 득점권의 앞 주자를 지우는 게 최선이에요. ' +
       '망설이면 3루도 1루도 다 놓칠 수 있어요. 2루는 유격수가 3루로 가서 비어 있으니 던질 수 없어요. 승부치기는 매번 이 상황으로 시작하니 꼭 몸에 익혀두세요.',
-  },
-  {
-    id: '3b-force',
-    kind: 'throw',
-    title: '무사 1, 2루 / 3루수 땅볼',
-    event: '3루 베이스 근처 땅볼',
-    position: '3B',
-    situation: { outs: 0, runners: { first: true, second: true, third: false }, batter: 'R' },
-    brief: '병살 대형이에요. 3루 베이스 근처로 땅볼이 와요.',
-    fielders: { ...DP, ...HOLD_1B },
-    batted: { type: 'grounder', catchPoint: P(-20, 22), travelTime: 1.2 },
-    covers: { first: '1B', second: '2B', home: 'C' },
-    selfBases: ['third'],
-    explanation:
-      '1, 2루라 3루도 포스 상황이에요. 3루 베이스가 바로 옆이니 직접 밟아서 득점권에서 가장 홈에 가까운 주자부터 지우세요. ' +
-      '밟은 다음에는 2루로 던지면 병살이에요. 1루 주자는 타자에게 밀려서 뛰고 있어서 2루도 포스 상황이고, 3루에서 2루가 1루보다 가까워요. ' +
-      '1루로 던져도 병살이지만 그러면 2아웃 2루, 2루로 던지면 2아웃 1루라 주자를 득점권에 남기지 않아요.',
   },
   {
     id: '3b-infield-in',
@@ -1262,6 +1277,23 @@ export const SCENARIOS: Scenario[] = [
       '3루수는 홈과 가까워서 홈에서 3루 주자를 태그로 잡기도 쉬워요. 1점이 중요한 접전이나 경기 후반이면 홈 승부도 좋은 판단이에요. ' +
       '3루 주자가 홈으로 뛰는 걸 보고 3루를 밟아도 소용없어요. 3루 주자는 밀려서 뛰는 게 아니라서 3루는 포스아웃이 안 돼요.',
   },
+  {
+    id: '3b-receive',
+    kind: 'choice',
+    setup: 'receive',
+    title: '무사 2루 / 유격수 땅볼 (3루에서 받기)',
+    event: '유격수 정면 땅볼',
+    position: '3B',
+    situation: { outs: 0, runners: { first: false, second: true, third: false }, batter: 'R' },
+    brief: '무사 2루예요. 유격수 쪽 땅볼에 2루 주자가 3루로 뛰고, 유격수가 3루로 던져요. 3루수는 3루 베이스에 있어요. 받으면 밟을까, 태그할까?',
+    fielders: { '3B': RECEIVE_SPOT.third },
+    receive: { fielder: 'SS', catchPoint: P(-8.5, 31.5), travelTime: 1.45, base: 'third', force: false },
+    prompt: '유격수가 3루로 던진다! 받으면?',
+    options: receiveOptions({ outs: 0, runners: { first: false, second: true, third: false }, batter: 'R' }, 'third', false, false, RECEIVE_SPOT.third),
+    explanation:
+      '2루 주자 뒤(1루)에는 주자가 없어서, 2루 주자는 밀려서 뛰는 게 아니라 스스로 3루를 노린 거예요. 그래서 3루에서는 베이스만 밟아서는 아웃이 안 되고, 주자를 직접 태그해야 해요. ' +
+      '만약 주자가 1, 2루였다면 2루 주자도 밀려서 뛰니 3루는 밟기만 해도 아웃이에요. 공을 받기 전에 "이 주자는 밀려서 오는가?"를 먼저 떠올리세요.',
+  },
 ];
 
 // 기본 상황 난이도: 1 기초(먼저 익힐 기본 원칙) / 2 응용 / 3 심화(상황에 따라 갈리거나 특수한 규칙)
@@ -1273,13 +1305,13 @@ const LEVELS: Record<string, 1 | 2 | 3> = {
   '1b-361': 2, '1b-step': 2, '1b-liner': 2, '1b-bunt': 2, '1b-advance': 2,
   '1b-cutoff': 3, '1b-loaded': 3,
   '2b-dp': 1, '2b-cover': 1, '2b-steal': 1,
-  '2b-self': 2, '2b-2out': 2, '2b-bunt-cover': 2, '2b-relay': 2, '2b-liner': 2,
+  '2b-receive': 2, '2b-2out': 2, '2b-bunt-cover': 2, '2b-relay': 2, '2b-liner': 2,
   '2b-advance': 3, '2b-corners': 3,
   'ss-dp': 1, 'ss-cover': 1, 'ss-steal': 1,
   'ss-2out': 2, 'ss-relay': 2, 'ss-liner': 2, 'ss-runner2': 2,
-  'ss-hole': 3, 'ss-loaded': 3, 'ss-corners': 3,
+  'ss-hole': 3, 'ss-loaded': 3, 'ss-receive': 3,
   '3b-dp': 1, '3b-slow': 1, '3b-2out': 1,
-  '3b-force': 2, '3b-step': 2, '3b-liner': 2, '3b-bunt-charge': 2,
+  '3b-receive': 2, '3b-step': 2, '3b-liner': 2, '3b-bunt-charge': 2,
   '3b-infield-in': 3, '3b-corners': 3, '3b-tiebreak': 3,
 };
 const POS_ORDER: PositionId[] = ['P', '1B', '2B', 'SS', '3B'];

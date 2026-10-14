@@ -481,7 +481,7 @@ export class UI {
   showBriefing(scn: Scenario) {
     this.hideAll();
     const hidden = ballHidden(scn);
-    const action = getMode() === 'action';
+    const action = getMode() === 'action' && !(scn.kind === 'choice' && scn.setup === 'receive');
     this.help.textContent = action
       ? 'WASD: 이동 · 마우스: 시점 (안 잠겼으면 우클릭 드래그) · 좌클릭: 조준한 베이스로 송구 · 공을 든 채 포스 베이스를 밟거나 주자에게 다가가 태그 · Esc: 마우스 풀기'
       : hidden
@@ -502,6 +502,8 @@ export class UI {
           ? '투구 전 판단'
           : scn.setup === 'steal' || scn.setup === 'wildpitch'
             ? '투구와 동시에 판단'
+            : scn.setup === 'receive'
+              ? '송구를 받는 쪽 판단'
             : '다른 수비수가 잡는 공';
     // 전체 랜덤일 때만 포지션이 매번 바뀌니 알려준다
     const eyebrow = [

@@ -240,7 +240,7 @@ export class Game {
         return;
       }
       if (!this.playing) return;
-      if (this.mode === 'action') {
+      if (this.actionPlay) {
         // 액션 모드: 좌클릭은 송구, 마우스가 안 잠겼으면 우클릭 드래그로 시점을 돌린다
         if (e.button === 0) {
           if (document.pointerLockElement !== this.canvas) this.lockPointer();
@@ -301,7 +301,7 @@ export class Game {
     });
     window.addEventListener('blur', () => this.keys.clear());
     document.addEventListener('keydown', (e) => {
-      if (this.mode === 'action' && this.playing && MOVE_KEYS.includes(e.code)) {
+      if (this.actionPlay && this.playing && MOVE_KEYS.includes(e.code)) {
         e.preventDefault();
         this.keys.add(e.code);
         return;
@@ -356,12 +356,12 @@ export class Game {
   }
 
   private get canChoose() {
-    if (this.mode === 'action') return false;
+    if (this.actionPlay) return false;
     return this.phase === 'decision' || (this.phase === 'live' && this.panelShown) || (this.phase === 'play' && this.follow !== null);
   }
 
   private get tagsVisible() {
-    if (this.mode !== 'action') return this.canChoose;
+    if (!this.actionPlay) return this.canChoose;
     // 액션 모드: 송구는 공을 들고 있을 때, 위치 판단은 판정 전까지 갈 곳을 보여준다
     return this.scn.kind === 'throw' ? this.phase === 'decision' : (this.phase === 'live' && this.panelShown) || !!this.act.relay;
   }
@@ -388,6 +388,11 @@ export class Game {
     this.ui.markPending(this.defs.findIndex((d) => d.value === value));
   }
 
+  // 액션 모드로 플레이하는지. 받는 쪽 판단(밟기/태그)은 액션 모드에서도 키로 고른다
+  private get actionPlay() {
+    return this.mode === 'action' && !(this.scn.kind === 'choice' && this.scn.setup === 'receive');
+  }
+
   private get playing() {
     return this.phase === 'live' || this.phase === 'decision' || this.phase === 'play';
   }
@@ -407,7 +412,7 @@ export class Game {
 
   // 휴대폰: 누른 곳에서 가장 가까운 선택지(베이스·갈 곳)를 고른다
   private tapAt(x: number, y: number) {
-    if (this.mode === 'action' || !this.canChoose) return;
+    if (this.actionPlay || !this.canChoose) return;
     const v = new THREE.Vector3();
     let best: DecisionDef | null = null;
     let bestDist = TAP_RADIUS;
@@ -441,7 +446,7 @@ export class Game {
     this.clearCalls();
     this.pitchKmh = Math.round(PITCH.minKmh + Math.random() * (PITCH.maxKmh - PITCH.minKmh));
     this.pitchFlight = releasePoint().distanceTo(CONTACT_POINT) / (this.pitchKmh / 3.6);
-    const action = this.mode === 'action';
+    const action = this.actionPlay;
     this.tl =
       scn.kind === 'throw'
         ? action
@@ -481,7 +486,7 @@ export class Game {
         home: ['Space', 'Space'],
         hold: ['W', 'KeyW'],
       };
-      const action = this.mode === 'action';
+      const action = this.actionPlay;
       return THROW_CHOICES.filter((c) => c !== 'hold').map((c) => ({
         value: c,
         key: action ? '' : keys[c][0],
@@ -519,7 +524,7 @@ export class Game {
     return scn.options
       .map((o, i) => ({
         value: i,
-        key: this.mode === 'action' ? '' : DECISION_KEYS[keyOf[i]],
+        key: this.actionPlay ? '' : DECISION_KEYS[keyOf[i]],
         code: `Key${DECISION_KEYS[keyOf[i]]}`,
         label: o.label,
         short: o.label,
@@ -661,7 +666,7 @@ export class Game {
 
   private showResult(record: boolean) {
     const scn = this.scn;
-    const action = this.mode === 'action';
+    const action = this.actionPlay;
     const timeScale = action ? ACTION.speeds[this.difficulty] : DIFFICULTIES.find((x) => x.id === this.difficulty)!.timeScale;
     if (scn.kind === 'throw') {
       const o = this.outcome!;
@@ -718,7 +723,7 @@ export class Game {
   update(realDt: number) {
     const ds = DIFFICULTIES.find((x) => x.id === this.difficulty)!.timeScale;
 
-    if (this.playing && this.mode === 'action') {
+    if (this.playing && this.actionPlay) {
       // 액션 모드는 플레이 전체 속도가 일정하다
       this.timeScale = ACTION.speeds[this.difficulty];
       this.t += realDt * this.timeScale;
@@ -735,7 +740,7 @@ export class Game {
     const scn = this.scn;
     // 타격 순간(도루·투구 전 판단은 판단 시점)부터 선택지를 띄워서 미리 읽고 고를 수 있게 한다
     const showAt = scn.kind === 'throw' ? 0 : Math.min(this.tl.decisionAt, 0);
-    if (this.mode === 'action') {
+    if (this.actionPlay) {
       this.updateAction(realDt * this.timeScale, showAt);
     } else if (this.phase === 'live' && !this.panelShown && this.t >= showAt) {
       this.panelShown = true;
@@ -744,7 +749,7 @@ export class Game {
       this.ui.showDecision(scn.kind === 'throw' ? '공을 잡으면 어디로?' : scn.prompt, this.defs, scn.kind === 'throw' ? runnerCalls(scn) : []);
       this.ui.setDecisionTimer(1);
     }
-    if (this.mode !== 'action' && this.phase === 'live' && this.t >= this.tl.decisionAt) {
+    if (!this.actionPlay && this.phase === 'live' && this.t >= this.tl.decisionAt) {
       this.t = this.tl.decisionAt;
       if (this.pending !== null) {
         // 미리 골라뒀으면 잡자마자 던진다 (판단 시간 0초)
@@ -764,7 +769,7 @@ export class Game {
         this.ui.setDecisionTitle('어디로 이어 던질까?');
       }
     }
-    if (this.mode !== 'action' && this.phase === 'decision') {
+    if (!this.actionPlay && this.phase === 'decision') {
       if (this.follow) {
         const d2 = this.t - this.follow.stepT;
         this.ui.setDecisionTimer(1 - d2 / FOLLOW_WINDOW);
@@ -1081,7 +1086,7 @@ export class Game {
   }
 
   private playerPos(t: number) {
-    if (this.mode === 'action' && this.act.track.length) {
+    if (this.actionPlay && this.act.track.length) {
       const last = this.act.track[this.act.track.length - 1].t;
       if (this.playing && t >= last) return this.act.pos.clone();
       return this.trackPos(t);
@@ -1104,7 +1109,7 @@ export class Game {
       return;
     }
     const pos = this.playerPos(this.t);
-    const catchT = this.scn.kind === 'throw' && this.mode !== 'action' ? this.tl.decisionAt : -Infinity;
+    const catchT = this.scn.kind === 'throw' && !this.actionPlay ? this.tl.decisionAt : -Infinity;
     let dip = this.t > catchT - 0.4 && this.t < catchT + 0.6 ? 0.25 : 0;
     // 내가 직접 태그하면 몸을 숙이고 글러브를 아래로, 포스면 글러브를 앞으로 뻗는다
     const play = this.activePlay('player', this.t);
@@ -1253,7 +1258,7 @@ export class Game {
       if (crossed(s.t1) && !passed) sfx.glove();
     }
     // 판단 모드에서 내가 타구를 잡는 순간 (액션 모드는 실제로 잡을 때 따로 낸다)
-    if (this.scn.kind === 'throw' && this.mode !== 'action' && crossed(tl.decisionAt) && tl.decisionAt > 0) sfx.glove();
+    if (this.scn.kind === 'throw' && !this.actionPlay && crossed(tl.decisionAt) && tl.decisionAt > 0) sfx.glove();
   }
 
   private poseBatter(m: Mannequin, t: number) {
