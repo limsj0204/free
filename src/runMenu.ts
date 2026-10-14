@@ -1,11 +1,23 @@
 import { DIFFICULTIES, type DifficultyId } from './config';
-import { getIncludeGenerated, getRecord, getRunHideBall, getSoundOn, getVolume, setIncludeGenerated, setRunHideBall, setSoundOn, setVolume } from './progress';
+import {
+  getIncludeGenerated,
+  getRecord,
+  getRunHideBall,
+  getRunSkipIntro,
+  getSoundOn,
+  getVolume,
+  setIncludeGenerated,
+  setRunHideBall,
+  setRunSkipIntro,
+  setSoundOn,
+  setVolume,
+} from './progress';
 import { RUN_KIND_LABEL, type RunKind } from './runner';
 import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
 import type { Grade } from './scenario';
 import { sfx } from './sound';
 
-// 주루 판단 시뮬레이터의 첫 화면(상황 목록). 내야 수비 목록과 같은 모양: 왼쪽에 설정·조작법, 오른쪽에 종류별 탭.
+// 주루 판단 시뮬레이터의 첫 화면(상황 목록)과 시작 화면(소개). 내야 수비 목록과 같은 모양: 왼쪽에 설정·조작법, 오른쪽에 종류별 탭.
 
 const KINDS: RunKind[] = ['extra', 'fly', 'ground'];
 const GRADE_SHORT: Record<Grade, string> = { best: '최선', ok: '아쉬움', bad: '오답' };
@@ -24,6 +36,42 @@ export class RunMenu {
   onDifficulty: (d: DifficultyId) => void = () => {};
   private tab: RunKind = 'extra';
   private el = $('menu');
+  private intro = $('intro');
+
+  // 처음 들어오면 목록 위에 소개를 띄운다. 시작하기(또는 Enter)로 닫는다
+  showIntro() {
+    this.intro.innerHTML = `
+      <div class="card intro-card">
+        <div class="eyebrow">VR 야구 대비 · 주루</div>
+        <h1>주루 판단 시뮬레이터</h1>
+        <p class="intro-lead">SBO 대회를 준비하는 스트리머들의 주루 판단력에 도움을 주기 위한 시뮬레이터예요.</p>
+        <ul class="intro-points">
+          <li>주자가 되어 타구를 보고 <b>더 갈지, 멈출지, 베이스로 돌아갈지</b> 판단을 반복해서 연습해요.</li>
+          <li>실제 VR 야구의 <b>주루 속도와 송구 속도</b>와는 다소 차이가 있을 수 있어요.</li>
+          <li>결과와 해설은 하나의 기준(기대 득점)이에요. 실제 경기에서는 <b>팀 약속과 상황</b>에 따라 달라질 수 있어요.</li>
+        </ul>
+        <button class="primary intro-start" id="intro-start">시작하기 <kbd>Enter</kbd></button>
+        <label class="intro-skip" for="intro-skip">
+          <input type="checkbox" id="intro-skip" ${getRunSkipIntro() ? 'checked' : ''} />
+          <span>다음부터 이 화면 건너뛰기</span>
+        </label>
+      </div>`;
+    const close = () => {
+      setRunSkipIntro($<HTMLInputElement>('intro-skip').checked);
+      this.intro.classList.add('hidden');
+      document.removeEventListener('keydown', onKey);
+      sfx.click();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+        e.preventDefault();
+        close();
+      }
+    };
+    $('intro-start').addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    this.intro.classList.remove('hidden');
+  }
 
   show(difficulty: DifficultyId, tab?: RunKind) {
     if (tab) this.tab = tab;
@@ -109,8 +157,7 @@ export class RunMenu {
               </label>
             </div>
             <div class="channel-links">
-              <a class="channel soop" href="https://www.sooplive.com/station/yangdoki" target="_blank" rel="noopener noreferrer"><b>SOOP</b>양도끼 방송국</a>
-              <a class="channel youtube" href="https://www.youtube.com/@%EC%96%91%EB%8F%84%EB%81%BC" target="_blank" rel="noopener noreferrer"><b>YouTube</b>양도끼</a>
+              <button class="intro-link" id="intro-btn">ⓘ 소개</button>
             </div>
           </div>
         </div>
@@ -132,6 +179,7 @@ export class RunMenu {
     );
     $('random-kind').addEventListener('click', () => this.onRandom(this.tab));
     $('random-all').addEventListener('click', () => this.onRandom('all'));
+    $('intro-btn').addEventListener('click', () => this.showIntro());
     $<HTMLInputElement>('hide-ball').addEventListener('change', (e) => setRunHideBall((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('gen-toggle').addEventListener('change', (e) => setIncludeGenerated((e.target as HTMLInputElement).checked));
     $<HTMLInputElement>('sound-on').addEventListener('change', (e) => {

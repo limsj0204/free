@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { P } from './coords';
 import { buildField } from './field';
-import { getDifficulty, setDifficulty } from './progress';
+import { getDifficulty, getRunSkipIntro, setDifficulty } from './progress';
 import { RunGame } from './runGame';
 import { RunMenu } from './runMenu';
 import { unlockAudio } from './sound';
@@ -62,6 +62,7 @@ ui.onNext = () => game.handle('next');
 ui.onMenu = () => game.handle('menu');
 
 showMenu();
+if (!getRunSkipIntro()) menu.showIntro();
 
 const timer = new THREE.Timer();
 renderer.setAnimationLoop((time) => {

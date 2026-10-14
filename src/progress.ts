@@ -14,6 +14,7 @@ interface Saved {
   includeGenerated?: boolean;
   hideBall?: boolean;
   runHideBall?: boolean; // 주루 판단 시뮬레이터의 타구 숨기기 (내야 수비와 따로)
+  runSkipIntro?: boolean; // 주루 판단 시작 화면(소개) 건너뛰기
   mode?: 'judge' | 'action';
   soundOn?: boolean;
   volume?: number; // 0~1
@@ -89,6 +90,15 @@ export function getRunHideBall(): boolean {
 
 export function setRunHideBall(on: boolean) {
   saved.runHideBall = on;
+  persist();
+}
+
+export function getRunSkipIntro(): boolean {
+  return saved.runSkipIntro ?? false;
+}
+
+export function setRunSkipIntro(on: boolean) {
+  saved.runSkipIntro = on;
   persist();
 }
 
