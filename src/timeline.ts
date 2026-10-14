@@ -696,7 +696,11 @@ export function buildChoiceTimeline(scn: ChoiceScenario, pitchFlight: number, in
       const t1 = t + from.distanceTo(dest) / THROW.speed;
       decide(r.travelTime, Math.max(0.6, t1 - r.travelTime - 0.1));
       deadline = t1;
-      arrival = movePlayer();
+      // 베이스 커버는 타구 방향을 보자마자 자동으로 들어간다 (판단할 건 받은 뒤 밟기냐 태그냐)
+      const spot = scn.options[0].moveTo;
+      const go = 0.25;
+      arrival = go + playerStart.distanceTo(spot) / RUN.fielderSpeed;
+      tl.player.push({ from: playerStart, to: spot, t0: go, t1: arrival });
       tl.ball.push({ from, to: dest, t0: t, t1, arc: 0.8, thrower });
       if (!input) break;
       const runArrive = pathEnd(target);
