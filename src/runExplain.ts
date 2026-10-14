@@ -1,6 +1,6 @@
-import { NEXT, OF_NAME, ORIGIN, type RunScenario } from './runner';
+import { NEXT, OF_NAME, ORIGIN, bestOptions, type RunScenario } from './runner';
 import { extraRoute } from './runExtra';
-import { isForced } from './runGround';
+import { groundStep, isForced } from './runGround';
 
 // 생성된 주루 상황의 해설을 규칙으로 쓴다. 숫자(세이프 확률, 기대 득점)는 결과 화면에 따로 나온다.
 
@@ -59,6 +59,15 @@ function groundText(scn: RunScenario) {
   if (isForced(scn)) return '포스(의무 진루) 상황이에요. 내 뒤 베이스가 다 차 있어서, 타구가 어디로 가든 다음 베이스로 뛰어야 해요. 병살이 될 것 같아도 최대한 빨리 가는 게 주자의 일이에요.';
   const base = scn.me === 'r2' ? '2루' : '3루';
   if (o === 2) return `2아웃이면 타구가 맞는 순간 뛰어요. 아웃이면 어차피 이닝이 끝나요.`;
+  // 1, 3루의 3루 주자: 병살이 나오는 타구인지가 기준
+  if (scn.me === 'r3' && scn.situation.runners.first) {
+    const st = groundStep(scn);
+    if (bestOptions(st.value(st.decisionAt)).includes('go'))
+      return o === 0
+        ? '무사 1, 3루에서 병살 코스 땅볼이면 3루 주자는 홈으로 뛰어요. 수비가 병살을 노리면 그 사이 1점이 들어오고, 홈으로 던져서 잡혀도 1사 1, 2루라 기회가 남아요. 남아 있다가 병살을 당하면 2사 3루가 되고 점수도 없어서, 그게 가장 손해예요.'
+        : '1사 1, 3루에서 병살 코스 땅볼이면 남아 있어도 병살로 이닝이 끝나요. 뛰어서 수비를 홈으로 끌어내는 게 나아요.';
+    return '느린 타구라 병살이 안 나와요. 남아 있으면 수비는 2루나 1루에서 하나만 잡고 1, 3루 기회가 이어져요. 뛰면 홈에서 잡혀요.';
+  }
   return `포스가 아니라 ${base}에 남아도 돼요. 타구가 내 앞으로 오면 뛰는 순간 내 쪽으로 던져서 잡히고, 수비가 1루로 던질 수밖에 없는 타구면 진루해요.`;
 }
 
