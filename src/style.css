@@ -1273,3 +1273,28 @@ button:focus-visible {
 .tabs.three {
   grid-template-columns: repeat(3, 1fr);
 }
+
+/* 결과 화면: 자세한 숫자는 접어 둔다 */
+details.more {
+  margin-top: 12px;
+}
+
+details.more summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 6px 0;
+}
+
+details.more summary:hover {
+  color: var(--text);
+}
+
+details.more h2:first-child {
+  margin-top: 8px;
+}
+
+.result-card:not(.more-open) .more-side {
+  display: none;
+}

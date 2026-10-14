@@ -84,9 +84,25 @@ export interface RunResultData {
   timeScale: number;
 }
 
-function stepBlock(g: StepGrade, multi: boolean) {
+// 판단 단계마다 판정과 이유 (늘 보인다)
+function stepHead(g: StepGrade, multi: boolean) {
   const im = g.immediate;
   const labelOf = (id: string) => g.step.options.find((o) => o.id === id)!.label;
+  const notes: string[] = [];
+  if (g.verdict !== 'ideal') {
+    notes.push(g.best.length > 1 ? `<b>${g.best.map(labelOf).join('</b>, <b>')}</b> 모두 좋은 판단이에요.` : `최선은 <b>${labelOf(g.best[0])}</b>예요.`);
+  }
+  notes.push(im.note);
+  if (g.timedOut) notes.push(`정하지 못해서 <b>${labelOf(g.choice)}</b>로 처리했어요.`);
+  else if (g.delay > 0.01 && g.loss > 0.01 && g.best.includes(g.choice)) notes.push(`판단 순간보다 <b>${sec(g.delay)}</b> 늦게 정해서 손해를 봤어요.`);
+  return `
+    <h2>${multi ? `${g.step.name}: ` : '판단 기준: '}${VERDICT[g.verdict](g)}</h2>
+    <p class="note">${notes.join('<br/>')}</p>`;
+}
+
+// 선택지마다 결과와 기대 득점 (자세히 보기 안에 접어 둔다)
+function stepRows(g: StepGrade, multi: boolean) {
+  const im = g.immediate;
   const rows = g.step.options
     .map((o) => {
       const v = im.options.find((x) => x.id === o.id)!;
@@ -100,18 +116,11 @@ function stepBlock(g: StepGrade, multi: boolean) {
       </div>`;
     })
     .join('');
-  const notes: string[] = [];
-  if (g.verdict !== 'ideal') {
-    notes.push(g.best.length > 1 ? `<b>${g.best.map(labelOf).join('</b>, <b>')}</b> 모두 좋은 판단이에요.` : `최선은 <b>${labelOf(g.best[0])}</b>예요.`);
-  }
-  notes.push(im.note);
-  if (g.timedOut) notes.push(`정하지 못해서 <b>${labelOf(g.choice)}</b>로 처리했어요.`);
-  else if (g.delay > 0.01 && g.loss > 0.01 && g.best.includes(g.choice)) notes.push(`판단 순간보다 <b>${sec(g.delay)}</b> 늦게 정해서 손해를 봤어요.`);
-  return `
-    <h2>${multi ? `${g.step.name}: ` : '판단 기준: '}${VERDICT[g.verdict](g)}</h2>
-    <p class="note">${notes.join('<br/>')}</p>
-    ${rows}`;
+  return `<h2>${multi ? `${g.step.name} ` : ''}선택지별 기대 득점</h2>${rows}`;
 }
+
+// 결과 화면의 자세한 숫자(타이밍 표, 선택지별 기대 득점)는 접어 둔다. 한 번 펼치면 다음 결과에서도 펼친 채로 보여준다
+let moreOpen = false;
 
 export function showRunResult(ui: UI, r: RunResultData) {
   const scn = r.scenario;
@@ -151,14 +160,26 @@ export function showRunResult(ui: UI, r: RunResultData) {
       <div class="stat"><small>화면에서 고민한 시간 (슬로모션 ${r.timeScale}배)</small><b>${sec(first.reactionReal)}</b></div>
     </div>
     ${[...res.lines, ...luck].length ? `<p class="note">${[...res.lines, ...luck].join('<br/>')}</p>` : ''}
-    ${timing}
-    ${throwNote}
-    ${r.grades.map((g) => stepBlock(g, multi)).join('')}`,
+    ${r.grades.map((g) => stepHead(g, multi)).join('')}
+    <details class="more" id="result-more" ${moreOpen ? 'open' : ''}><summary>자세히 보기 (${timing ? '타이밍 비교 · ' : ''}선택지별 기대 득점)</summary>
+      ${timing}
+      ${throwNote}
+      ${r.grades.map((g) => stepRows(g, multi)).join('')}
+    </details>`,
     `
     <h2>해설</h2>
     <p class="explain">${explainRun(scn)}</p>
-    <h2>기대 득점이란?</h2>
-    <p class="explain">아웃 카운트와 주자 상황에서 이닝이 끝날 때까지 평균 몇 점이 나는지예요 (MLB 평균). 선택마다 일어날 수 있는 결과를 확률로 따져서, 평균이 더 높은 쪽이 최선이에요.
-    그래서 같은 타구라도 아웃 카운트에 따라 판단이 달라져요.</p>`,
+    <div class="more-side">
+      <h2>기대 득점이란?</h2>
+      <p class="explain">아웃 카운트와 주자 상황에서 이닝이 끝날 때까지 평균 몇 점이 나는지예요 (MLB 평균). 선택마다 일어날 수 있는 결과를 확률로 따져서, 평균이 더 높은 쪽이 최선이에요.
+      그래서 같은 타구라도 아웃 카운트에 따라 판단이 달라져요.</p>
+    </div>`,
   );
+  // '자세히 보기'를 펼치면 왼쪽 숫자와 함께 오른쪽 기대 득점 설명도 보여준다
+  const card = document.querySelector('#result .result-card')!;
+  card.classList.toggle('more-open', moreOpen);
+  document.getElementById('result-more')!.addEventListener('toggle', (e) => {
+    moreOpen = (e.target as HTMLDetailsElement).open;
+    card.classList.toggle('more-open', moreOpen);
+  });
 }
