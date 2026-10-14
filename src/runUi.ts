@@ -4,7 +4,6 @@ import { ME_NAME, RUN_KIND_LABEL, stateLabel, type RunScenario, type RunVerdict,
 import { explainRun } from './runExplain';
 import type { Grade } from './scenario';
 import type { UI } from './ui';
-import { getRunHideBall } from './progress';
 
 // 주루 판단의 브리핑과 결과 화면. 수비 화면과 같은 카드·표 스타일을 쓴다.
 
@@ -20,8 +19,7 @@ const KEY_HELP: Record<RunScenario['kind'], string> = {
 // 타구를 숨겼을 때 브리핑에 보여주는 조작 안내 (어떤 판단이 나올지 모르니 다 보여준다)
 const KEY_HELP_ALL = '<kbd>A</kbd> 뒤로(멈춤·베이스로·귀루), <kbd>S</kbd> 중간까지(하프웨이, 플라이일 때), <kbd>D</kbd> 앞으로(간다·스타트·진루)';
 
-export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null) {
-  const hidden = getRunHideBall();
+export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null, hidden: boolean) {
   ui.hideAll();
   ui.setHelp('마우스: 고개 돌리기 · A: 뒤로(멈춤·베이스로) · S: 중간까지(하프웨이) · D: 앞으로(간다) · 클릭: 바라보는 곳 · Esc: 마우스 풀기');
   document.getElementById('hud')!.classList.remove('hidden');

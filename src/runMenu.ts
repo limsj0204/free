@@ -74,7 +74,7 @@ export class RunMenu {
             <div class="setting-row">
               <label class="gen-toggle" for="hide-ball">
                 <input type="checkbox" id="hide-ball" ${getRunHideBall() ? 'checked' : ''} />
-                <span>타구 숨기기 <small>브리핑에서 타구를 가리고, 공이 맞는 순간 공개해요</small></span>
+                <span>타구 숨기기 <small>브리핑에서 타구를 가리고, 공이 맞는 순간 공개해요 (전체 랜덤은 항상 숨겨요)</small></span>
               </label>
               <div class="sound-ctl">
                 <label class="gen-toggle" for="sound-on">

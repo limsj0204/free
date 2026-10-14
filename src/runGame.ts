@@ -49,6 +49,8 @@ export class RunGame {
   private defs: DecisionDef[] = [];
   private randomPool: RunScenario[] | null = null;
   private randomLabel: string | null = null;
+  // 전체 랜덤은 어떤 타구가 나올지 모르는 게 연습의 핵심이라 설정과 상관없이 타구를 숨긴다
+  private randomAll = false;
   private soundT = -Infinity;
   private shownCalls = new Set<number>();
   private callSprites: THREE.Sprite[] = [];
@@ -293,6 +295,7 @@ export class RunGame {
     const pool = [...RUN_SCENARIOS, ...(getIncludeGenerated() ? generatedRunScenarios() : [])];
     this.randomPool = random ? pool.filter((s) => random === 'all' || s.kind === random) : null;
     this.randomLabel = random ? `${random === 'all' ? '전체' : RUN_KIND_LABEL[random]} 랜덤` : null;
+    this.randomAll = random === 'all';
     const scn = id ? RUN_SCENARIOS.find((s) => s.id === id)! : this.pickRandom();
     this.openBriefing(scn);
   }
@@ -329,14 +332,18 @@ export class RunGame {
     this.camera.position.copy(trackAt(this.tl.me, this.t).pos).setY(EYE_HEIGHT);
     // 타자는 투수를, 주자는 타자를 보고 시작한다
     this.lookAtPoint(scn.me === 'batter' ? P(0, 18.44, 1.6) : P(0, 0, 1.0));
-    this.ui.setHudInfo(getRunHideBall() ? '타구 대기' : scn.event, scn.situation, this.pitchKmh);
+    this.ui.setHudInfo(this.ballHidden() ? '타구 대기' : scn.event, scn.situation, this.pitchKmh);
     this.update(0);
+  }
+
+  private ballHidden() {
+    return this.randomAll || getRunHideBall();
   }
 
   private openBriefing(scn: RunScenario) {
     this.prepare(scn);
     this.phase = 'briefing';
-    showRunBriefing(this.ui, scn, this.randomLabel);
+    showRunBriefing(this.ui, scn, this.randomLabel, this.ballHidden());
   }
 
   private start() {
