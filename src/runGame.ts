@@ -677,12 +677,17 @@ export class RunGame {
   }
 }
 
-// 3루 코치 콜: 화면 가운데 위에 크게 띄운다 (null이면 숨긴다)
+// 3루 코치 콜: 화면 가운데 위에 크게 띄우고 2초(실제 시간) 뒤에 숨긴다 (null이면 바로 숨긴다).
+// 콜은 결정 패널 제목에도 남아 있어서, 슬로모션에서 오래 고민해도 다시 볼 수 있다.
+const COACH_CALL_SHOW_MS = 2000;
+let coachCallTimer = 0;
 function showCoachCall(call: { text: string; go: boolean } | null) {
   const el = document.getElementById('coach-call');
   if (!el) return;
+  clearTimeout(coachCallTimer);
   el.classList.toggle('hidden', !call);
   if (!call) return;
+  coachCallTimer = window.setTimeout(() => el.classList.add('hidden'), COACH_CALL_SHOW_MS);
   el.textContent = call.text;
   el.classList.toggle('go', call.go);
   el.classList.toggle('stop', !call.go);
