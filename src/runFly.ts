@@ -146,7 +146,16 @@ export function tagupStep(scn: RunScenario): Step {
     deadline: T + RUNNER.tagupWindow,
     showAt: Math.max(0, T - RUNNER.tagupPreview),
     timeout: 'stop',
-    value: (td) => goStopValue(tm.tagAt - tagupArrival(scn, td).arrival, tagupStates(scn)),
+    value: (td) => {
+      const v = goStopValue(tm.tagAt - tagupArrival(scn, td).arrival, tagupStates(scn));
+      // 무사 3루의 아슬아슬한 희생플라이(세이프 확률 50%~손익분기점 근처)는 타구 깊이, 외야수 송구, 주자 속도에 따라
+      // 갈리는 판단이라 뛰는 것과 머무는 것 둘 다 좋은 판단으로 인정한다
+      const p = safeProb(tm.tagAt - tagupArrival(scn, T).arrival);
+      if (b.next === 'home' && scn.situation.outs === 0 && p >= 0.5 && p <= 0.85) {
+        return { ...v, peers: ['go', 'stop'], note: `${v.note}<br/>세이프 확률이 반반을 조금 넘는 아슬아슬한 태그업이에요. 타구 깊이, 외야수 송구, 주자 속도에 따라 달라져서 <b>뛰는 것과 머무는 것 둘 다</b> 좋은 판단이에요.` };
+      }
+      return v;
+    },
   };
 }
 
