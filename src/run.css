@@ -237,6 +237,19 @@
   font-size: 15px;
 }
 
+/* 시작 화면: 기초 개념 먼저 보기 버튼은 민트색으로 눈에 띄게 */
+.intro-card .intro-basics {
+  border-color: #3ee0b5;
+  background: rgba(62, 224, 181, 0.16);
+  color: #6ff2cf;
+}
+
+.intro-card .intro-basics:hover,
+.intro-card .intro-basics:focus-visible {
+  background: rgba(62, 224, 181, 0.28);
+  color: #9ff8e0;
+}
+
 .intro-link.basics-link {
   margin-left: 6px;
 }
