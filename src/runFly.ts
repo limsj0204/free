@@ -74,13 +74,23 @@ export function tagupLabel(scn: RunScenario, id: string) {
   return id === 'go' ? `태그업, ${baseLabelTo(b.next)}` : `${BASE_LABEL[b.origin]}에 머묾`;
 }
 
-// 1단계 선택에 따른 위치: 베이스에서 다음 베이스 쪽으로 몇 m 나가 있는지
-export function progress(choice: ReadChoice | null, td: number, t: number) {
+// 하프웨이 위치: 정확히 절반이 아니라 '잡혀도 돌아올 수 있는 만큼 최대한' 나간다.
+// 공이 잡힌 뒤 귀루(반응 + 거리/속도)가 송구보다 halfwayMargin만큼 먼저 끝나는 가장 먼 곳. 다음 베이스 바로 앞까지만 나간다.
+export function halfwayDist(scn: RunScenario) {
+  const hit = scn.hit!;
+  const b = flyBases(scn);
+  const throwBack = RUNNER.release[hit.release] + outfieldThrow(hit.field, b.origin, 0, 0).flight;
+  const x = RUNNER.speed * (throwBack - RUNNER.returnReaction - RUNNER.halfwayMargin);
+  return Math.min(BASE_PATH - 2, Math.max(LEAD0, x));
+}
+
+// 1단계 선택에 따른 위치: 베이스에서 다음 베이스 쪽으로 몇 m 나가 있는지 (half: 하프웨이 위치)
+export function progress(choice: ReadChoice | null, td: number, t: number, half: number) {
   const tm = td + REACT;
   if (choice === null || choice === 'freeze' || t <= tm) return LEAD0;
   const v = RUNNER.speed;
   if (choice === 'tag') return Math.max(0, LEAD0 - v * (t - tm));
-  if (choice === 'half') return Math.min(RUNNER.halfway * BASE_PATH, LEAD0 + v * (t - tm));
+  if (choice === 'half') return Math.min(half, LEAD0 + v * (t - tm));
   return LEAD0 + v * (t - tm);
 }
 
@@ -197,9 +207,9 @@ function caughtValue(scn: RunScenario, choice: ReadChoice, td: number): Caught {
   const o = scn.situation.outs;
   if (o + 1 >= 3) {
     const st = { runs: 0, outs: 3, runners: R(false, false, false) };
-    return { state: st, ev: 0, onBase: progress(choice, td, T) <= ON_BASE, lines: ['잡히면 3아웃, 이닝 종료 (무엇을 했든 같아요)'] };
+    return { state: st, ev: 0, onBase: progress(choice, td, T, halfwayDist(scn)) <= ON_BASE, lines: ['잡히면 3아웃, 이닝 종료 (무엇을 했든 같아요)'] };
   }
-  const x = progress(choice, td, T);
+  const x = progress(choice, td, T, halfwayDist(scn));
   if (x <= ON_BASE && hit.infielder) {
     // 내야수가 잡은 타구: 베이스에 붙어 있으면 그대로 (태그업으로 갈 수 있는 거리가 아니다)
     const st = tagupStates(scn).stay;
@@ -255,7 +265,7 @@ export function dropOutcome(scn: RunScenario, choice: ReadChoice, td: number): D
   const b = flyBases(scn);
   const T = hit.fieldT;
   const v = RUNNER.speed;
-  const x = progress(choice, td, T);
+  const x = progress(choice, td, T, halfwayDist(scn));
   const start = choice === 'go' ? { t: T, x } : { t: T + RUNNER.dropReaction, x };
   const idx = BASE_INDEX[b.origin];
   const kmax = 4 - idx;
@@ -359,9 +369,10 @@ export function readStep(scn: RunScenario): Step {
         half.lines.push('3루 주자는 외야 플라이면 베이스로 돌아가 태그업을 준비하는 게 기본이에요. 잡히는 순간 베이스를 밟고 있어야 홈을 노릴 수 있어요.');
       }
     }
-    // 깊은 플라이(외야수가 뒤로 물러나며 잡는 타구)면 1·2루 주자의 하프웨이와 태그업 준비는 둘 다 할 수 있는 판단이다.
+    // 깊은 플라이(외야수가 뒤로 물러나며 잡는 타구)면 2루 주자의 하프웨이와 태그업 준비는 둘 다 할 수 있는 판단이다.
+    // 1루 주자는 깊은 타구면 2루 근처까지 나가 있는 하프웨이가 낫고(1루에 있으면 떨어졌을 때 손해가 크다),
     // 3루 주자는 잡히면 희생플라이로 득점할 수 있어서 태그업 준비만 답이다.
-    if (hit.release === 'back' && scn.me !== 'r3') return { options, note: `${note}<br/>${deepNote(scn, options)}`, peers: ['half', 'tag'] };
+    if (hit.release === 'back' && scn.me === 'r2') return { options, note: `${note}<br/>${deepNote(scn, options)}`, peers: ['half', 'tag'] };
     return { options, note };
   };
   const liner = isLiner(scn);
@@ -392,13 +403,13 @@ export function readStep(scn: RunScenario): Step {
 export const isUncertain = (scn: RunScenario) => (scn.hit?.catchProb ?? 1) < 0.9;
 
 export function needsTagup(scn: RunScenario, choice: ReadChoice, td: number, caught: boolean) {
-  return caught && !scn.hit!.infielder && !isUncertain(scn) && scn.situation.outs + 1 < 3 && progress(choice, td, scn.hit!.fieldT) <= ON_BASE;
+  return caught && !scn.hit!.infielder && !isUncertain(scn) && scn.situation.outs + 1 < 3 && progress(choice, td, scn.hit!.fieldT, halfwayDist(scn)) <= ON_BASE;
 }
 
 export function autoTagup(scn: RunScenario, read: { id: string; td: number } | null, caught: boolean): { id: string; td: number } | null {
   if (!read || !caught || !isUncertain(scn) || scn.hit!.infielder || scn.situation.outs + 1 >= 3) return null;
   const T = scn.hit!.fieldT;
-  if (progress(read.id as ReadChoice, read.td, T) > ON_BASE) return null;
+  if (progress(read.id as ReadChoice, read.td, T, halfwayDist(scn)) > ON_BASE) return null;
   const v = tagupStep(scn).value(T);
   const go = v.options.find((o) => o.id === 'go')!.ev >= v.options.find((o) => o.id === 'stop')!.ev;
   return { id: go ? 'go' : 'stop', td: T };
@@ -490,7 +501,8 @@ export function flyTimeline(
   }
 
   // 나: 투구 때 리드, 타격 순간 세컨드 리드, 판단할 때까지 그 자리에서 타구를 본다
-  const x = (t: number) => progress(choice, td, t);
+  const half = halfwayDist(scn);
+  const x = (t: number) => progress(choice, td, t, half);
   const me: Key[] = [
     { t: tWindup, pos: along(b.origin, RUN.leadOff) },
     { t: 0, pos: along(b.origin, LEAD0) },

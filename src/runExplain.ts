@@ -1,6 +1,9 @@
 import { NEXT, OF_NAME, ORIGIN, bestOptions, isCoach, type RunScenario } from './runner';
 import { coachCall, extraRoute } from './runExtra';
 import { groundStep, isForced } from './runGround';
+import { flyBases, halfwayDist } from './runFly';
+import { BASE_LABEL } from './coords';
+import { BASE_PATH } from './runner';
 
 // 생성된 주루 상황의 해설을 규칙으로 쓴다. 숫자(세이프 확률, 기대 득점)는 결과 화면에 따로 나온다.
 
@@ -74,8 +77,18 @@ function groundText(scn: RunScenario) {
 export function explainRun(scn: RunScenario) {
   // 코치 콜: 코치가 왜 그렇게 콜했는지로 읽는다
   if (isCoach(scn)) return `3루 코치가 <b>${coachCall(scn).text}</b>를 외친 이유: ${scn.explanation ?? [ballText(scn), distanceText(scn), extraText(scn)].filter(Boolean).join(' ')}`;
-  if (scn.explanation) return scn.explanation;
-  if (scn.kind === 'ground') return groundText(scn);
-  const tail = scn.kind === 'fly' ? flyText(scn) : extraText(scn);
-  return [ballText(scn), distanceText(scn), tail].filter(Boolean).join(' ');
+  const base = scn.explanation ?? (scn.kind === 'ground' ? groundText(scn) : [ballText(scn), distanceText(scn), scn.kind === 'fly' ? flyText(scn) : extraText(scn)].filter(Boolean).join(' '));
+  const half = halfwayText(scn);
+  return half ? `${base}<br/>${half}` : base;
+}
+
+// 플라이의 하프웨이 위치: 타구마다 '잡혀도 송구보다 먼저 돌아올 수 있는 가장 먼 곳'이라 위치가 다르다
+function halfwayText(scn: RunScenario) {
+  // 3루 주자는 베이스로(태그업 준비)가 기본이고, 내야 타구는 하프웨이가 거의 없어서 1·2루 주자의 외야 플라이에만 쓴다
+  if (scn.kind !== 'fly' || scn.hit?.infielder || scn.me === 'r3' || scn.situation.outs === 2) return '';
+  const b = flyBases(scn);
+  const x = halfwayDist(scn);
+  const left = BASE_PATH - x;
+  const where = x / BASE_PATH > 0.8 ? `${BASE_LABEL[b.next]} 바로 앞` : x / BASE_PATH > 0.6 ? `${BASE_LABEL[b.next]}에 더 가까운 곳` : x / BASE_PATH > 0.4 ? '거의 한가운데' : `${BASE_LABEL[b.origin]}에 가까운 곳`;
+  return `이 타구의 하프웨이는 ${BASE_LABEL[b.origin]}에서 약 <b>${Math.round(x)}m</b>(${BASE_LABEL[b.next]}까지 ${Math.round(left)}m, ${where})예요. 잡혀도 송구보다 먼저 돌아올 수 있는 가장 먼 곳까지 나가요.`;
 }
