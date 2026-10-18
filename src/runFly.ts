@@ -58,7 +58,8 @@ export function flyBases(scn: RunScenario) {
 const READ_LABEL = (scn: RunScenario): Record<ReadChoice, string> => ({
   go: `스타트 (${BASE_LABEL[NEXT[ORIGIN[scn.me]]]} 쪽으로)`,
   half: '중간까지 (하프웨이)',
-  tag: scn.hit?.infielder ? '베이스로 (귀루)' : '베이스로 (태그업 준비)',
+  // 내가 있던 베이스로 돌아간다 (1루 주자면 1루). 다음 베이스와 헷갈리지 않게 베이스 이름을 붙인다
+  tag: `${BASE_LABEL[ORIGIN[scn.me]]}로 돌아가기 (${scn.hit?.infielder ? '귀루' : '태그업 준비'})`,
   freeze: '그 자리에 멈춤',
 });
 
@@ -287,7 +288,7 @@ function dropLine(scn: RunScenario, d: Drop) {
 function deepNote(scn: RunScenario, options: OptionValue[]) {
   const half = options.find((o) => o.id === 'half')!.ev;
   const tag = options.find((o) => o.id === 'tag')!.ev;
-  const head = '깊은 플라이라 <b>하프웨이</b>와 <b>베이스로(태그업 준비)</b> 둘 다 좋은 판단이에요.';
+  const head = `깊은 플라이라 <b>하프웨이</b>와 <b>${BASE_LABEL[flyBases(scn).origin]}로 돌아가기(태그업 준비)</b> 둘 다 좋은 판단이에요.`;
   if (Math.abs(half - tag) < RUNNER.closeTolerance) return `${head} 이 상황에선 어느 쪽이든 거의 같아요.`;
   const o = scn.situation.outs;
   if (tag > half) {
@@ -372,7 +373,7 @@ export function readStep(scn: RunScenario): Step {
     prompt: `${what}! 어떻게 할까?`,
     urgent: `지금 정하세요! ${what}를 보고 어떻게 할까?`,
     options: [
-      { id: 'tag', key: 'A', label: labels.tag, short: '베이스로', pos: BASES[b.origin] },
+      { id: 'tag', key: 'A', label: labels.tag, short: `${BASE_LABEL[b.origin]}로`, pos: BASES[b.origin] },
       // 하프웨이 자리는 스타트(다음 베이스)와 같은 방향이라 화면 표시가 겹쳐서 표시하지 않는다 (버튼과 S키로 고른다)
       // 직선타는 S가 '그 자리에 멈춤'
       liner ? { id: 'freeze', key: 'S' as const, label: labels.freeze, short: '멈춤', pos: null } : { id: 'half', key: 'S' as const, label: labels.half, short: '하프웨이', pos: null },

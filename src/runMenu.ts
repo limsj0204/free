@@ -220,7 +220,7 @@ export class RunMenu {
             </div>
             <h2>조작법</h2>
             <div class="controls">
-              <span><kbd>A</kbd></span><span>뒤로: 멈춘다 · 베이스로 돌아간다 (태그업 준비, 귀루)</span>
+              <span><kbd>A</kbd></span><span>뒤로: 멈춘다 · 내가 있던 베이스로 돌아간다 (태그업 준비, 귀루)</span>
               <span><kbd>S</kbd></span><span>중간까지 나가 있기 · 하프웨이 (플라이일 때)</span>
               <span><kbd>D</kbd></span><span>앞으로: 간다 (한 베이스 더, 스타트, 태그업, 진루)</span>
               <span><kbd>좌클릭</kbd></span><span>바라보는 곳 고르기</span>

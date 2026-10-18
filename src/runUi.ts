@@ -15,7 +15,7 @@ const sec = (s: number) => `${s.toFixed(2)}초`;
 const KEY_HELP: Record<RunScenario['kind'], string> = {
   extra: '<kbd>A</kbd> 멈춘다, <kbd>D</kbd> 간다',
   // 코치 콜은 keyHelp에서 따로
-  fly: '<kbd>A</kbd> 베이스로(태그업 준비), <kbd>S</kbd> 중간까지(하프웨이), <kbd>D</kbd> 스타트. 베이스에 있으면 공이 잡히기 1초쯤 전에 태그업 판단이 떠요(떨어지면 사라져요): <kbd>A</kbd> 머문다, <kbd>D</kbd> 뛴다',
+  fly: '<kbd>A</kbd> 내 베이스로 돌아가기(태그업 준비), <kbd>S</kbd> 중간까지(하프웨이), <kbd>D</kbd> 스타트. 베이스에 있으면 공이 잡히기 1초쯤 전에 태그업 판단이 떠요(떨어지면 사라져요): <kbd>A</kbd> 머문다, <kbd>D</kbd> 뛴다',
   ground: '<kbd>A</kbd> 귀루, <kbd>D</kbd> 진루',
   wild: '<kbd>A</kbd> 머문다, <kbd>D</kbd> 진루',
 };
@@ -23,8 +23,8 @@ const KEY_HELP: Record<RunScenario['kind'], string> = {
 const keyHelp = (scn: RunScenario) =>
   scn.kind === 'fly' && scn.hit?.infielder
     ? scn.hit.type === 'liner'
-      ? '<kbd>A</kbd> 베이스로(귀루), <kbd>S</kbd> 그 자리에 멈춤, <kbd>D</kbd> 스타트'
-      : '<kbd>A</kbd> 베이스로(귀루), <kbd>S</kbd> 중간까지(하프웨이), <kbd>D</kbd> 스타트'
+      ? '<kbd>A</kbd> 내 베이스로 돌아가기(귀루), <kbd>S</kbd> 그 자리에 멈춤, <kbd>D</kbd> 스타트'
+      : '<kbd>A</kbd> 내 베이스로 돌아가기(귀루), <kbd>S</kbd> 중간까지(하프웨이), <kbd>D</kbd> 스타트'
     : isCoach(scn)
       ? '3루 코치 콜이 화면에 크게 떠요. <kbd>D</kbd> 돌려(간다), <kbd>A</kbd> 멈춰(멈춘다)'
       : KEY_HELP[scn.kind];
