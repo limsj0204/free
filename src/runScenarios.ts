@@ -431,7 +431,23 @@ const RARE: RunScenario[] = [
     '포수 바로 앞에 떨어진 공은 금방 주워요. 투수가 홈 커버로 들어오면 홈에서 잡혀요. 3루 주자는 머무세요. 공이 멀리 빠졌을 때만 홈으로 가요.'),
   rareWild('run-x-wp-r3', 'r3', 1, '폭투', '백네트까지', P(-6, -18), 1.8, 1,
     '공이 백네트까지 멀리 빠지면 3루 주자는 홈으로 가요. 포수가 공을 줍고 홈 커버로 들어온 투수에게 던지기 전에 들어올 수 있어요.'),
+  rareRule('run-x-fullcount', 'fullcount', 'r1', { outs: 2, runners: { first: true, second: false, third: false }, batter: 'R' }, '2사 1루 / 풀카운트', '2사 풀카운트',
+    '1루 주자예요. 2아웃 풀카운트(3볼 2스트라이크)예요. 투수가 공을 던지기 전에, 언제 출발할지 정해요.',
+    '2아웃 풀카운트에서 포스인 주자(1루 주자)는 <b>투구와 동시에 스타트</b>해요. 볼이면 볼넷이라 어차피 2루로 가고, 스트라이크면 삼진으로 이닝이 끝나고, 파울이면 다시 돌아오면 돼요. ' +
+    '공이 맞으면 이미 뛰고 있어서 안타에 한 베이스 더 가고, 땅볼이면 2루 포스아웃을 피하기 쉬워요. 잃을 게 없는 출발이에요. (1, 2루나 만루면 밀리는 주자 모두 똑같이 뛰어요)'),
+  rareRule('run-x-dropped3', 'dropped3', 'batter', { outs: 1, runners: { first: false, second: false, third: false }, batter: 'R' }, '1사 주자 없음 / 낫아웃', '낫아웃',
+    '타자예요. 2스트라이크에서 공을 기다려요. 1루가 비어 있어요.',
+    '세 번째 스트라이크를 포수가 제대로 잡지 못하면(낫아웃), <b>1루가 비어 있거나 2아웃</b>일 때 타자는 1루로 뛸 수 있어요. 포수가 공을 주워 1루에 던지기 전에 닿으면 세이프예요. ' +
+    '서 있으면 그대로 삼진 아웃이에요. 1루에 주자가 있고 2아웃이 아니면 뛸 수 없어요(그냥 아웃).'),
+  rareRule('run-x-iff', 'iff', 'r1', { outs: 1, runners: { first: true, second: true, third: false }, batter: 'R' }, '1사 1, 2루 / 인필드 플라이', '인필드 플라이',
+    '1루 주자예요. 1, 2루에서 내야에 공이 높이 떠요. 공이 떨어지면 어떻게 할지 정해요.',
+    '무사·1사에 1, 2루나 만루에서 내야에 높이 뜬 공은 심판이 <b>인필드 플라이</b>를 선언해요. 공을 잡든 못 잡든 타자는 아웃이라, 주자는 밀리지 않아요(포스가 없어져요). ' +
+    '그래서 공이 떨어져도 뛸 필요가 없어요. <b>베이스에 붙어 있으세요.</b> 뛰다가 공을 주운 수비에게 태그되면 아웃이에요. (일부러 공을 떨어뜨려 병살을 노리는 걸 막으려는 규칙이에요)'),
 ];
+
+function rareRule(id: string, rule: RunScenario['rule'], me: RunMe, situation: Situation, title: string, event: string, brief: string, explanation: string): RunScenario {
+  return { id, kind: 'rule', rare: true, rule, title, event, me, situation, brief, generated: false, level: 1, explanation };
+}
 
 
 // 기본 상황 난이도: 1 기초(먼저 익힐 기본 원칙) / 2 응용 / 3 심화(아웃 카운트에 따라 갈리는 판단)

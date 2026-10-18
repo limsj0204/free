@@ -313,6 +313,10 @@
     padding-bottom: 5px;
   }
 
+  .menu-main .items {
+    gap: 3px;
+  }
+
   .difficulties button {
     padding-top: 7px;
     padding-bottom: 7px;

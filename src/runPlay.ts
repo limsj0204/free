@@ -3,6 +3,7 @@ import { autoTagup, flyResult, flyTimeline, needsTagup, readStep, tagupStep, typ
 import { groundResult, groundStep, groundTimeline } from './runGround';
 import type { BaseState, RunScenario, RunTimeline, Step } from './runner';
 import { wildResult, wildStep, wildTimeline } from './runWild';
+import { ruleResult, ruleStep, ruleTimeline } from './runRule';
 
 // 한 번의 주루 플레이: 단계별 판단을 모으고, 지금까지의 판단으로 타임라인과 결과를 만든다.
 
@@ -23,7 +24,7 @@ export interface Play {
 }
 
 export function firstStep(scn: RunScenario): Step {
-  return scn.kind === 'extra' ? extraStep(scn) : scn.kind === 'fly' ? readStep(scn) : scn.kind === 'wild' ? wildStep(scn) : groundStep(scn);
+  return scn.kind === 'extra' ? extraStep(scn) : scn.kind === 'fly' ? readStep(scn) : scn.kind === 'wild' ? wildStep(scn) : scn.kind === 'rule' ? ruleStep(scn) : groundStep(scn);
 }
 
 // 다음 판단 (없으면 null). 플라이에서 베이스를 밟고 있으면 태그업 판단이 이어진다.
@@ -40,6 +41,7 @@ export function playTimeline(play: Play): RunTimeline {
   if (scn.kind === 'extra') return extraTimeline(scn, pitchFlight, c(0), noise);
   if (scn.kind === 'fly') return flyTimeline(scn, pitchFlight, c(0), play.caught, c(1) ?? autoTagup(scn, c(0), play.caught), noise);
   if (scn.kind === 'wild') return wildTimeline(scn, pitchFlight, c(0), noise);
+  if (scn.kind === 'rule') return ruleTimeline(scn, pitchFlight, c(0));
   return groundTimeline(scn, pitchFlight, c(0));
 }
 
@@ -72,6 +74,7 @@ export function playResult(play: Play): PlayResult {
     if (tag && !decided[1]) r.lines.unshift(tag.id === 'go' ? '잡혔을 때 베이스에 있어서 그대로 태그업했어요.' : '잡혔을 때 베이스에 있었지만 태그업할 거리가 아니라 머물렀어요.');
     return { state: r.state, headline: r.headline, lines: r.lines, timing: r.timing };
   }
+  if (scn.kind === 'rule') return ruleResult(scn, first);
   if (scn.kind === 'wild') {
     const r = wildResult(scn, first, noise);
     return { state: r.state, headline: r.headline, lines: [], timing: r.timing };

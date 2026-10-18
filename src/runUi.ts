@@ -18,6 +18,7 @@ const KEY_HELP: Record<RunScenario['kind'], string> = {
   fly: '<kbd>A</kbd> 내 베이스로 돌아가기(태그업 준비), <kbd>S</kbd> 중간까지(하프웨이), <kbd>D</kbd> 스타트. 베이스에 있으면 공이 잡히기 1초쯤 전에 태그업 판단이 떠요(떨어지면 사라져요): <kbd>A</kbd> 머문다, <kbd>D</kbd> 뛴다',
   ground: '<kbd>A</kbd> 귀루, <kbd>D</kbd> 진루',
   wild: '<kbd>A</kbd> 머문다, <kbd>D</kbd> 진루',
+  rule: '<kbd>A</kbd> 머문다(물러난다), <kbd>D</kbd> 뛴다',
 };
 
 const keyHelp = (scn: RunScenario) =>

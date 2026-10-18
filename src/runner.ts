@@ -13,8 +13,8 @@ import { CONTACT_POINT, PRE_PITCH, grounderHops, releasePoint, type BallSeg, typ
 
 export type RunMe = 'batter' | 'r1' | 'r2' | 'r3';
 export type OutfielderId = 'LF' | 'CF' | 'RF';
-export type RunKind = 'extra' | 'fly' | 'ground' | 'wild';
-export const RUN_KIND_LABEL: Record<RunKind, string> = { extra: '한 베이스 더', fly: '플라이', ground: '땅볼', wild: '폭투·패스트볼' };
+export type RunKind = 'extra' | 'fly' | 'ground' | 'wild' | 'rule';
+export const RUN_KIND_LABEL: Record<RunKind, string> = { extra: '한 베이스 더', fly: '플라이', ground: '땅볼', wild: '폭투·패스트볼', rule: '규칙' };
 // 목록 탭. 한 베이스 더는 타자 주자(공이 앞에 보여서 직접 판단)와 코치 콜(1루→3루, 2루→홈은 3루 코치 콜을 따른다)로 나눈다.
 // 드문 상황: 드물게 나오고 판단이 비교적 쉬운 상황 (직선타, 내야 뜬공, 폭투·패스트볼)
 export type RunTab = 'fly' | 'ground' | 'batter' | 'coach' | 'rare';
@@ -24,7 +24,7 @@ export const tabOf = (s: RunScenario): RunTab => (s.rare ? 'rare' : s.kind === '
 export const isCoach = (s: RunScenario) => tabOf(s) === 'coach';
 // 상황 종류 이름 (드문 상황의 플라이는 직선타·내야 뜬공으로 부른다)
 export const kindLabel = (s: RunScenario) =>
-  s.kind === 'fly' && s.hit?.infielder ? (s.hit.type === 'liner' ? '직선타' : '내야 뜬공') : s.kind === 'extra' ? RUN_TAB_LABEL[tabOf(s)] : RUN_KIND_LABEL[s.kind];
+  s.kind === 'fly' && s.hit?.infielder ? (s.hit.type === 'liner' ? '직선타' : '내야 뜬공') : s.kind === 'extra' ? RUN_TAB_LABEL[tabOf(s)] : s.kind === 'rule' ? s.event : RUN_KIND_LABEL[s.kind];
 
 export interface OutfieldHit {
   type: 'grounder' | 'liner' | 'fly';
@@ -52,6 +52,7 @@ export interface RunScenario {
   generated?: boolean;
   rare?: boolean; // 드문 상황 탭에 모으는 상황 (직선타, 내야 뜬공, 폭투·패스트볼)
   wild?: WildPitch; // wild: 공이 빠지는 곳
+  rule?: 'fullcount' | 'dropped3' | 'iff'; // rule: 규칙을 알면 답이 정해지는 상황 (runRule.ts)
   level?: 1 | 2 | 3; // 기본 상황의 난이도: 기초 / 응용 / 심화 (목록 순서와 배지)
 }
 
@@ -177,7 +178,7 @@ export interface StepValue {
 }
 
 export interface Step {
-  key: 'extra' | 'read' | 'tagup' | 'ground' | 'wild';
+  key: 'extra' | 'read' | 'tagup' | 'ground' | 'wild' | 'rule';
   name: string; // 결과 화면의 단계 이름
   prompt: string; // 결정 패널 제목
   urgent: string; // 판단 순간(슬로모션) 제목
