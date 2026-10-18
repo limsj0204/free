@@ -148,11 +148,18 @@ export function tagupStep(scn: RunScenario): Step {
     timeout: 'stop',
     value: (td) => {
       const v = goStopValue(tm.tagAt - tagupArrival(scn, td).arrival, tagupStates(scn));
-      // 무사 3루의 아슬아슬한 희생플라이(세이프 확률 50%~손익분기점 근처)는 타구 깊이, 외야수 송구, 주자 속도에 따라
-      // 갈리는 판단이라 뛰는 것과 머무는 것 둘 다 좋은 판단으로 인정한다
+      // 희생플라이(3루 → 홈)는 세이프 확률이 '뛰는 게 이득인 기준선' 근처(±15%)면 타구 깊이, 외야수 송구, 주자 속도에 따라
+      // 갈리는 판단이라 뛰는 것과 머무는 것 둘 다 좋은 판단으로 인정한다. 기준선은 아웃 카운트마다 다르다 (무사 약 74%, 1사 약 32%).
+      const st = tagupStates(scn);
+      const [vs, vo, vk] = [expectancy(st.safe), expectancy(st.out), expectancy(st.stay)];
+      const line = (vk - vo) / (vs - vo);
       const p = safeProb(tm.tagAt - tagupArrival(scn, T).arrival);
-      if (b.next === 'home' && scn.situation.outs === 0 && p >= 0.5 && p <= 0.85) {
-        return { ...v, peers: ['go', 'stop'], note: `${v.note}<br/>세이프 확률이 반반을 조금 넘는 아슬아슬한 태그업이에요. 타구 깊이, 외야수 송구, 주자 속도에 따라 달라져서 <b>뛰는 것과 머무는 것 둘 다</b> 좋은 판단이에요.` };
+      if (b.next === 'home' && Math.abs(p - line) <= RUNNER.sacFlyBand) {
+        return {
+          ...v,
+          peers: ['go', 'stop'],
+          note: `${v.note}<br/>세이프 확률이 기준(${pct(line)}) 근처인 아슬아슬한 태그업이에요. 타구 깊이, 외야수 송구, 주자 속도에 따라 달라져서 <b>뛰는 것과 머무는 것 둘 다</b> 좋은 판단이에요.`,
+        };
       }
       return v;
     },
