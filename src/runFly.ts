@@ -110,8 +110,10 @@ export function tagupTiming(scn: RunScenario) {
   return { release, tagAt: thr.t1 + TAG_TIME };
 }
 
+// 태그업 선택지는 공이 잡히는 순간에야 뜬다. 그래서 키를 누르는 반응 시간이 곧 주자의 반응 시간이다:
+// 포구 뒤 tagupReaction 안에 누르면 바로 출발한 것으로 보고, 그보다 늦으면 늦은 만큼 출발이 늦어진다 (반응 시간을 두 번 빼지 않는다)
 export function tagupArrival(scn: RunScenario, td: number) {
-  const leave = Math.max(td, scn.hit!.fieldT) + RUNNER.tagupReaction;
+  const leave = Math.max(td, scn.hit!.fieldT + RUNNER.tagupReaction);
   return { leave, arrival: leave + BASE_PATH / RUNNER.speed };
 }
 
