@@ -96,7 +96,7 @@ npm run build    # 타입 검사 후 dist/에 정적 파일로 빌드 (index.htm
 | `src/runFly.ts` | 플라이: 타구 판단(스타트·하프웨이·태그업 준비)과 태그업 |
 | `src/runGround.ts` | 땅볼 진루: 포스 판단, 내야 수비 엔진으로 수비 플레이 계산, 땅볼 상황 생성 |
 | `src/runPlay.ts` | 한 번의 주루 플레이: 단계별 판단을 모아 타임라인과 결과를 만든다 |
-| `src/runScenarios.ts` | 주루 기본 상황 35개와 상황 생성기 |
+| `src/runScenarios.ts` | 주루 기본 상황 38개와 상황 생성기 |
 | `src/runWild.ts` | 폭투·패스트볼: 포수가 공을 줍는 시간과 주자 도착 비교 |
 | `src/runExplain.ts` | 생성된 주루 상황의 해설 |
 | `src/runMain.ts` | 주루 판단 페이지의 시작점 |
