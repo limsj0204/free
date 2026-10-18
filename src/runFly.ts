@@ -131,7 +131,8 @@ function tagupStates(scn: RunScenario) {
 
 // 태그업 판단의 기준 (시간 계산 대신 야구 원칙으로 정한다. 결과(세이프·아웃)는 그대로 시간 계산으로 난다)
 // - 2루 → 3루: 타구 방향. 우측 외야(우익수·우중간) 플라이일 때만 시도한다 (3루까지 송구가 가장 멀다). 얕은 플라이·빗맞은 타구는 빼고.
-// - 3루 → 홈(희생플라이): 타구 깊이. 깊으면 뛰고, 얕으면 머물고, 보통 깊이면 뛰기·머물기 둘 다 좋은 판단이다.
+// - 3루 → 홈(희생플라이): 외야 플라이면 뛰기·머물기 둘 다 좋은 판단이다 (타구 깊이, 송구, 주자 속도에 따라 달라진다).
+//   잡힐지 모르는 타구는 태그업을 묻지 않고 자동으로 하는데, 그때는 빗맞은 타구면 머물고 깊은 타구면 뛴다.
 export function isRightOutfield(scn: RunScenario) {
   return scn.hit!.field.x < -8; // 필드 좌표에서 x가 음수면 1루(우익수) 쪽
 }
@@ -160,7 +161,7 @@ function tagupRule(scn: RunScenario, v: StepValue): StepValue {
   return {
     ...v,
     peers: ['go', 'stop'],
-    note: `${v.note}<br/><b>보통 깊이</b> 플라이라 타구 깊이, 외야수 송구, 내 주루 속도에 따라 달라져요. <b>뛰는 것과 머무는 것 둘 다</b> 좋은 판단이에요.`,
+    note: `${v.note}<br/>외야 플라이의 희생플라이는 타구 깊이, 외야수 송구, 내 주루 속도에 따라 달라져요. <b>뛰는 것과 머무는 것 둘 다</b> 좋은 판단이에요.`,
   };
 }
 
@@ -385,8 +386,21 @@ export function readStep(scn: RunScenario): Step {
 }
 
 // 1단계에서 베이스를 밟고 있어서 공이 잡히면 2단계(태그업)로 가는지
+// 잡힐지 모르는 타구(빗맞은 타구, 외야 사이 깊은 타구)는 공이 뜰 때의 판단만 연습한다.
+// 잡혔을 때 베이스에 있었으면 태그업은 묻지 않고 원칙대로 자동으로 한다 (autoTagup).
+export const isUncertain = (scn: RunScenario) => (scn.hit?.catchProb ?? 1) < 0.9;
+
 export function needsTagup(scn: RunScenario, choice: ReadChoice, td: number, caught: boolean) {
-  return caught && !scn.hit!.infielder && scn.situation.outs + 1 < 3 && progress(choice, td, scn.hit!.fieldT) <= ON_BASE;
+  return caught && !scn.hit!.infielder && !isUncertain(scn) && scn.situation.outs + 1 < 3 && progress(choice, td, scn.hit!.fieldT) <= ON_BASE;
+}
+
+export function autoTagup(scn: RunScenario, read: { id: string; td: number } | null, caught: boolean): { id: string; td: number } | null {
+  if (!read || !caught || !isUncertain(scn) || scn.hit!.infielder || scn.situation.outs + 1 >= 3) return null;
+  const T = scn.hit!.fieldT;
+  if (progress(read.id as ReadChoice, read.td, T) > ON_BASE) return null;
+  const v = tagupStep(scn).value(T);
+  const go = v.options.find((o) => o.id === 'go')!.ev >= v.options.find((o) => o.id === 'stop')!.ev;
+  return { id: go ? 'go' : 'stop', td: T };
 }
 
 // ---------- 결과 ----------

@@ -1,5 +1,5 @@
 import { extraResult, extraStep, extraTimeline } from './runExtra';
-import { flyResult, flyTimeline, needsTagup, readStep, tagupStep, type ReadChoice } from './runFly';
+import { autoTagup, flyResult, flyTimeline, needsTagup, readStep, tagupStep, type ReadChoice } from './runFly';
 import { groundResult, groundStep, groundTimeline } from './runGround';
 import type { BaseState, RunScenario, RunTimeline, Step } from './runner';
 import { wildResult, wildStep, wildTimeline } from './runWild';
@@ -38,7 +38,7 @@ export function playTimeline(play: Play): RunTimeline {
   const { scn, pitchFlight, noise, decided } = play;
   const c = (i: number) => (decided[i] ? { id: decided[i].id, td: decided[i].td } : null);
   if (scn.kind === 'extra') return extraTimeline(scn, pitchFlight, c(0), noise);
-  if (scn.kind === 'fly') return flyTimeline(scn, pitchFlight, c(0), play.caught, c(1), noise);
+  if (scn.kind === 'fly') return flyTimeline(scn, pitchFlight, c(0), play.caught, c(1) ?? autoTagup(scn, c(0), play.caught), noise);
   if (scn.kind === 'wild') return wildTimeline(scn, pitchFlight, c(0), noise);
   return groundTimeline(scn, pitchFlight, c(0));
 }
@@ -67,7 +67,9 @@ export function playResult(play: Play): PlayResult {
     };
   }
   if (scn.kind === 'fly') {
-    const r = flyResult(scn, first, play.caught, decided[1] ? { id: decided[1].id, td: decided[1].td } : null, noise);
+    const tag = decided[1] ? { id: decided[1].id, td: decided[1].td } : autoTagup(scn, first, play.caught);
+    const r = flyResult(scn, first, play.caught, tag, noise);
+    if (tag && !decided[1]) r.lines.unshift(tag.id === 'go' ? '잡혔을 때 베이스에 있어서 그대로 태그업했어요.' : '잡혔을 때 베이스에 있었지만 태그업할 거리가 아니라 머물렀어요.');
     return { state: r.state, headline: r.headline, lines: r.lines, timing: r.timing };
   }
   if (scn.kind === 'wild') {

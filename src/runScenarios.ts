@@ -146,11 +146,12 @@ function buildGenerated(): RunScenario[] {
       for (const o of [0, 1, 2]) {
         // 2아웃에 거의 잡히는 플라이는 답(스타트)이 매번 같아서 뺀다 (잡힐지 모르는 타구만 남긴다)
         if (o === 2 && (p.hit.catchProb ?? 1) >= 0.9) continue;
-        // 2루 주자의 보통·깊은 플라이는 3루 송구에 맞춘 FLIES_THIRD로 만든다 (같은 이름의 타구가 두 번 나오지 않게)
-        if (me === 'r2' && o < 2 && /-(mid|deep)$/.test(p.key)) continue;
+        // 외야 플라이는 깊이를 나누지 않는다 (얕은·깊은 플라이는 뺀다). 2루 주자의 외야 플라이는 3루 송구에 맞춘 FLIES_THIRD로 만든다
+        if (/-(short|deep)$/.test(p.key)) continue;
+        if (me === 'r2' && /-mid$/.test(p.key)) continue;
         out.push(make('fly', me, o, p));
       }
-  for (const p of FLIES_THIRD) for (const o of [0, 1]) out.push({ ...make('fly', 'r2', o, p), id: `run-fly-r2-deep-${p.key}-${o}` });
+  for (const p of FLIES_THIRD.filter((x) => x.key.endsWith('-mid'))) for (const o of [0, 1]) out.push({ ...make('fly', 'r2', o, p), id: `run-fly-r2-deep-${p.key}-${o}` });
   out.push(...generatedGroundScenarios());
   return out;
 }
@@ -262,20 +263,12 @@ const BASICS: RunScenario[] = [
       '1아웃이면 잡히는 순간 2아웃이라 3루에 남아도 안타가 나와야만 점수가 나서, 뛰는 쪽에 조금 더 무게가 실려요. 뛴다면 공이 글러브에 들어가는 순간 출발하세요.',
   },
   {
-    ...make('fly', 'r3', 0, pick(FLIES_HOME, 'cf-mid')),
-    id: 'run-t3-0out',
+    ...make('fly', 'r3', 0, pick(FLIES_HOME, 'lc-gap')),
+    id: 'run-t3-gap',
     generated: false,
     explanation:
-      '"1사 3루 / 중견수 플라이"와 같은 타구, 같은 중견수예요. 무사에서는 뛰는 것과 머무는 것 둘 다 좋은 판단이에요. ' +
-      '잡혀도 1사 3루라 다음 타자의 땅볼이나 플라이로도 점수가 나고, 홈에서 아웃되면 2사 주자 없음이 돼요. ' +
-      '그래서 무사에서는 타구 깊이, 외야수의 위치와 송구, 내 주루 속도에 따라 달라져요. 여유 있게 들어갈 만큼 깊으면 뛰고, 아슬아슬하면 머물러도 돼요.'
-  },
-  {
-    ...make('fly', 'r3', 0, pick(FLIES_HOME, 'lf-short')),
-    id: 'run-t3-short',
-    generated: false,
-    explanation:
-      '얕은 플라이는 외야수가 앞으로 뛰어오면서 잡아서, 그 기세로 바로 홈에 던져요. 홈까지 거리도 짧아서 태그업하면 거의 아웃이에요. 3루에 머무세요.',
+      '외야 사이로 뻗는 깊은 타구는 잡힐지 몰라요. 그래도 3루 주자는 <b>베이스로</b> 돌아가요. 잡히면 깊은 타구라 태그업으로 여유 있게 홈에 들어가고, 떨어져도 3루에서 홈까지는 충분히 들어와요. ' +
+      '하프웨이로 나가 있으면 잡혔을 때 3루로 돌아가야 해서 희생플라이를 놓쳐요.',
   },
   {
     ...make('fly', 'r2', 0, pick(FLIES_THIRD, 'rf-mid')),
@@ -446,9 +439,9 @@ const LEVELS: Record<string, 1 | 2 | 3> = {
   'run-r1-lf': 1, 'run-r1-cf': 1, 'run-b-gap': 1, 'run-b-lf': 1, 'run-b-rc': 1, 'run-b-cf': 1, 'run-b-rf': 2,
   'run-r1-rc': 2, 'run-r2-lf': 2, 'run-r2-rf': 2, 'run-r2-2out': 2,
   'run-r1-2out': 3,
-  'run-f1-half': 1, 'run-f2-2out': 1, 'run-t3-1out': 1, 'run-t3-short': 1,
+  'run-f1-half': 1, 'run-f2-2out': 1, 'run-t3-1out': 1, 'run-t3-gap': 2,
   'run-f1-bloop': 2, 'run-t2-rf': 2, 'run-f2-gap0': 2,
-  'run-t3-0out': 3, 'run-t2-1out': 3, 'run-f2-gap1': 3,
+  'run-t2-1out': 3, 'run-f2-gap1': 3,
   'run-g1-forced': 1, 'run-g12-forced': 1, 'run-g2-front': 1, 'run-g3-front': 1,
   'run-g2-behind': 2, 'run-g13-dp': 2,
 };
