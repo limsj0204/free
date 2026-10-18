@@ -1,5 +1,5 @@
-import { NEXT, OF_NAME, ORIGIN, bestOptions, type RunScenario } from './runner';
-import { extraRoute } from './runExtra';
+import { NEXT, OF_NAME, ORIGIN, bestOptions, isCoach, type RunScenario } from './runner';
+import { coachCall, extraRoute } from './runExtra';
 import { groundStep, isForced } from './runGround';
 
 // 생성된 주루 상황의 해설을 규칙으로 쓴다. 숫자(세이프 확률, 기대 득점)는 결과 화면에 따로 나온다.
@@ -72,6 +72,8 @@ function groundText(scn: RunScenario) {
 }
 
 export function explainRun(scn: RunScenario) {
+  // 코치 콜: 코치가 왜 그렇게 콜했는지로 읽는다
+  if (isCoach(scn)) return `3루 코치가 <b>${coachCall(scn).text}</b>를 외친 이유: ${scn.explanation ?? [ballText(scn), distanceText(scn), extraText(scn)].filter(Boolean).join(' ')}`;
   if (scn.explanation) return scn.explanation;
   if (scn.kind === 'ground') return groundText(scn);
   const tail = scn.kind === 'fly' ? flyText(scn) : extraText(scn);

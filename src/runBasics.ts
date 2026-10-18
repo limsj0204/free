@@ -159,21 +159,24 @@ export const RUN_BASIC_CARDS: BasicCard[] = [
     ],
   },
   {
-    title: '한 베이스 더',
+    title: '한 베이스 더: 직접 볼까, 코치를 볼까',
     svg: diagram({
-      runners: [lerp(second, third, 0.15)],
+      runners: [lerp(first, second, 0.85), lerp(home, first, 0.9)],
       arrows: [
-        { from: lerp(second, third, 0.25), to: lerp(second, third, 0.85) },
-        { from: [206, 40], to: lerp(third, second, 0.1), kind: 'ball' },
+        { from: lerp(first, second, 0.88), to: lerp(second, third, 0.2) },
+        { from: lerp(home, first, 0.93), to: lerp(first, second, 0.2) },
       ],
-      balls: [[206, 40]],
+      balls: [[200, 30]],
       glow: [third],
-      marks: [{ at: [160, 24], text: '우익수 → 3루: 먼 송구' }],
+      marks: [
+        { at: [44, 64], text: '3루 코치 콜', tone: 'warn' },
+        { at: [192, 120], text: '공이 앞에 보여요' },
+      ],
     }),
     body: [
-      '외야 안타 때 한 베이스 더 갈지는 <b>외야수가 공을 잡는 모습</b>과 <b>송구 거리</b>로 정해요.',
-      '앞으로 오면서 잡으면 바로 던지니 멈추고, 옆이나 뒤로 쫓아가 잡으면 던지기까지 오래 걸리니 더 가요.',
-      '베이스 몇 걸음 전에 정해야 속도를 줄이지 않고 돌 수 있어요. 늦게 정하면 그만큼 <b>베이스에서 머뭇거려요</b>.',
+      '<b>타자 주자</b>는 1루를 돌면서 공이 앞에 보여요. 외야 사이를 가르면 2루까지, 외야수 정면 단타면 1루에서 멈춰요. <b>직접 판단</b>해요.',
+      '<b>1루→3루, 2루→홈</b>은 공이 등 뒤에 있어서 뛰면서 보기 어려워요. <b>3루 코치 콜</b>(돌려 / 멈춰)을 따라요.',
+      '어느 쪽이든 베이스 몇 걸음 전에 정해야 속도를 줄이지 않고 돌 수 있어요. 늦으면 그만큼 <b>베이스에서 머뭇거려요</b>.',
     ],
   },
   {

@@ -22,13 +22,14 @@ import { sfx } from './sound';
 
 // 주루 판단 시뮬레이터의 첫 화면(상황 목록)과 시작 화면(소개). 내야 수비 목록과 같은 모양: 왼쪽에 설정·조작법, 오른쪽에 종류별 탭.
 
-const TABS: RunTab[] = ['extra', 'fly', 'ground', 'rare'];
+const TABS: RunTab[] = ['fly', 'ground', 'batter', 'coach', 'rare'];
 const GRADE_SHORT: Record<Grade, string> = { best: '최선', ok: '아쉬움', bad: '오답' };
 
 const TAB_DESC: Record<RunTab, string> = {
-  extra: '외야 안타 때 한 베이스 더 갈지 정해요.',
   fly: '공이 뜨는 순간 스타트·하프웨이·태그업 준비 중에 고르고, 잡히면 태그업할지 정해요.',
   ground: '땅볼에 진루할지 귀루할지 정해요. 포스(의무 진루)인지 먼저 생각하세요.',
+  batter: '타자 주자예요. 외야 안타에 1루를 돌면서, 앞에 보이는 공을 보고 2루까지 갈지 직접 정해요.',
+  coach: '1루→3루, 2루→홈은 공이 등 뒤에 있어서 3루 코치 콜을 따라요. 화면에 뜨는 콜을 보고 바로 반응해요.',
   rare: '직선타, 내야 뜬공, 폭투·패스트볼처럼 드물게 나오고 판단은 비교적 쉬운 상황이에요.',
 };
 
@@ -121,7 +122,7 @@ export class RunMenu {
   onPick: (id: string) => void = () => {};
   onRandom: (scope: RunTab | 'all') => void = () => {};
   onDifficulty: (d: DifficultyId) => void = () => {};
-  private tab: RunTab = 'extra';
+  private tab: RunTab = 'fly';
   private el = $('menu');
   private intro = $('intro');
 
@@ -228,7 +229,7 @@ export class RunMenu {
             <p class="controls-note">선택지는 타격 순간부터 떠 있어서 미리 고를 수 있어요. 결과(세이프·아웃, 잡힘·떨어짐)에는 운이 섞이고, 판정은 판단 자체로 해요.</p>
           </div>
           <div class="menu-main">
-            <div class="tabs four" role="tablist">${tabs}</div>
+            <div class="tabs five" role="tablist">${tabs}</div>
             <div class="items">
               <p class="random-desc">${TAB_DESC[this.tab]}</p>
               ${items}

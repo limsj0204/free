@@ -13,6 +13,7 @@ import {
   evText,
   expectancy,
   hitSegments,
+  isCoach,
   leadSpot,
   outfieldDefense,
   outfieldThrow,
@@ -112,7 +113,50 @@ export function goStopValue(margin: number, st: { safe: BaseState; out: BaseStat
   };
 }
 
+// 코치 콜: 속도를 줄이지 않고 베이스를 돌 수 있는 마지막 순간의 계산으로 3루 코치가 '돌려 / 멈춰'를 정한다
+export function coachCall(scn: RunScenario) {
+  const r = extraRoute(scn);
+  const tm = extraTiming(scn);
+  const commitAt = tm.tBase - RUNNER.commit;
+  const v = goStopValue(tm.tagAt - extraArrival(scn, commitAt).arrival, states(scn));
+  const go = v.options[0].ev > v.options[1].ev;
+  return { go, text: go ? `돌려! ${r.target === 'home' ? '홈까지' : '3루까지'}` : `멈춰! ${BASE_LABEL[r.mid]}에서`, commitAt };
+}
+
+// 1루→3루, 2루→홈: 콜이 나오는 순간 선택지가 뜨고, 콜대로 바로 반응하는 게 답이다 (늦으면 베이스에서 머뭇거린다)
+function coachStep(scn: RunScenario): Step {
+  const tm = extraTiming(scn);
+  const st = states(scn);
+  const call = coachCall(scn);
+  const callId = call.go ? 'go' : 'stop';
+  return {
+    key: 'extra',
+    name: '코치 콜',
+    prompt: `3루 코치: ${call.text}`,
+    urgent: `지금! 3루 코치: ${call.text}`,
+    options: [
+      { id: 'stop', key: 'A', label: extraLabel(scn, 'stop'), short: extraLabel(scn, 'stop'), pos: BASES[extraRoute(scn).mid] },
+      { id: 'go', key: 'D', label: extraLabel(scn, 'go'), short: extraLabel(scn, 'go'), pos: BASES[extraRoute(scn).target] },
+    ],
+    decisionAt: call.commitAt,
+    deadline: tm.deadline,
+    showAt: Math.max(0.2, call.commitAt - RUNNER.coachLead),
+    call: { text: call.text, go: call.go },
+    timeout: 'stop',
+    value: (td) => {
+      const v = goStopValue(tm.tagAt - extraArrival(scn, td).arrival, st);
+      const mine = v.options.find((o) => o.id === callId)!;
+      const other = v.options.find((o) => o.id !== callId)!;
+      other.ev = Math.min(other.ev, mine.ev - 0.3);
+      other.invalid = true;
+      other.lines.push(`코치 콜은 <b>${call.text}</b>였어요. 공이 등 뒤에 있는 주루는 코치 콜을 따라요.`);
+      return { ...v, note: `3루 코치 콜: <b>${call.text}</b> 콜이 나오면 바로 반응해야 속도를 줄이지 않고 베이스를 돌아요.` };
+    },
+  };
+}
+
 export function extraStep(scn: RunScenario): Step {
+  if (isCoach(scn)) return coachStep(scn);
   const r = extraRoute(scn);
   const tm = extraTiming(scn);
   const st = states(scn);

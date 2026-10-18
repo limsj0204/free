@@ -106,7 +106,7 @@ function briefOf(kind: RunScenario['kind'], me: RunMe, outs: number) {
   if (me === 'batter') return '타자예요. 안타를 치고 1루를 돌면서 2루까지 갈지 정해요.';
   const run = me === 'r1' ? '2루를 돌면서 3루까지' : '3루를 돌면서 홈까지';
   const start = me === 'r2' && outs < 2 ? ' 2아웃이 아니라서 타구가 빠지는 걸 보고 출발해요.' : outs === 2 ? ' 2아웃이라 타격과 동시에 출발해요.' : '';
-  return `${me === 'r1' ? '1루' : '2루'} 주자예요. 외야로 안타가 나오면 ${run} 갈지 정해요.${start}`;
+  return `${me === 'r1' ? '1루' : '2루'} 주자예요. 외야로 안타가 나오면 ${run} 갈지 3루 코치가 콜해요. 화면에 뜨는 콜(돌려 / 멈춰)을 보고 바로 반응하세요.${start}`;
 }
 
 function make(kind: RunScenario['kind'], me: RunMe, outs: number, p: Profile, extra: Partial<RunScenario> = {}): RunScenario {
@@ -129,7 +129,8 @@ function buildGenerated(): RunScenario[] {
   const out: RunScenario[] = [];
   for (const p of SINGLES) for (const o of [0, 1, 2]) out.push(make('extra', 'r1', o, p));
   for (const p of SINGLES) for (const o of [0, 1, 2]) out.push(make('extra', 'r2', o, p));
-  for (const p of STRETCH) for (const o of [0, 1, 2]) out.push(make('extra', 'batter', o, p));
+  // 타자 주자: 라인 쪽 타구는 수치에 따라 답이 갈려서 빼고, 외야 사이를 가르는 타구(간다)와 외야수 정면 단타(멈춘다)만 남긴다
+  for (const p of STRETCH.filter((x) => !x.key.endsWith('-line'))) for (const o of [0, 1, 2]) out.push(make('extra', 'batter', o, p));
   for (const me of ['r1', 'r2', 'r3'] as RunMe[])
     for (const p of FLIES_HOME)
       for (const o of [0, 1, 2]) {
@@ -221,6 +222,24 @@ const BASICS: RunScenario[] = [
     generated: false,
     explanation:
       '좌익수 정면으로 가는 단타는 좌익수가 앞으로 오면서 잡아 2루로 바로 던져요. 공이 잡히는 걸 보고 1루에서 멈추세요.',
+  },
+  {
+    ...make('extra', 'batter', 1, pick(STRETCH, 'rc-gap')),
+    id: 'run-b-rc',
+    generated: false,
+    explanation: '우중간을 가르는 타구도 좌중간과 같아요. 외야수가 등을 돌려 쫓아가는 게 보이면 2루까지 가요.',
+  },
+  {
+    ...make('extra', 'batter', 0, pick(STRETCH, 'cf')),
+    id: 'run-b-cf',
+    generated: false,
+    explanation: '중견수 정면 단타는 중견수가 앞으로 오면서 잡아요. 2루까지 거리도 가까워서 바로 던지면 잡혀요. 1루에서 멈추세요.',
+  },
+  {
+    ...make('extra', 'batter', 2, pick(STRETCH, 'rf')),
+    id: 'run-b-rf',
+    generated: false,
+    explanation: '2아웃이라도 우익수 정면 단타에 2루는 무리예요. 우익수가 앞으로 오면서 잡아 바로 던지면 2루에서 여유 있게 잡혀요.',
   },
   {
     ...make('fly', 'r3', 1, pick(FLIES_HOME, 'cf-mid')),
@@ -411,7 +430,7 @@ const RARE: RunScenario[] = [
 
 // 기본 상황 난이도: 1 기초(먼저 익힐 기본 원칙) / 2 응용 / 3 심화(아웃 카운트에 따라 갈리는 판단)
 const LEVELS: Record<string, 1 | 2 | 3> = {
-  'run-r1-lf': 1, 'run-r1-cf': 1, 'run-b-gap': 1, 'run-b-lf': 1,
+  'run-r1-lf': 1, 'run-r1-cf': 1, 'run-b-gap': 1, 'run-b-lf': 1, 'run-b-rc': 1, 'run-b-cf': 1, 'run-b-rf': 2,
   'run-r1-rc': 2, 'run-r2-lf': 2, 'run-r2-rf': 2, 'run-r2-2out': 2,
   'run-r1-2out': 3,
   'run-f1-half': 1, 'run-f2-2out': 1, 'run-t3-1out': 1, 'run-t3-short': 1,
@@ -423,7 +442,7 @@ const LEVELS: Record<string, 1 | 2 | 3> = {
 for (const s of BASICS) s.level = LEVELS[s.id] ?? 2;
 
 // 목록 순서: 종류별로 기초 → 응용 → 심화, 같은 난이도 안에서는 1루 → 2루 → 3루 → 타자 주자 순 (같은 주자끼리는 쓴 순서대로)
-const TAB_ORDER: RunTab[] = ['extra', 'fly', 'ground', 'rare'];
+const TAB_ORDER: RunTab[] = ['fly', 'ground', 'batter', 'coach', 'rare'];
 const ME_ORDER: RunMe[] = ['r1', 'r2', 'r3', 'batter'];
 export const RUN_SCENARIOS: RunScenario[] = [...BASICS, ...RARE].map((s, i) => ({ s, i }))
   .sort(

@@ -15,12 +15,16 @@ export type RunMe = 'batter' | 'r1' | 'r2' | 'r3';
 export type OutfielderId = 'LF' | 'CF' | 'RF';
 export type RunKind = 'extra' | 'fly' | 'ground' | 'wild';
 export const RUN_KIND_LABEL: Record<RunKind, string> = { extra: '한 베이스 더', fly: '플라이', ground: '땅볼', wild: '폭투·패스트볼' };
-// 목록 탭: 자주 나오는 세 종류와, 드물게 나오고 판단이 비교적 쉬운 상황을 모은 '드문 상황'
-export type RunTab = 'extra' | 'fly' | 'ground' | 'rare';
-export const RUN_TAB_LABEL: Record<RunTab, string> = { extra: '한 베이스 더', fly: '플라이', ground: '땅볼', rare: '드문 상황' };
-export const tabOf = (s: RunScenario): RunTab => (s.rare ? 'rare' : (s.kind as RunTab));
+// 목록 탭. 한 베이스 더는 타자 주자(공이 앞에 보여서 직접 판단)와 코치 콜(1루→3루, 2루→홈은 3루 코치 콜을 따른다)로 나눈다.
+// 드문 상황: 드물게 나오고 판단이 비교적 쉬운 상황 (직선타, 내야 뜬공, 폭투·패스트볼)
+export type RunTab = 'fly' | 'ground' | 'batter' | 'coach' | 'rare';
+export const RUN_TAB_LABEL: Record<RunTab, string> = { fly: '플라이', ground: '땅볼', batter: '타자 주자', coach: '코치 콜', rare: '드문 상황' };
+export const tabOf = (s: RunScenario): RunTab => (s.rare ? 'rare' : s.kind === 'extra' ? (s.me === 'batter' ? 'batter' : 'coach') : (s.kind as RunTab));
+// 1루→3루, 2루→홈: 주자가 직접 정하지 않고 3루 코치 콜을 보고 반응한다
+export const isCoach = (s: RunScenario) => tabOf(s) === 'coach';
 // 상황 종류 이름 (드문 상황의 플라이는 직선타·내야 뜬공으로 부른다)
-export const kindLabel = (s: RunScenario) => (s.kind === 'fly' && s.hit?.infielder ? (s.hit.type === 'liner' ? '직선타' : '내야 뜬공') : RUN_KIND_LABEL[s.kind]);
+export const kindLabel = (s: RunScenario) =>
+  s.kind === 'fly' && s.hit?.infielder ? (s.hit.type === 'liner' ? '직선타' : '내야 뜬공') : s.kind === 'extra' ? RUN_TAB_LABEL[tabOf(s)] : RUN_KIND_LABEL[s.kind];
 
 export interface OutfieldHit {
   type: 'grounder' | 'liner' | 'fly';
@@ -180,6 +184,8 @@ export interface Step {
   options: StepOption[];
   decisionAt: number;
   deadline: number;
+  showAt?: number; // 선택지를 띄우는 시각 (없으면 타격 순간). 코치 콜은 콜이 나오는 순간에 뜬다
+  call?: { text: string; go: boolean }; // 코치 콜: 화면에 크게 띄우는 말
   timeout: string; // 시간 안에 안 고르면 이 선택
   value(td: number): StepValue; // td(게임 시간)에 정했을 때 선택지별 기대 득점
 }

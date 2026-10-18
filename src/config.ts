@@ -112,6 +112,7 @@ export const RUNNER = {
   // 땅볼: 타구 방향이 보이는 순간 진루 / 귀루를 고른다
   groundRead: 0.25,
   groundWindow: 0.9,
+  coachLead: 0.8, // 코치 콜: 베이스를 돌기로 정해야 하는 순간보다 이만큼 먼저 콜이 나온다
   // 직선타: 타구가 낮고 빨라서 판단할 시간이 짧다
   linerRead: 0.12,
   linerWindow: 0.6,

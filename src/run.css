@@ -318,7 +318,41 @@
   }
 }
 
-/* 탭 네 개 (한 베이스 더 / 플라이 / 땅볼 / 드문 상황) */
-.tabs.four {
-  grid-template-columns: repeat(4, 1fr);
+/* 탭 다섯 개 (플라이 / 땅볼 / 타자 주자 / 코치 콜 / 드문 상황) */
+.tabs.five {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+/* 3루 코치 콜: 화면 위쪽 가운데에 크게 */
+.coach-call {
+  position: fixed;
+  top: 16%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 34px;
+  border-radius: 16px;
+  font-size: clamp(34px, 7vw, 64px);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: #fff;
+  pointer-events: none;
+  z-index: 4;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  animation: coach-pop 0.18s ease-out;
+}
+
+.coach-call.go {
+  background: rgba(30, 150, 80, 0.92);
+}
+
+.coach-call.stop {
+  background: rgba(205, 50, 45, 0.92);
+}
+
+@keyframes coach-pop {
+  from {
+    transform: translateX(-50%) scale(0.7);
+    opacity: 0;
+  }
 }

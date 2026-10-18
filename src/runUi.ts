@@ -1,6 +1,6 @@
 import { BASE_LABEL, type BaseId } from './coords';
 import type { Play, PlayResult } from './runPlay';
-import { ME_NAME, RUN_TAB_LABEL, kindLabel, stateLabel, tabOf, type RunScenario, type RunVerdict, type StepGrade } from './runner';
+import { ME_NAME, RUN_TAB_LABEL, isCoach, kindLabel, stateLabel, tabOf, type RunScenario, type RunVerdict, type StepGrade } from './runner';
 import { explainRun } from './runExplain';
 import { annotateRun } from './runGlossary';
 import { showRunPrinciples } from './runMenu';
@@ -14,6 +14,7 @@ const sec = (s: number) => `${s.toFixed(2)}초`;
 
 const KEY_HELP: Record<RunScenario['kind'], string> = {
   extra: '<kbd>A</kbd> 멈춘다, <kbd>D</kbd> 간다',
+  // 코치 콜은 keyHelp에서 따로
   fly: '<kbd>A</kbd> 베이스로(태그업 준비), <kbd>S</kbd> 중간까지(하프웨이), <kbd>D</kbd> 스타트. 잡히면 태그업 판단이 이어져요: <kbd>A</kbd> 머문다, <kbd>D</kbd> 뛴다',
   ground: '<kbd>A</kbd> 귀루, <kbd>D</kbd> 진루',
   wild: '<kbd>A</kbd> 머문다, <kbd>D</kbd> 진루',
@@ -24,10 +25,12 @@ const keyHelp = (scn: RunScenario) =>
     ? scn.hit.type === 'liner'
       ? '<kbd>A</kbd> 베이스로(귀루), <kbd>S</kbd> 그 자리에 멈춤, <kbd>D</kbd> 스타트'
       : '<kbd>A</kbd> 베이스로(귀루), <kbd>S</kbd> 중간까지(하프웨이), <kbd>D</kbd> 스타트'
-    : KEY_HELP[scn.kind];
+    : isCoach(scn)
+      ? '3루 코치 콜이 화면에 크게 떠요. <kbd>D</kbd> 돌려(간다), <kbd>A</kbd> 멈춰(멈춘다)'
+      : KEY_HELP[scn.kind];
 
 // 타구를 숨겼을 때 브리핑에 보여주는 조작 안내 (어떤 판단이 나올지 모르니 다 보여준다)
-const KEY_HELP_ALL = '<kbd>A</kbd> 뒤로(멈춤·베이스로·귀루), <kbd>S</kbd> 중간까지(하프웨이, 플라이일 때), <kbd>D</kbd> 앞으로(간다·스타트·진루)';
+const KEY_HELP_ALL = '<kbd>A</kbd> 뒤로(멈춤·베이스로·귀루, 코치 콜 멈춰), <kbd>S</kbd> 중간까지(하프웨이, 플라이일 때), <kbd>D</kbd> 앞으로(간다·스타트·진루, 코치 콜 돌려)';
 
 export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null, hidden: boolean) {
   ui.hideAll();
@@ -62,7 +65,7 @@ export function showRunBriefing(ui: UI, scn: RunScenario, eyebrow: string | null
           <span class="brief-sub">${hidden ? '타구는 공이 맞는 순간 공개돼요' : scn.event}</span>
         </section>
       </div>
-      <p>${hidden ? `${ME_NAME[scn.me]}예요. 공이 맞는 순간 타구를 보고 판단해요. 외야 안타면 한 베이스 더, 플라이면 베이스로·중간까지·스타트, 땅볼이면 진루·귀루예요.` : scn.brief}</p>
+      <p>${hidden ? `${ME_NAME[scn.me]}예요. 공이 맞는 순간 타구를 보고 판단해요. 외야 안타면 한 베이스 더(1·2루 주자는 3루 코치 콜을 따라요), 플라이면 베이스로·중간까지·스타트, 땅볼이면 진루·귀루예요.` : scn.brief}</p>
       <p class="note">타격 순간부터 선택지가 떠요. ${hidden ? KEY_HELP_ALL : keyHelp(scn)}. 미리 고르면 판단 순간 바로 실행되고, 안 고르면 판단 순간 화면이 느려져요.
         시점은 공을 따라가고, 마우스로 직접 돌리면 그때부터는 내가 보는 대로 둬요.</p>
       <div class="actions">

@@ -302,6 +302,7 @@ export class RunGame {
   }
 
   private exit() {
+    showCoachCall(null);
     this.phase = 'idle';
     this.world.visible = false;
     this.clearCalls();
@@ -319,6 +320,7 @@ export class RunGame {
   }
 
   private prepare(scn: RunScenario) {
+    showCoachCall(null);
     this.scn = scn;
     this.pitchKmh = Math.round(PITCH.minKmh + Math.random() * (PITCH.maxKmh - PITCH.minKmh));
     const pitchFlight = releasePoint().distanceTo(CONTACT_POINT) / (this.pitchKmh / 3.6);
@@ -396,6 +398,7 @@ export class RunGame {
   }
 
   private finish() {
+    showCoachCall(null);
     this.phase = 'result';
     this.unlockPointer();
     this.showResult(true);
@@ -458,10 +461,12 @@ export class RunGame {
     // 첫 판단은 타격 순간부터 선택지를 띄워서 미리 고를 수 있게 한다.
     // 다음 판단(태그업)은 공이 잡히는 순간에야 뜬다 (미리 뜨면 잡힌다는 걸 알려주는 셈이라).
     const first = this.play.decided.length === 0;
-    if (this.phase === 'live' && step && !this.panelShown && this.t >= (first ? 0 : step.decisionAt)) {
+    // 코치 콜은 콜이 나오는 순간에 선택지와 함께 뜬다
+    if (first && this.phase === 'live' && this.t >= 0) this.ui.setHudTitle(this.scn.event);
+    if (this.phase === 'live' && step && !this.panelShown && this.t >= (first ? (step.showAt ?? 0) : step.decisionAt)) {
       this.panelShown = true;
       this.decisionRealStart = performance.now();
-      if (first) this.ui.setHudTitle(this.scn.event);
+      if (step.call) showCoachCall(step.call);
       this.ui.showDecision(step.prompt, this.defs);
       this.ui.setDecisionTimer(1);
     }
@@ -670,4 +675,15 @@ export class RunGame {
       else sfx.out();
     });
   }
+}
+
+// 3루 코치 콜: 화면 가운데 위에 크게 띄운다 (null이면 숨긴다)
+function showCoachCall(call: { text: string; go: boolean } | null) {
+  const el = document.getElementById('coach-call');
+  if (!el) return;
+  el.classList.toggle('hidden', !call);
+  if (!call) return;
+  el.textContent = call.text;
+  el.classList.toggle('go', call.go);
+  el.classList.toggle('stop', !call.go);
 }
