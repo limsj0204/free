@@ -58,6 +58,17 @@ const STRETCH: Profile[] = [
   { key: 'rf', name: '우전 안타', fielder: 'RF', hit: grounder(P(23, 58), 3.0, 'charging') },
 ];
 
+// 코치 콜(1루→3루, 2루→홈) 자동 생성용 타구: '돌려'와 '멈춰'가 비슷하게 나오게 고른다.
+// 멈춰: 외야수 정면 단타 (비슷해 보이는 라이너 단타·좌익선 쪽 단타는 뺐다)
+// 돌려: 외야 사이를 가르거나 라인을 따라 빠지는 타구 (외야수가 뒤로 쫓아가 잡는다)
+const COACH_HITS: Profile[] = [
+  ...['rf', 'cf', 'lf', 'lc', 'rf-line', 'rc'].map((k) => SINGLES.find((p) => p.key === k)!),
+  { key: 'lc-split', name: '좌중간을 가르는 안타', fielder: 'LF', hit: liner(P(-15, 70), 1.6, P(-21, 87), 5.0, 'back') },
+  { key: 'rc-split', name: '우중간을 가르는 안타', fielder: 'RF', hit: liner(P(15, 70), 1.6, P(21, 87), 5.0, 'back') },
+  { key: 'lf-down', name: '좌익선을 빠지는 안타', fielder: 'LF', hit: grounder(P(-40, 82), 4.6, 'back') },
+  { key: 'rf-down', name: '우익선을 빠지는 안타', fielder: 'RF', hit: grounder(P(40, 82), 4.6, 'back') },
+];
+
 // 3루 주자 태그업 (홈 승부)
 const FLIES_HOME: Profile[] = [
   { key: 'lf-short', name: '얕은 좌익수 플라이', fielder: 'LF', hit: fly(P(-20, 55), 3.5, 'charging') },
@@ -127,8 +138,7 @@ function make(kind: RunScenario['kind'], me: RunMe, outs: number, p: Profile, ex
 
 function buildGenerated(): RunScenario[] {
   const out: RunScenario[] = [];
-  for (const p of SINGLES) for (const o of [0, 1, 2]) out.push(make('extra', 'r1', o, p));
-  for (const p of SINGLES) for (const o of [0, 1, 2]) out.push(make('extra', 'r2', o, p));
+  for (const me of ['r1', 'r2'] as RunMe[]) for (const p of COACH_HITS) for (const o of [0, 1, 2]) out.push(make('extra', me, o, p));
   // 타자 주자: 라인 쪽 타구는 수치에 따라 답이 갈려서 빼고, 외야 사이를 가르는 타구(간다)와 외야수 정면 단타(멈춘다)만 남긴다
   for (const p of STRETCH.filter((x) => !x.key.endsWith('-line'))) for (const o of [0, 1, 2]) out.push(make('extra', 'batter', o, p));
   for (const me of ['r1', 'r2', 'r3'] as RunMe[])
