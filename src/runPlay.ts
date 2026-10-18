@@ -26,11 +26,12 @@ export function firstStep(scn: RunScenario): Step {
   return scn.kind === 'extra' ? extraStep(scn) : scn.kind === 'fly' ? readStep(scn) : scn.kind === 'wild' ? wildStep(scn) : groundStep(scn);
 }
 
-// 다음 판단 (없으면 null). 플라이에서 베이스를 밟고 있다가 공이 잡히면 태그업 판단이 이어진다.
+// 다음 판단 (없으면 null). 플라이에서 베이스를 밟고 있으면 태그업 판단이 이어진다.
+// 선택지는 공이 잡히기 전부터 뜨므로, 잡힐지와 상관없이 만든다 (떨어지면 게임에서 지운다). 그래야 선택지가 뜨는 것만으로 잡힐지 알 수 없다.
 export function nextStep(play: Play): Step | null {
   const d = play.decided;
   if (play.scn.kind !== 'fly' || d.length !== 1) return null;
-  return needsTagup(play.scn, d[0].id as ReadChoice, d[0].td, play.caught) ? tagupStep(play.scn) : null;
+  return needsTagup(play.scn, d[0].id as ReadChoice, d[0].td, true) ? tagupStep(play.scn) : null;
 }
 
 export function playTimeline(play: Play): RunTimeline {

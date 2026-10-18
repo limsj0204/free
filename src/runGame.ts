@@ -463,7 +463,13 @@ export class RunGame {
     const first = this.play.decided.length === 0;
     // 코치 콜은 콜이 나오는 순간에 선택지와 함께 뜬다
     if (first && this.phase === 'live' && this.t >= 0) this.ui.setHudTitle(this.scn.event);
-    if (this.phase === 'live' && step && !this.panelShown && this.t >= (first ? (step.showAt ?? 0) : step.decisionAt)) {
+    // 공이 떨어지면 미리 띄운 태그업 선택지는 지운다
+    if (this.phase === 'live' && step?.key === 'tagup' && !this.play.caught && this.t >= step.decisionAt) {
+      this.setStep(null);
+      this.ui.hideDecision();
+      this.phase = 'play';
+    }
+    if (this.phase === 'live' && step && this.step && !this.panelShown && this.t >= (step.showAt ?? (first ? 0 : step.decisionAt))) {
       this.panelShown = true;
       this.decisionRealStart = performance.now();
       if (step.call) showCoachCall(step.call);

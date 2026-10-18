@@ -135,7 +135,8 @@ export function tagupStep(scn: RunScenario): Step {
   return {
     key: 'tagup',
     name: '태그업',
-    prompt: `잡혔다! ${baseLabelTo(b.next)} 뛸까?`,
+    // 공이 잡히기 조금 전부터 띄워서 미리 마음먹을 수 있게 한다 (떨어지면 사라진다)
+    prompt: `잡히면 태그업? ${baseLabelTo(b.next)} 뛸까?`,
     urgent: `잡혔다! ${baseLabelTo(b.next)} 뛸까?`,
     options: [
       { id: 'stop', key: 'A', label: tagupLabel(scn, 'stop'), short: tagupLabel(scn, 'stop'), pos: null },
@@ -143,6 +144,7 @@ export function tagupStep(scn: RunScenario): Step {
     ],
     decisionAt: T,
     deadline: T + RUNNER.tagupWindow,
+    showAt: Math.max(0, T - RUNNER.tagupPreview),
     timeout: 'stop',
     value: (td) => goStopValue(tm.tagAt - tagupArrival(scn, td).arrival, tagupStates(scn)),
   };
