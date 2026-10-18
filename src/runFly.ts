@@ -29,6 +29,7 @@ import {
   type RunScenario,
   type RunTimeline,
   type Step,
+  type StepValue,
   walkKeys,
 } from './runner';
 import { DEFAULT_FIELDERS } from './scenarios';
@@ -128,6 +129,41 @@ function tagupStates(scn: RunScenario) {
   };
 }
 
+// 태그업 판단의 기준 (시간 계산 대신 야구 원칙으로 정한다. 결과(세이프·아웃)는 그대로 시간 계산으로 난다)
+// - 2루 → 3루: 타구 방향. 우측 외야(우익수·우중간) 플라이일 때만 시도한다 (3루까지 송구가 가장 멀다). 얕은 플라이·빗맞은 타구는 빼고.
+// - 3루 → 홈(희생플라이): 타구 깊이. 깊으면 뛰고, 얕으면 머물고, 보통 깊이면 뛰기·머물기 둘 다 좋은 판단이다.
+export function isRightOutfield(scn: RunScenario) {
+  return scn.hit!.field.x < -8; // 필드 좌표에서 x가 음수면 1루(우익수) 쪽
+}
+
+function tagupRule(scn: RunScenario, v: StepValue): StepValue {
+  const b = flyBases(scn);
+  const hit = scn.hit!;
+  const force = (want: 'go' | 'stop', why: string): StepValue => {
+    const mine = v.options.find((o) => o.id === want)!;
+    for (const o of v.options) {
+      if (o.id === want) continue;
+      if (o.ev > mine.ev - 0.15) o.ev = mine.ev - 0.15;
+      o.lines.push(why);
+    }
+    return { ...v, note: `${v.note}<br/>${why}` };
+  };
+  if (b.next === 'third') {
+    const right = isRightOutfield(scn) && hit.release !== 'charging';
+    return right
+      ? force('go', '<b>우측 외야</b> 플라이는 3루까지 송구가 가장 멀어서, 2루 주자는 태그업으로 3루를 노려요.')
+      : force('stop', '2루 주자의 태그업은 <b>우측 외야</b> 플라이일 때만 시도해요. 좌익수·중견수 쪽이나 얕은 플라이는 3루까지 송구가 짧아요.');
+  }
+  if (b.next !== 'home') return v; // 1루 → 2루 태그업은 시간 계산 그대로
+  if (hit.release === 'back') return force('go', '<b>깊은 플라이</b>라 외야수가 뒤로 물러나며 잡아요. 3루 주자는 태그업으로 홈에 들어가요.');
+  if (hit.release === 'charging') return force('stop', '<b>얕은 플라이</b>는 외야수가 앞으로 오면서 잡아 바로 홈에 던져요. 3루에 머물러요.');
+  return {
+    ...v,
+    peers: ['go', 'stop'],
+    note: `${v.note}<br/><b>보통 깊이</b> 플라이라 타구 깊이, 외야수 송구, 내 주루 속도에 따라 달라져요. <b>뛰는 것과 머무는 것 둘 다</b> 좋은 판단이에요.`,
+  };
+}
+
 export function tagupStep(scn: RunScenario): Step {
   const b = flyBases(scn);
   const T = scn.hit!.fieldT;
@@ -146,23 +182,7 @@ export function tagupStep(scn: RunScenario): Step {
     deadline: T + RUNNER.tagupWindow,
     showAt: Math.max(0, T - RUNNER.tagupPreview),
     timeout: 'stop',
-    value: (td) => {
-      const v = goStopValue(tm.tagAt - tagupArrival(scn, td).arrival, tagupStates(scn));
-      // 희생플라이(3루 → 홈)는 세이프 확률이 '뛰는 게 이득인 기준선' 근처(±15%)면 타구 깊이, 외야수 송구, 주자 속도에 따라
-      // 갈리는 판단이라 뛰는 것과 머무는 것 둘 다 좋은 판단으로 인정한다. 기준선은 아웃 카운트마다 다르다 (무사 약 74%, 1사 약 32%).
-      const st = tagupStates(scn);
-      const [vs, vo, vk] = [expectancy(st.safe), expectancy(st.out), expectancy(st.stay)];
-      const line = (vk - vo) / (vs - vo);
-      const p = safeProb(tm.tagAt - tagupArrival(scn, T).arrival);
-      if (b.next === 'home' && Math.abs(p - line) <= RUNNER.sacFlyBand) {
-        return {
-          ...v,
-          peers: ['go', 'stop'],
-          note: `${v.note}<br/>세이프 확률이 기준(${pct(line)}) 근처인 아슬아슬한 태그업이에요. 타구 깊이, 외야수 송구, 주자 속도에 따라 달라져서 <b>뛰는 것과 머무는 것 둘 다</b> 좋은 판단이에요.`,
-        };
-      }
-      return v;
-    },
+    value: (td) => tagupRule(scn, goStopValue(tm.tagAt - tagupArrival(scn, td).arrival, tagupStates(scn))),
   };
 }
 
