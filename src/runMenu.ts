@@ -222,11 +222,12 @@ export class RunMenu {
             <div class="controls">
               <span><kbd>A</kbd></span><span>뒤로: 멈춘다 · 내가 있던 베이스로 돌아간다 (태그업 준비, 귀루)</span>
               <span><kbd>S</kbd></span><span>중간까지 나가 있기 · 하프웨이 (플라이일 때)</span>
-              <span><kbd>D</kbd></span><span>앞으로: 간다 (한 베이스 더, 스타트, 태그업, 진루)</span>
+              <span><kbd>D</kbd></span><span>앞으로: 간다 (2루까지, 코치 콜 돌려, 스타트, 태그업, 진루)</span>
               <span><kbd>좌클릭</kbd></span><span>바라보는 곳 고르기</span>
               <span><kbd>마우스</kbd></span><span>고개 돌리기 (화면을 클릭하면 마우스가 잠겨요)</span>
             </div>
             <p class="controls-note">선택지는 타격 순간부터 떠 있어서 미리 고를 수 있어요. 결과(세이프·아웃, 잡힘·떨어짐)에는 운이 섞이고, 판정은 판단 자체로 해요.</p>
+            <button class="random-all" id="random-all"><b>전체 랜덤</b><span>모든 종류가 섞여서 나와요 · 타구는 맞는 순간 공개</span></button>
           </div>
           <div class="menu-main">
             <div class="tabs five" role="tablist">${tabs}</div>
@@ -235,7 +236,6 @@ export class RunMenu {
               ${items}
               <div class="random-row">
                 <button class="primary" id="random-kind">${name} 랜덤 연습</button>
-                <button class="secondary" id="random-all">전체 랜덤</button>
               </div>
               ${
                 // 드문 상황은 자동 생성이 없다
