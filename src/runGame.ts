@@ -49,8 +49,6 @@ export class RunGame {
   private defs: DecisionDef[] = [];
   private randomPool: RunScenario[] | null = null;
   private randomLabel: string | null = null;
-  // 전체 랜덤은 어떤 타구가 나올지 모르는 게 연습의 핵심이라 설정과 상관없이 타구를 숨긴다
-  private randomAll = false;
   private soundT = -Infinity;
   private shownCalls = new Set<number>();
   private callSprites: THREE.Sprite[] = [];
@@ -296,7 +294,6 @@ export class RunGame {
     const pool = [...RUN_SCENARIOS, ...(getRunIncludeGenerated() ? generatedRunScenarios() : [])];
     this.randomPool = random ? pool.filter((s) => random === 'all' || tabOf(s) === random) : null;
     this.randomLabel = random ? `${random === 'all' ? '전체' : RUN_TAB_LABEL[random]} 랜덤` : null;
-    this.randomAll = random === 'all';
     const scn = id ? RUN_SCENARIOS.find((s) => s.id === id)! : this.pickRandom();
     this.openBriefing(scn);
   }
@@ -340,7 +337,7 @@ export class RunGame {
   }
 
   private ballHidden() {
-    return this.randomAll || getRunHideBall();
+    return getRunHideBall();
   }
 
   private openBriefing(scn: RunScenario) {

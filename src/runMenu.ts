@@ -215,7 +215,7 @@ export class RunMenu {
             <div class="setting-row">
               <label class="gen-toggle" for="hide-ball">
                 <input type="checkbox" id="hide-ball" ${getRunHideBall() ? 'checked' : ''} />
-                <span>타구 숨기기 <small>어떤 타구가 나올지 모르는 상태로 시작하고, 공이 맞는 순간 공개해요. 전체 랜덤은 항상 숨겨요.</small></span>
+                <span>타구 숨기기 <small>어떤 타구가 나올지 모르는 상태로 시작하고, 공이 맞는 순간 공개해요. 전체 랜덤에도 똑같이 적용돼요.</small></span>
               </label>
             </div>
             <h2>조작법</h2>
@@ -227,7 +227,7 @@ export class RunMenu {
               <span><kbd>마우스</kbd></span><span>고개 돌리기 (화면을 클릭하면 마우스가 잠겨요)</span>
             </div>
             <p class="controls-note">선택지는 타격 순간부터 떠 있어서 미리 고를 수 있어요. 결과(세이프·아웃, 잡힘·떨어짐)에는 운이 섞이고, 판정은 판단 자체로 해요.</p>
-            <button class="random-all" id="random-all"><b>전체 랜덤</b><span>모든 종류가 섞여서 나와요 · 타구는 맞는 순간 공개</span></button>
+            <button class="random-all" id="random-all"><b>전체 랜덤</b><span>모든 종류가 섞여서 나와요</span></button>
           </div>
           <div class="menu-main">
             <div class="tabs five" role="tablist">${tabs}</div>
