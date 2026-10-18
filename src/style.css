@@ -1185,6 +1185,19 @@ details.more h2:first-child {
   font-size: 15px;
 }
 
+/* 시작 화면: 기초 개념 먼저 보기 버튼은 민트 바탕에 어두운 글자로 눈에 띄게 (주루 시뮬레이터와 같은 색) */
+.intro-card .intro-basics {
+  border-color: #3ee0b5;
+  background: #3ee0b5;
+  color: #10261f;
+}
+
+.intro-card .intro-basics:hover,
+.intro-card .intro-basics:focus-visible {
+  background: #6ff2cf;
+  border-color: #6ff2cf;
+}
+
 .intro-link.basics-link {
   margin-left: 6px;
 }
