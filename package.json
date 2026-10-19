@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:runner": "npm run build && cp dist/runner.html dist/index.html",
     "preview": "vite preview"
   },
   "dependencies": {

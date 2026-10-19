@@ -43,6 +43,7 @@ VR 야구를 하는 버추얼 스트리머가 내야 수비 판단을 연습할 
 npm install
 npm run dev      # 개발 서버 (내야 수비 http://localhost:5173, 주루 판단 http://localhost:5173/runner.html)
 npm run build    # 타입 검사 후 dist/에 정적 파일로 빌드 (index.html, runner.html)
+npm run build:runner  # 위와 같고, 첫 페이지(index.html)를 주루 판단으로 (주루 판단만 따로 올리는 사이트용)
 ```
 
 `dist/`는 정적 파일이라 아무 웹 호스팅에나 올리면 됩니다.
