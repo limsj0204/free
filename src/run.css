@@ -335,9 +335,9 @@
   }
 }
 
-/* 탭 다섯 개 (플라이 / 땅볼 / 타자 주자 / 코치 콜 / 드문 상황) */
-.tabs.five {
-  grid-template-columns: repeat(5, 1fr);
+/* 탭 네 개 (플라이 / 땅볼 / 외야 안타 / 드문 상황) */
+.tabs.four {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 /* 3루 코치 콜: 화면 위쪽 가운데에 크게 */

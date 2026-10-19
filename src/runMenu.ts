@@ -15,21 +15,20 @@ import {
 import { RUN_BASIC_CARDS } from './runBasics';
 import { annotateRun } from './runGlossary';
 import { RUN_PRINCIPLES } from './runPrinciples';
-import { RUN_TAB_LABEL, tabOf, type RunTab } from './runner';
+import { RUN_TAB_LABEL, kindLabel, tabOf, type RunTab } from './runner';
 import { RUN_SCENARIOS, generatedRunScenarios } from './runScenarios';
 import type { Grade } from './scenario';
 import { sfx } from './sound';
 
 // 주루 판단 시뮬레이터의 첫 화면(상황 목록)과 시작 화면(소개). 내야 수비 목록과 같은 모양: 왼쪽에 설정·조작법, 오른쪽에 종류별 탭.
 
-const TABS: RunTab[] = ['fly', 'ground', 'batter', 'coach', 'rare'];
+const TABS: RunTab[] = ['fly', 'ground', 'hit', 'rare'];
 const GRADE_SHORT: Record<Grade, string> = { best: '최선', ok: '아쉬움', bad: '오답' };
 
 const TAB_DESC: Record<RunTab, string> = {
   fly: '공이 뜨는 순간 스타트·하프웨이·태그업 준비 중에 고르고, 잡히면 태그업할지 정해요.',
   ground: '땅볼에 진루할지 귀루할지 정해요. 포스(의무 진루)인지 먼저 생각하세요.',
-  batter: '타자 주자예요. 외야 안타에 1루를 돌면서, 앞에 보이는 공을 보고 2루까지 갈지 직접 정해요.',
-  coach: '1루→3루, 2루→홈은 공이 등 뒤에 있어서 3루 코치 콜을 따라요. 화면에 뜨는 콜을 보고 바로 반응해요.',
+  hit: '타자 주자는 앞에 보이는 공을 보고 2루까지 갈지 직접 정하고, 1루→3루·2루→홈은 화면에 뜨는 3루 코치 콜을 따라요.',
   rare: '직선타, 내야 뜬공, 폭투·패스트볼처럼 드물게 나오고 판단은 비교적 쉬운 상황이에요.',
 };
 
@@ -189,7 +188,7 @@ export class RunMenu {
         const status = rec ? `<span class="status ${rec.best}">${GRADE_SHORT[rec.best]}</span>` : '<span class="status none">도전 전</span>';
         return `<button class="item" data-scenario="${s.id}" id="item-${s.id}">
           <span class="item-main"><b>${s.title}</b></span>
-          <span class="item-side"><span class="level lv${s.level ?? 2}">${LEVEL_LABEL[s.level ?? 2]}</span>${status}</span>
+          <span class="item-side">${this.tab === 'hit' ? `<span class="kind">${kindLabel(s)}</span>` : ''}<span class="level lv${s.level ?? 2}">${LEVEL_LABEL[s.level ?? 2]}</span>${status}</span>
         </button>`;
       })
       .join('');
@@ -230,7 +229,7 @@ export class RunMenu {
             <button class="random-all" id="random-all"><b>전체 랜덤</b><span>모든 종류가 섞여서 나와요</span></button>
           </div>
           <div class="menu-main">
-            <div class="tabs five" role="tablist">${tabs}</div>
+            <div class="tabs four" role="tablist">${tabs}</div>
             <div class="items">
               <p class="random-desc">${TAB_DESC[this.tab]}</p>
               ${items}

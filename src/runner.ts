@@ -15,16 +15,16 @@ export type RunMe = 'batter' | 'r1' | 'r2' | 'r3';
 export type OutfielderId = 'LF' | 'CF' | 'RF';
 export type RunKind = 'extra' | 'fly' | 'ground' | 'wild' | 'rule';
 export const RUN_KIND_LABEL: Record<RunKind, string> = { extra: '한 베이스 더', fly: '플라이', ground: '땅볼', wild: '폭투·패스트볼', rule: '규칙' };
-// 목록 탭. 한 베이스 더는 타자 주자(공이 앞에 보여서 직접 판단)와 코치 콜(1루→3루, 2루→홈은 3루 코치 콜을 따른다)로 나눈다.
-// 드문 상황: 드물게 나오고 판단이 비교적 쉬운 상황 (직선타, 내야 뜬공, 폭투·패스트볼)
-export type RunTab = 'fly' | 'ground' | 'batter' | 'coach' | 'rare';
-export const RUN_TAB_LABEL: Record<RunTab, string> = { fly: '플라이', ground: '땅볼', batter: '타자 주자', coach: '코치 콜', rare: '드문 상황' };
-export const tabOf = (s: RunScenario): RunTab => (s.rare ? 'rare' : s.kind === 'extra' ? (s.me === 'batter' ? 'batter' : 'coach') : (s.kind as RunTab));
+// 목록 탭. 외야 안타: 타자 주자는 공이 앞에 보여서 직접 판단하고, 1루→3루·2루→홈은 3루 코치 콜을 따른다.
+// 드문 상황: 드물게 나오고 판단이 비교적 쉬운 상황 (직선타, 내야 뜬공, 폭투, 규칙 상황)
+export type RunTab = 'fly' | 'ground' | 'hit' | 'rare';
+export const RUN_TAB_LABEL: Record<RunTab, string> = { fly: '플라이', ground: '땅볼', hit: '외야 안타', rare: '드문 상황' };
+export const tabOf = (s: RunScenario): RunTab => (s.rare ? 'rare' : s.kind === 'extra' ? 'hit' : (s.kind as RunTab));
 // 1루→3루, 2루→홈: 주자가 직접 정하지 않고 3루 코치 콜을 보고 반응한다
-export const isCoach = (s: RunScenario) => tabOf(s) === 'coach';
+export const isCoach = (s: RunScenario) => s.kind === 'extra' && s.me !== 'batter';
 // 상황 종류 이름 (드문 상황의 플라이는 직선타·내야 뜬공으로 부른다)
 export const kindLabel = (s: RunScenario) =>
-  s.kind === 'fly' && s.hit?.infielder ? (s.hit.type === 'liner' ? '직선타' : '내야 뜬공') : s.kind === 'extra' ? RUN_TAB_LABEL[tabOf(s)] : s.kind === 'rule' ? s.event : RUN_KIND_LABEL[s.kind];
+  s.kind === 'fly' && s.hit?.infielder ? (s.hit.type === 'liner' ? '직선타' : '내야 뜬공') : s.kind === 'extra' ? (isCoach(s) ? '코치 콜' : '타자 주자') : s.kind === 'rule' ? s.event : RUN_KIND_LABEL[s.kind];
 
 export interface OutfieldHit {
   type: 'grounder' | 'liner' | 'fly';

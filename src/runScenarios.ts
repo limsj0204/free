@@ -182,46 +182,6 @@ const BASICS: RunScenario[] = [
       '좌익수 쪽 단타면 2루에서 멈추는 게 기본이에요. 무사 1, 2루도 충분히 좋은 기회예요.',
   },
   {
-    ...make('extra', 'r1', 2, pick(SINGLES, 'rf-line')),
-    id: 'run-r1-2out',
-    generated: false,
-    explanation:
-      '2아웃에서 1루→3루는 얻는 게 적어요. 2루에 있어도 다음 안타 하나면 2아웃이라 타격과 동시에 뛰어서 홈까지 들어올 수 있거든요. ' +
-      '반대로 3루에서 아웃되면 이닝이 끝나요. "3루에서 첫 번째와 세 번째 아웃은 당하지 마라"는 말이 여기서 나와요. 확실할 때만 가세요.',
-  },
-  {
-    ...make('extra', 'r1', 0, pick(SINGLES, 'lc')),
-    id: 'run-r1-cf',
-    generated: false,
-    explanation:
-      '중견수가 잡는 단타면 1루 주자는 2루에서 멈춰요. 좌중간 쪽으로 옆걸음해서 잡아도 중견수에서 3루까지는 우익수보다 훨씬 가깝고, 2루를 돌 때쯤이면 이미 공이 중견수 글러브에 들어가 있어요. ' +
-      '1루→3루는 우익수 쪽 타구에서만 생각하세요.',
-  },
-  {
-    ...make('extra', 'r2', 2, pick(SINGLES, 'lc')),
-    id: 'run-r2-2out',
-    generated: false,
-    explanation:
-      '2아웃 2루에서는 타격과 동시에 뛰어요. 공이 잡히면 어차피 이닝이 끝나니까요. 그래서 안타가 나오면 이미 3루 가까이 와 있어요. ' +
-      '홈에서 아웃돼도 잃는 게 적고(2아웃 1, 3루도 점수가 나기 어려워요), 세이프면 1점이에요. 중견수가 옆으로 움직여 잡는 타구라면 홈으로 가세요. 다만 중견수 정면으로 빨리 오는 타구는 2아웃이어도 홈에서 잡혀요.',
-  },
-  {
-    ...make('extra', 'r2', 0, pick(SINGLES, 'lf')),
-    id: 'run-r2-lf',
-    generated: false,
-    explanation:
-      '2아웃이 아니면 2루 주자는 타구가 내야를 빠져나가는 걸 보고 출발해서 조금 늦어요. 게다가 좌익수가 앞으로 오면서 잡으면 홈까지 가까워서 홈에서 거의 잡혀요. ' +
-      '무사 1, 3루는 땅볼이나 플라이로도 점수가 나는 좋은 기회예요. 무리해서 홈에서 아웃될 필요가 없어요.',
-  },
-  {
-    ...make('extra', 'r2', 1, pick(SINGLES, 'rf')),
-    id: 'run-r2-rf',
-    generated: false,
-    explanation:
-      '2아웃이 아니면 2루 주자는 타구가 내야를 빠져나가는 걸 보고 출발해서, 2아웃일 때보다 한발 늦어요. 우익수가 앞으로 오면서 잡으면 홈은 무리예요. ' +
-      '1사 1, 3루면 땅볼이나 플라이로도 점수가 나요. 결과 화면의 세이프 확률과 "이 확률보다 높아야 이득"을 비교해 보세요. 그 차이가 판단의 근거예요.',
-  },
-  {
     ...make('extra', 'batter', 0, pick(STRETCH, 'lc-gap')),
     id: 'run-b-gap',
     generated: false,
@@ -235,24 +195,6 @@ const BASICS: RunScenario[] = [
     generated: false,
     explanation:
       '좌익수 정면으로 가는 단타는 좌익수가 앞으로 오면서 잡아 2루로 바로 던져요. 공이 잡히는 걸 보고 1루에서 멈추세요.',
-  },
-  {
-    ...make('extra', 'batter', 1, pick(STRETCH, 'rc-gap')),
-    id: 'run-b-rc',
-    generated: false,
-    explanation: '우중간을 가르는 타구도 좌중간과 같아요. 외야수가 등을 돌려 쫓아가는 게 보이면 2루까지 가요.',
-  },
-  {
-    ...make('extra', 'batter', 0, pick(STRETCH, 'cf')),
-    id: 'run-b-cf',
-    generated: false,
-    explanation: '중견수 정면 단타는 중견수가 앞으로 오면서 잡아요. 2루까지 거리도 가까워서 바로 던지면 잡혀요. 1루에서 멈추세요.',
-  },
-  {
-    ...make('extra', 'batter', 2, pick(STRETCH, 'rf')),
-    id: 'run-b-rf',
-    generated: false,
-    explanation: '2아웃이라도 우익수 정면 단타에 2루는 무리예요. 우익수가 앞으로 오면서 잡아 바로 던지면 2루에서 여유 있게 잡혀요.',
   },
   {
     ...make('fly', 'r3', 1, pick(FLIES_HOME, 'cf-mid')),
@@ -312,14 +254,6 @@ const BASICS: RunScenario[] = [
       '무사라면 태그업 준비가 조금 더 나아요. 잡혀도 1사 3루가 되면 다음 타자의 땅볼이나 플라이로도 점수가 나서, 태그업으로 3루에 가는 가치가 크거든요.',
   },
   {
-    ...make('fly', 'r2', 1, pick(FLIES_HOME, 'rc-gap')),
-    id: 'run-f2-gap1',
-    generated: false,
-    explanation:
-      '"무사 2루 / 우중간 깊은 타구"와 같은 타구인데 1아웃이에요. 이번에도 하프웨이와 태그업 준비 둘 다 좋은 판단이지만, 이번엔 하프웨이가 조금 더 나아요. ' +
-      '잡히면 2아웃이 돼서 태그업으로 3루에 가도 얻는 게 적어요(2사 3루와 2사 2루는 거의 같아요. 둘 다 안타가 나와야 점수가 나요). 그래서 떨어졌을 때 홈까지 들어오는 쪽에 무게를 둬요.',
-  },
-  {
     ...make('fly', 'r2', 2, pick(FLIES_HOME, 'rc-gap')),
     id: 'run-f2-2out',
     generated: false,
@@ -335,12 +269,11 @@ const BASICS: RunScenario[] = [
     '포스인지는 "내 뒤 베이스가 다 차 있는지"로 판단해요.'),
   groundBasic('run-g2-front', 'SS', 'front', 'r2', ['second'], 0,
     '1루가 비어 있으면 2루 주자는 포스가 아니에요. 2루에 남아도 돼요. 타구가 내 앞(유격수·3루수 쪽)으로 오면 뛰는 순간 3루로 던져서 잡혀요. ' +
-    '공이 내야를 빠져나가거나 1루로 송구되는 걸 확인하고 움직이세요.'),
+    '공이 내야를 빠져나가거나 1루로 송구되는 걸 확인하고 움직이세요. ' +
+    '3루 주자도 1루가 비어 있으면 똑같아요. 내야 정면 땅볼에 홈으로 뛰면 홈에서 잡혀요.'),
   groundBasic('run-g2-behind', '1B', 'front', 'r2', ['second'], 0,
     '타구가 내 뒤(1루수 쪽)로 가면 진루해요. 1루수는 1루를 밟거나 1루로 던지는 게 쉽고, 3루까지는 멀어요. ' +
     '아웃 하나를 주고 주자를 3루로 보내는 진루타가 돼서, 무사 2루가 1사 3루로 바뀌어요.'),
-  groundBasic('run-g3-front', 'SS', 'front', 'r3', ['third'], 0,
-    '3루 주자도 1루가 비어 있으면 포스가 아니에요. 내야 정면 땅볼에 홈으로 뛰면 홈에서 잡혀요. 3루에 남아 다음 타자에게 기회를 넘기세요.'),
   groundBasic('run-g13-dp', '2B', 'front', 'r3', ['first', 'third'], 0,
     '무사 1, 3루에서 병살 코스 땅볼이면 3루 주자는 홈으로 뛰어요. 수비가 병살을 노리면 그 사이 1점이 들어와요(2아웃이 돼도 점수는 인정돼요). ' +
     '수비가 홈으로 던져서 잡혀도 1사 1, 2루라 기회가 남아요. 남아 있다가 병살을 당하면 2사 3루가 되고 점수도 없어서, 그게 가장 손해예요.'),
@@ -445,7 +378,7 @@ function rareRule(id: string, rule: RunScenario['rule'], me: RunMe, situation: S
 
 // 기본 상황 난이도: 1 기초(먼저 익힐 기본 원칙) / 2 응용 / 3 심화(아웃 카운트에 따라 갈리는 판단)
 const LEVELS: Record<string, 1 | 2 | 3> = {
-  'run-r1-lf': 1, 'run-r1-cf': 1, 'run-b-gap': 1, 'run-b-lf': 1, 'run-b-rc': 1, 'run-b-cf': 1, 'run-b-rf': 2,
+  'run-r1-lf': 2, 'run-r1-cf': 1, 'run-b-gap': 1, 'run-b-lf': 1, 'run-b-rc': 1, 'run-b-cf': 1, 'run-b-rf': 2,
   'run-r1-rc': 2, 'run-r2-lf': 2, 'run-r2-rf': 2, 'run-r2-2out': 2,
   'run-r1-2out': 3,
   'run-f1-half': 1, 'run-f2-2out': 1, 'run-t3-1out': 1, 'run-t3-gap': 2,
@@ -457,7 +390,7 @@ const LEVELS: Record<string, 1 | 2 | 3> = {
 for (const s of BASICS) s.level = LEVELS[s.id] ?? 2;
 
 // 목록 순서: 종류별로 기초 → 응용 → 심화, 같은 난이도 안에서는 1루 → 2루 → 3루 → 타자 주자 순 (같은 주자끼리는 쓴 순서대로)
-const TAB_ORDER: RunTab[] = ['fly', 'ground', 'batter', 'coach', 'rare'];
+const TAB_ORDER: RunTab[] = ['fly', 'ground', 'hit', 'rare'];
 const ME_ORDER: RunMe[] = ['r1', 'r2', 'r3', 'batter'];
 export const RUN_SCENARIOS: RunScenario[] = [...BASICS, ...RARE].map((s, i) => ({ s, i }))
   .sort(
