@@ -105,22 +105,6 @@ export const SCENARIOS: Scenario[] = [
       '잡으면 먼저 3루 주자를 한 번 쳐다봐서 묶어 두고, 1루로 던져 타자를 잡으세요. 주자가 뛰었다면 그때는 홈으로 던져 태그 승부예요.',
   },
   {
-    id: 'p-bunt',
-    kind: 'throw',
-    title: '무사 1루 / 투수 앞 번트',
-    event: '투수 앞 강한 번트',
-    position: 'P',
-    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
-    brief: '번트 수비 대형이에요. 1루수와 3루수가 대시하고, 2루수가 1루, 유격수가 2루를 커버해요. 투수도 공을 던지자마자 앞으로 나와요.',
-    fielders: { ...DP, '1B': P(19.5, 19), '3B': P(-18.5, 20) },
-    fielderMoves: { '1B': P(8, 12), '3B': P(-8, 12) },
-    batted: { type: 'bunt', catchPoint: P(0.5, 12), travelTime: 1.2 },
-    covers: { first: '2B', second: 'SS', home: 'C' },
-    explanation:
-      '번트가 투수 정면으로 강하게 왔어요. 투수는 홈 쪽으로 내려오면서 잡기 때문에 2루가 몸 정면이라 던지기 편해요. 2루에서 앞 주자를 잡고 유격수가 1루로 이어 던지면 병살까지 노릴 수 있어요. ' +
-      '번트가 느렸다면 앞으로 많이 뛰어나와 잡게 되니, 그때는 무리하지 말고 1루로 던지세요.',
-  },
-  {
     id: 'p-cover-1b',
     kind: 'choice',
     setup: 'cover',
@@ -423,22 +407,6 @@ export const SCENARIOS: Scenario[] = [
       '그래서 2루로 먼저 던지고, 유격수가 1루 커버를 들어온 투수에게 던지는 게(3-6-1 병살) 정석이에요. 판단이 늦었다면 1루를 직접 밟아 아웃 하나를 챙기세요.',
   },
   {
-    id: '1b-bunt',
-    kind: 'throw',
-    title: '무사 1루 / 1루 쪽 번트',
-    event: '1루 쪽 번트',
-    position: '1B',
-    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
-    brief: '타자가 번트 자세예요. 1루수는 앞으로 대시하고, 2루수가 1루 커버, 유격수가 2루 커버를 들어가요.',
-    fielders: HOLD_1B,
-    fielderMoves: { '3B': P(-13, 12) },
-    batted: { type: 'bunt', catchPoint: P(7, 9), travelTime: 1.8 },
-    covers: { first: '2B', second: 'SS', third: '3B', home: 'C' },
-    explanation:
-      '희생번트는 공격 팀이 아웃 하나를 내주고 주자를 2루로 보내려는 작전이에요. 수비는 공을 빨리 잡아서 2루에서 선행 주자를 잡을 수 있으면 잡고, 늦었으면 1루에서 확실하게 아웃 하나를 챙겨요. ' +
-      '2루 송구는 판단이 조금만 늦어도 세이프가 되니, 망설여지면 1루로 던지세요.',
-  },
-  {
     id: '1b-cutoff',
     kind: 'choice',
     setup: 'cutoff',
@@ -726,50 +694,6 @@ export const SCENARIOS: Scenario[] = [
       '우중간과 우익선상은 2루수, 좌중간과 좌익선상은 유격수가 중계를 나가고, 나머지 한 명은 2루를 커버해요.',
   },
 
-  {
-    id: '2b-bunt-cover',
-    kind: 'choice',
-    setup: 'cover',
-    title: '무사 1루 / 번트 수비',
-    event: '번트',
-    position: '2B',
-    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
-    brief: '번트가 예상돼서 2루수는 평소보다 앞으로 나와 있어요. 투수가 공을 던지는 순간 타자가 번트 자세를 잡아요.',
-    fielders: { ...HOLD_1B, '2B': P(12, 30) },
-    fielderMoves: { SS: P(-0.6, 38.3), '3B': P(-12, 12) },
-    play: { fielder: '1B', catchPoint: P(6, 9.5), travelTime: 1.8, base: 'first', batted: 'bunt' },
-    prompt: '번트다! 어디로?',
-    options: [
-      {
-        label: '1루 커버',
-        moveTo: P(19.0, 19.6),
-        grade: 'best',
-        takes: true,
-        headline: '1루 아웃',
-        result: '1아웃 2루',
-        feedback: '1루수가 번트를 잡으러 나간 사이 2루수가 1루를 커버해서 송구를 받았어요.',
-      },
-      {
-        label: '2루 커버',
-        moveTo: P(0.6, 38.4),
-        grade: 'bad',
-        headline: '1루가 비었어요',
-        result: '무사 2, 3루',
-        feedback: '2루 커버는 유격수 몫이에요. 1루수가 앞으로 나와 있어서 1루가 비었고, 송구가 빠졌어요.',
-      },
-      {
-        label: '앞으로 대시',
-        moveTo: P(10, 15),
-        grade: 'bad',
-        headline: '1루가 비었어요',
-        result: '무사 2, 3루',
-        feedback: '번트는 1루수, 3루수, 투수가 처리해요. 2루수까지 앞으로 오면 1루를 커버할 사람이 없어요.',
-      },
-    ],
-    explanation:
-      '번트 수비는 정해진 순서대로 움직이는 게 전부예요. 1루수와 3루수가 앞으로 대시하고, 2루수는 1루, 유격수는 2루를 커버해요. ' +
-      '2루수가 1루 커버를 늦게 들어가면 번트를 잘 잡아도 던질 곳이 없어요. 타자가 번트 자세를 잡는 순간 바로 1루로 출발하세요.',
-  },
 
   {
     id: '2b-cover',
@@ -1107,65 +1031,6 @@ export const SCENARIOS: Scenario[] = [
   },
   // ---------------- 3루수 ----------------
   {
-    id: '3b-bunt-charge',
-    kind: 'choice',
-    setup: 'bunt',
-    title: '무사 1루 / 번트 자세',
-    event: '번트 자세',
-    position: '3B',
-    situation: { outs: 0, runners: ON_FIRST, batter: 'R' },
-    brief: '타자가 투구 전부터 번트 자세를 잡았어요. 3루수는 어떻게 대비해야 할까요?',
-    fielders: HOLD_1B,
-    fielderMoves: { '1B': P(7, 9), '2B': P(19, 19.8), SS: P(-0.6, 38.3) },
-    prompt: '투구 때 어디로 움직일까?',
-    options: [
-      {
-        label: '앞으로 대시',
-        moveTo: P(-12, 11.5),
-        grade: 'best',
-        takes: true,
-        headline: '번트를 빨리 잡아 1루 아웃',
-        result: '1아웃 2루',
-        feedback: '앞으로 나와 있었기 때문에 3루 쪽 번트를 바로 잡아서 여유 있게 1루로 던졌어요.',
-      },
-      {
-        label: '제자리',
-        moveTo: P(-21.5, 24),
-        grade: 'bad',
-        headline: '번트 안타가 됐어요',
-        result: '무사 1, 2루',
-        feedback: '3루수가 뒤에 있어서 투수가 마운드에서 뛰어와 처리해야 했고, 송구가 늦었어요.',
-      },
-      {
-        label: '3루 베이스 커버',
-        moveTo: P(-19, 20),
-        grade: 'bad',
-        headline: '번트 안타가 됐어요',
-        result: '무사 1, 2루',
-        feedback: '3루에는 주자가 없어서 지킬 필요가 없어요. 투수가 혼자 번트를 처리하느라 송구가 늦었어요.',
-      },
-    ],
-    explanation:
-      '번트가 예상되면 1루수와 3루수는 투구와 동시에 앞으로 대시해서 굴러오는 공을 빨리 잡아요. 그 사이 2루수는 1루, 유격수는 2루를 커버해요. ' +
-      '번트 수비는 1초도 안 되는 차이로 아웃과 세이프가 갈려서, 미리 정해둔 대로 움직이는 게 전부예요.',
-  },
-  {
-    id: '3b-tiebreak',
-    kind: 'throw',
-    title: '승부치기 무사 1, 2루 / 3루 쪽 번트',
-    event: '3루 쪽 번트 (승부치기)',
-    position: '3B',
-    situation: { outs: 0, runners: { first: true, second: true, third: false }, batter: 'R' },
-    brief: '승부치기 상황이에요. 타자가 3루 쪽으로 번트를 댔어요. 3루수는 대시했고, 유격수가 3루, 2루수가 1루 커버를 들어가요.',
-    fielders: { '3B': P(-19.5, 21) },
-    fielderMoves: { '1B': P(8, 12) },
-    batted: { type: 'bunt', catchPoint: P(-11, 10.5), travelTime: 2.0 },
-    covers: { first: '2B', third: 'SS', home: 'C' },
-    explanation:
-      '1, 2루에서는 두 주자 모두 밀려서 뛰기 때문에 3루도 베이스만 밟으면 아웃(포스아웃)이에요. 번트를 빨리 잡으면 3루로 던져 득점권의 앞 주자를 지우는 게 최선이에요. ' +
-      '망설이면 3루도 1루도 다 놓칠 수 있어요. 2루는 유격수가 3루로 가서 비어 있으니 던질 수 없어요. 승부치기는 매번 이 상황으로 시작하니 꼭 몸에 익혀두세요.',
-  },
-  {
     id: '3b-infield-in',
     kind: 'throw',
     title: '1사 3루 / 전진 수비 땅볼',
@@ -1299,20 +1164,20 @@ export const SCENARIOS: Scenario[] = [
 // 기본 상황 난이도: 1 기초(먼저 익힐 기본 원칙) / 2 응용 / 3 심화(상황에 따라 갈리거나 특수한 규칙)
 const LEVELS: Record<string, 1 | 2 | 3> = {
   'p-dp': 1, 'p-cover-1b': 1,
-  'p-bunt': 2, 'p-liner': 2, 'p-wildpitch': 2, 'p-backup-home': 2, 'p-backup-third': 2,
+ 'p-liner': 2, 'p-wildpitch': 2, 'p-backup-home': 2, 'p-backup-third': 2,
   'p-third': 3, 'p-loaded': 3, 'p-wildpitch-2': 3,
   '1b-cover': 1, '1b-hold': 1, '1b-2out': 1,
-  '1b-361': 2, '1b-step': 2, '1b-liner': 2, '1b-bunt': 2, '1b-advance': 2,
+  '1b-361': 2, '1b-step': 2, '1b-liner': 2,'1b-advance': 2,
   '1b-cutoff': 3, '1b-loaded': 3,
   '2b-dp': 1, '2b-cover': 1, '2b-steal': 1,
-  '2b-receive': 2, '2b-2out': 2, '2b-bunt-cover': 2, '2b-relay': 2, '2b-liner': 2,
+  '2b-receive': 2, '2b-2out': 2,'2b-relay': 2, '2b-liner': 2,
   '2b-advance': 3, '2b-corners': 3,
   'ss-dp': 1, 'ss-cover': 1, 'ss-steal': 1,
   'ss-2out': 2, 'ss-relay': 2, 'ss-liner': 2, 'ss-runner2': 2,
   'ss-hole': 3, 'ss-loaded': 3, 'ss-receive': 3,
   '3b-dp': 1, '3b-slow': 1, '3b-2out': 1,
-  '3b-receive': 2, '3b-step': 2, '3b-liner': 2, '3b-bunt-charge': 2,
-  '3b-infield-in': 3, '3b-corners': 3, '3b-tiebreak': 3,
+  '3b-receive': 2, '3b-step': 2, '3b-liner': 2,
+  '3b-infield-in': 3, '3b-corners': 3,
 };
 const POS_ORDER: PositionId[] = ['P', '1B', '2B', 'SS', '3B'];
 for (const s of SCENARIOS) s.level = LEVELS[s.id] ?? 2;

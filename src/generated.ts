@@ -21,7 +21,6 @@ import {
 
 // 상황 생성기: 포지션별 대표 타구 × 주자 배치 × 아웃 카운트 × 안 밀리는 주자의 행동(뛴다/멈춘다)을 조합한다.
 // 최선은 판정 엔진이 계산하고, 해설은 explain.ts가 규칙으로 쓴다. 랜덤 연습에만 쓴다.
-// 투수·1루수·3루수에는 번트 상황도 따로 만든다 (buildBunts).
 // 2루수·유격수에는 다른 키스톤이 땅볼을 잡을 때 2루를 커버하는 상황도 만든다 (buildCovers).
 // 모든 포지션에 직선타를 잡고 귀루하지 못한 주자를 잡는 상황도 만든다 (buildLiners).
 
@@ -153,103 +152,6 @@ function build(): ThrowScenario[] {
             scn.explanation = explainThrow(scn);
             list.push(scn);
           }
-        }
-      }
-    }
-  }
-  return list;
-}
-
-// ---------- 번트 ----------
-// 번트 세기(빨리 잡느냐) × 주자 배치 × 아웃을 바꿔서, 앞 주자를 잡을 수 있는 번트와 1루밖에 안 되는 번트가 섞여 나오게 한다.
-
-interface Bunt {
-  key: string;
-  name: string;
-  catchPoint: THREE.Vector3;
-  travelTime: number;
-}
-
-const BUNT_SIDE: Partial<Record<PositionId, { side: string; balls: Bunt[] }>> = {
-  P: {
-    side: '투수 앞',
-    balls: [
-      { key: 'hard', name: '강한 번트', catchPoint: P(0.5, 12), travelTime: 1.2 },
-      { key: 'soft', name: '느린 번트', catchPoint: P(0.8, 6.5), travelTime: 2.9 },
-    ],
-  },
-  '3B': {
-    side: '3루 쪽',
-    balls: [
-      { key: 'hard', name: '강한 번트', catchPoint: P(-10.5, 13), travelTime: 1.2 },
-      { key: 'soft', name: '느린 번트', catchPoint: P(-3.5, 5), travelTime: 2.9 },
-    ],
-  },
-  '1B': {
-    side: '1루 쪽',
-    balls: [
-      { key: 'hard', name: '강한 번트', catchPoint: P(10.5, 13), travelTime: 1.2 },
-      { key: 'soft', name: '느린 번트', catchPoint: P(5, 5.5), travelTime: 2.9 },
-    ],
-  },
-};
-
-const BUNT_SETS: Base3[][] = [['first'], ['first', 'second'], ['second']];
-
-// 번트 수비: 1루수·3루수는 앞으로 나와 있고, 공을 잡지 않은 코너 내야수 쪽은 키스톤 수비수가 메운다
-function buntDefense(position: PositionId, set: Base3[]) {
-  const fielders: Partial<Record<FielderId, THREE.Vector3>> = {
-    '2B': P(9.5, 34),
-    SS: P(-9, 34),
-    '1B': set.includes('first') ? P(19.5, 19) : P(18, 20),
-    '3B': P(-18.5, 20),
-  };
-  const fielderMoves: Partial<Record<FielderId, THREE.Vector3>> = {};
-  const covers: Partial<Record<BaseId, FielderId>> = { first: '2B', home: 'C' };
-  if (position === '3B' || position === 'P') {
-    // 3루수가 대시하면 1루수도 대시하고, 2루 주자가 있으면 유격수가 3루를 커버한다 (2루는 빈다)
-    // 투수가 잡는 번트도 1루수·3루수가 둘 다 대시한 뒤라 같은 대형이다
-    fielderMoves['1B'] = P(8, 12);
-    if (position === 'P') fielderMoves['3B'] = P(-8, 12);
-    if (set.includes('second')) covers.third = 'SS';
-    else covers.second = 'SS';
-  } else {
-    covers.second = 'SS';
-    covers.third = '3B';
-  }
-  return { fielders, fielderMoves, covers };
-}
-
-function buildBunts(): ThrowScenario[] {
-  const list: ThrowScenario[] = [];
-  for (const [position, def] of Object.entries(BUNT_SIDE) as [PositionId, { side: string; balls: Bunt[] }][]) {
-    for (const ball of def.balls) {
-      for (const set of BUNT_SETS) {
-        const forcedRunner = set.includes('first');
-        for (let outs = 0; outs < 2; outs++) {
-          const name = `${def.side} ${ball.name}`;
-          const scn: ThrowScenario = {
-            id: `gen-${position}-bunt-${ball.key}-${set.map((b) => SHORT[b]).join('')}-${outs}`,
-            kind: 'throw',
-            generated: true,
-            title: `${outsText(outs)} ${runnersText(set)} / ${name}`,
-            event: name,
-            position,
-            situation: {
-              outs,
-              runners: { first: set.includes('first'), second: set.includes('second'), third: false },
-              batter: 'R',
-            },
-            brief: '번트 수비 대형이에요. 1루수와 3루수가 앞으로 나와 있다가 투구와 함께 대시해요.',
-            explanation: '',
-            ...buntDefense(position, set),
-            batted: { type: 'bunt', catchPoint: ball.catchPoint, travelTime: ball.travelTime },
-            // 2루 주자만 있으면 번트 때 3루로 뛴다 (밀려 뛰는 게 아니라 태그 플레이)
-            runnerActs: set.includes('second') && !forcedRunner ? { second: 'advance' } : undefined,
-          };
-          if (!THROW_CHOICES.some((c) => evaluate(scn, c, 0).outsMade > 0)) continue;
-          scn.explanation = explainThrow(scn);
-          list.push(scn);
         }
       }
     }
@@ -602,7 +504,7 @@ function signature(s: Scenario) {
 export function generatedScenarios(): Scenario[] {
   if (!cache) {
     const base = new Set(SCENARIOS.map(signature));
-    cache = [...build(), ...buildBunts(), ...buildCovers(), ...buildLiners(), ...buildReceives()].filter((s) => !base.has(signature(s)));
+    cache = [...build(), ...buildCovers(), ...buildLiners(), ...buildReceives()].filter((s) => !base.has(signature(s)));
   }
   return cache;
 }
