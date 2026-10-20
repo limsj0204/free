@@ -112,6 +112,7 @@ export interface ActionHit {
   type: 'grounder' | 'roller' | 'liner' | 'bunt';
   catchPoint: THREE.Vector3;
   travelTime: number;
+  pop?: boolean;
   caughtAt: number | null;
 }
 
@@ -142,7 +143,8 @@ export function actionBallPos(hit: ActionHit, t: number, out = new THREE.Vector3
   out.set(start.x + dir.x * s, 0, start.z + dir.z * s);
   if (hit.type === 'liner') {
     // 가슴 높이로 날아와 잡는 지점을 지난 뒤 떨어진다
-    if (t <= T) out.y = THREE.MathUtils.lerp(start.y, 1.3, t / T) + Math.sin((t / T) * Math.PI) * 0.3;
+    // 낮은 뜬공은 포물선으로 높이 떴다가 내려온다
+    if (t <= T) out.y = THREE.MathUtils.lerp(start.y, 1.3, t / T) + Math.sin((t / T) * Math.PI) * (hit.pop ? 4 : 0.3);
     else out.y = Math.max(0.05, 1.3 - 4 * (t - T) * (t - T));
   } else {
     const hops = grounderHops(T);
@@ -160,7 +162,7 @@ export function buildActionThrowTimeline(scn: ThrowScenario, pitchFlight: number
   const tl = buildThrowTimeline(scn, pitchFlight, outcome);
   tl.ball = tl.ball.filter((_, i) => i !== 1); // 정해진 타구 경로는 actionBallPos가 대신한다
   tl.player = [];
-  tl.actionHit = { type: scn.batted.type, catchPoint: scn.batted.catchPoint, travelTime: scn.batted.travelTime, caughtAt };
+  tl.actionHit = { type: scn.batted.type, catchPoint: scn.batted.catchPoint, travelTime: scn.batted.travelTime, pop: scn.batted.pop, caughtAt };
   if (caughtAt === null) tl.gloveHold = null;
   else {
     const firstThrow = tl.ball.find((b) => b.t0 >= caughtAt && b.thrower === scn.position);
@@ -245,7 +247,7 @@ export function buildThrowTimeline(scn: ThrowScenario, pitchFlight: number, outc
   if (type === 'grounder') ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(0.35), t0: 0, t1: travelTime, ...grounderHops(travelTime) });
   else if (type === 'bunt') ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(0.15), t0: 0, t1: travelTime, arc: 0.25, bounces: 4 });
   else if (type === 'roller') ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(0.15), t0: 0, t1: travelTime, arc: 0.35, bounces: 6 });
-  else ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(1.3), t0: 0, t1: travelTime, arc: 0.4 });
+  else ball.push({ from: CONTACT_POINT, to: catchPoint.clone().setY(1.3), t0: 0, t1: travelTime, arc: scn.batted.pop ? 4 : 0.4 });
 
   const runners = new Map<RunnerId, Path>();
   const plans = planRunners(scn);

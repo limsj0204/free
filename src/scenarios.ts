@@ -1159,6 +1159,23 @@ export const SCENARIOS: Scenario[] = [
       '2루 주자 뒤(1루)에는 주자가 없어서, 2루 주자는 밀려서 뛰는 게 아니라 스스로 3루를 노린 거예요. 그래서 3루에서는 베이스만 밟아서는 아웃이 안 되고, 주자를 직접 태그해야 해요. ' +
       '만약 주자가 1, 2루였다면 2루 주자도 밀려서 뛰니 3루는 밟기만 해도 아웃이에요. 공을 받기 전에 "이 주자는 밀려서 오는가?"를 먼저 떠올리세요.',
   },
+  {
+    id: '3b-pop',
+    kind: 'throw',
+    title: '1사 1루 / 3루수 앞 낮은 뜬공',
+    event: '3루수 앞 낮은 뜬공',
+    position: '3B',
+    situation: { outs: 1, runners: ON_FIRST, batter: 'R' },
+    brief: '병살 대형이에요. 3루수 앞으로 낮은 뜬공이 떠요. 1루 주자는 공이 떨어질 줄 알고 맞자마자 2루로 뛰어나가요.',
+    fielders: { ...DP, ...HOLD_1B },
+    batted: { type: 'liner', catchPoint: P(-17, 20.5), travelTime: 1.3, pop: true },
+    covers: { first: '1B', second: 'SS', home: 'C' },
+    selfBases: ['third'],
+    explanation:
+      '땅에 닿기 전에 잡은 뜬공은 잡는 순간 타자가 아웃이에요. 1루 주자는 공이 떨어질 줄 알고 맞자마자 2루 쪽으로 한참 뛰어나갔어요. 잡히면 원래 베이스(1루)로 돌아가야 하는데, 돌아오기 전에 공이 1루에 먼저 가면 1루수가 베이스만 밟아도 아웃이에요. ' +
+      '그래서 잡자마자 1루로 던지면 한 번에 아웃 2개, 1사라 그대로 이닝이 끝나요. 2루로 던지는 건 소용없어요. 주자가 2루로 가는 게 아니라 1루로 돌아가야 하니까요. ' +
+      '낮은 뜬공은 잡을 수 있을지 애매해서 주자가 자주 속아요. 잡았다면 "주자가 어디로 돌아가야 하나"를 먼저 떠올리세요.',
+  },
 ];
 
 // 기본 상황 난이도: 1 기초(먼저 익힐 기본 원칙) / 2 응용 / 3 심화(상황에 따라 갈리거나 특수한 규칙)
@@ -1176,7 +1193,7 @@ const LEVELS: Record<string, 1 | 2 | 3> = {
   'ss-2out': 2, 'ss-relay': 2, 'ss-liner': 2, 'ss-runner2': 2,
   'ss-hole': 3, 'ss-loaded': 3, 'ss-receive': 3,
   '3b-dp': 1, '3b-slow': 1, '3b-2out': 1,
-  '3b-receive': 2, '3b-step': 2, '3b-liner': 2,
+  '3b-receive': 2, '3b-pop': 2, '3b-step': 2, '3b-liner': 2,
   '3b-infield-in': 3, '3b-corners': 3,
 };
 const POS_ORDER: PositionId[] = ['P', '1B', '2B', 'SS', '3B'];

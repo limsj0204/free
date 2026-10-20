@@ -53,7 +53,8 @@ interface ScenarioBase {
 // 공을 잡은 뒤 어디로 던질지 고르는 상황. 결과는 시간 계산으로 판정한다.
 export interface ThrowScenario extends ScenarioBase {
   kind: 'throw';
-  batted: { type: 'grounder' | 'roller' | 'liner' | 'bunt'; catchPoint: THREE.Vector3; travelTime: number }; // roller: 느린 땅볼
+  // roller: 느린 땅볼. pop: 낮은 내야 뜬공 (직선타처럼 잡으면 타자 아웃·주자 귀루. 떨어질 줄 알고 주자가 맞자마자 뛰어나간다)
+  batted: { type: 'grounder' | 'roller' | 'liner' | 'bunt'; catchPoint: THREE.Vector3; travelTime: number; pop?: boolean };
   covers: Partial<Record<BaseId, FielderId>>; // 각 베이스에서 공을 받을 수비수
   selfBases?: BaseId[]; // 던지지 않고 직접 밟으러 가는 베이스
   runnerActs?: Partial<Record<Base3, 'advance' | 'hold'>>; // 안 밀리는 주자가 뛸지 (땅볼일 때)
@@ -199,7 +200,8 @@ export function planRunners(scn: ThrowScenario): RunnerPlan[] {
       // 직선타: 잡히는 걸 보고 원래 베이스로 돌아가야 한다
       const reverseT = travelTime + RUN.returnReaction;
       const startLead = scn.hitAndRun ? RUN.leadOff + RUN.hitAndRunExtra : RUN.leadOff;
-      const forward = scn.hitAndRun ? RUN.speed * reverseT : 1.5;
+      // 히트 앤드 런은 투구 때부터, 낮은 뜬공은 맞자마자 뛰어나갔다가 잡히는 걸 보고 돌아온다
+      const forward = scn.hitAndRun ? RUN.speed * reverseT : scn.batted.pop ? RUN.speed * Math.max(0, reverseT - RUN.runnerStartDelay) : 1.5;
       const maxOut = BASES[base].distanceTo(BASES[next]) - 1;
       const revDist = Math.min(maxOut, startLead + forward);
       const from = BASES[base].clone().addScaledVector(dir, startLead);

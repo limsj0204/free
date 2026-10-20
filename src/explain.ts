@@ -51,13 +51,18 @@ export function josa(word: string, withFinal: string, withoutFinal: string) {
 function explainLiner(scn: ThrowScenario): string {
   const out: string[] = [];
   const { answers, ideal, immediate } = throwAnswers(scn);
+  const pop = !!scn.batted.pop;
   out.push(
-    '땅에 닿기 전에 잡은 타구(직선타)는 잡는 순간 타자가 아웃이에요. 주자는 원래 베이스로 돌아가야(귀루) 하고, 돌아오기 전에 공이 그 베이스에 먼저 닿으면 베이스만 밟아도 주자가 아웃이에요.',
+    `땅에 닿기 전에 잡은 타구(${pop ? '뜬공' : '직선타'})는 잡는 순간 타자가 아웃이에요. 주자는 원래 베이스로 돌아가야(귀루) 하고, 돌아오기 전에 공이 그 베이스에 먼저 닿으면 베이스만 밟아도 주자가 아웃이에요.`,
   );
   const e = ideal.events.find((x) => x.out);
   if (e && ideal.choice !== 'hold') {
     const who = `${NUM[e.base]} 주자`;
-    const how = scn.hitAndRun ? '히트 앤드 런으로 멀리 뛰어나가 있어서' : '리드했다가 타구에 한 발 나와 있어서';
+    const how = scn.hitAndRun
+      ? '히트 앤드 런으로 멀리 뛰어나가 있어서'
+      : pop
+        ? '낮은 뜬공이 떨어질 줄 알고 맞자마자 뛰어나가서'
+        : '리드했다가 타구에 한 발 나와 있어서';
     const act = isCarry(scn, ideal.choice) ? `${josa(NUM[ideal.choice as BaseId], '을', '를')} 직접 밟으면` : `${josa(NUM[ideal.choice as BaseId], '으로', '로')} 던지면`;
     out.push(`${josa(who, '이', '가')} ${how} 아직 못 돌아왔어요. ${act} 한 번에 아웃 ${1 + ideal.outsMade}개예요.`);
     const others = answers.filter((c) => c !== ideal.choice);

@@ -485,12 +485,59 @@ function buildReceives(): ChoiceScenario[] {
   return list;
 }
 
+// ---------- 낮은 내야 뜬공 ----------
+// 낮게 뜬 공이 떨어질 줄 알고 주자들이 맞자마자 뛰어나갔다가, 잡히자 귀루해야 하는 상황. 원래 베이스로 던지면(밟으면) 아웃 2개.
+
+const POPS: Record<PositionId, { catchPoint: THREE.Vector3; travelTime: number; selfBases?: BaseId[] }> = {
+  P: { catchPoint: P(1, 12), travelTime: 1.2 },
+  '1B': { catchPoint: P(17, 20.5), travelTime: 1.3, selfBases: ['first'] },
+  '2B': { catchPoint: P(7, 28), travelTime: 1.4 },
+  SS: { catchPoint: P(-7, 28), travelTime: 1.4 },
+  '3B': { catchPoint: P(-17, 20.5), travelTime: 1.3, selfBases: ['third'] },
+};
+const POP_SETS: Base3[][] = [['first'], ['second'], ['first', 'second'], ['first', 'third'], ['first', 'second', 'third']];
+
+function buildPops(): ThrowScenario[] {
+  const list: ThrowScenario[] = [];
+  for (const position of POSITIONS) {
+    const ball = POPS[position];
+    const name = `${FIELDER_NAME[position]} 앞 낮은 뜬공`;
+    for (const set of POP_SETS) {
+      for (let outs = 0; outs < 2; outs++) {
+        const scn: ThrowScenario = {
+          id: `gen-${position}-pop-${set.map((b) => SHORT[b]).join('')}-${outs}`,
+          kind: 'throw',
+          generated: true,
+          title: `${outsText(outs)} ${runnersText(set)} / ${name}`,
+          event: name,
+          position,
+          situation: {
+            outs,
+            runners: { first: set.includes('first'), second: set.includes('second'), third: set.includes('third') },
+            batter: 'R',
+          },
+          brief: '낮게 뜬 내야 뜬공이에요. 주자들은 공이 떨어질 줄 알고 맞자마자 뛰어나가요.',
+          explanation: '',
+          fielders: fieldersFor(position, set, outs),
+          batted: { type: 'liner', catchPoint: ball.catchPoint, travelTime: ball.travelTime, pop: true },
+          covers: coversFor(position),
+          selfBases: ball.selfBases,
+        };
+        if (!THROW_CHOICES.some((c) => evaluate(scn, c, 0).outsMade > 0)) continue;
+        scn.explanation = explainThrow(scn);
+        list.push(scn);
+      }
+    }
+  }
+  return list;
+}
+
 let cache: Scenario[] | null = null;
 
 // 기본 상황과 같은 상황(같은 포지션·아웃·주자·타구·주자 행동)은 자동 생성에서 뺀다
 function signature(s: Scenario) {
   const r = s.situation.runners;
-  const base = `${s.position}|${s.situation.outs}|${+r.first}${+r.second}${+r.third}`;
+  const base = `${s.position}|${s.situation.outs}|${+r.first}${+r.second}${+r.third}${s.kind === 'throw' && s.batted.pop ? '|pop' : ''}`;
   if (s.kind === 'choice') {
     const p = s.play ?? s.receive;
     return `${base}|${s.setup}|${p?.fielder ?? ''}|${p ? `${p.catchPoint.x.toFixed(1)},${p.catchPoint.z.toFixed(1)}` : ''}|${s.receive?.via ?? ''}`;
@@ -504,7 +551,7 @@ function signature(s: Scenario) {
 export function generatedScenarios(): Scenario[] {
   if (!cache) {
     const base = new Set(SCENARIOS.map(signature));
-    cache = [...build(), ...buildCovers(), ...buildLiners(), ...buildReceives()].filter((s) => !base.has(signature(s)));
+    cache = [...build(), ...buildCovers(), ...buildLiners(), ...buildPops(), ...buildReceives()].filter((s) => !base.has(signature(s)));
   }
   return cache;
 }
