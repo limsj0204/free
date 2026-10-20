@@ -52,7 +52,7 @@ export interface RunScenario {
   generated?: boolean;
   rare?: boolean; // 드문 상황 탭에 모으는 상황 (직선타, 내야 뜬공, 폭투·패스트볼)
   wild?: WildPitch; // wild: 공이 빠지는 곳
-  rule?: 'fullcount' | 'dropped3' | 'iff'; // rule: 규칙을 알면 답이 정해지는 상황 (runRule.ts)
+  rule?: 'fullcount' | 'dropped3' | 'dropped3out' | 'iff'; // rule: 규칙을 알면 답이 정해지는 상황 (runRule.ts)
   level?: 1 | 2 | 3; // 기본 상황의 난이도: 기초 / 응용 / 심화 (목록 순서와 배지)
 }
 

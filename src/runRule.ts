@@ -29,9 +29,10 @@ import { CONTACT_POINT } from './timeline';
 // 규칙을 알면 답이 정해지는 상황 (드문 상황 탭). 결과는 시간 계산 대신 정해진 장면으로 보여준다.
 // - fullcount: 2사 풀카운트, 1루 주자는 투구와 동시에 스타트
 // - dropped3: 낫아웃 (1루가 비어 있으면 타자는 1루로 뛴다)
+// - dropped3out: 1루에 주자가 있고 2아웃 전이면 낫아웃이 아니다 (공이 빠져도 타자는 이미 아웃)
 // - iff: 인필드 플라이 (타자는 아웃, 주자는 포스가 아니라 공이 떨어져도 뛸 필요가 없다)
 
-export type RuleType = 'fullcount' | 'dropped3' | 'iff';
+export type RuleType = 'fullcount' | 'dropped3' | 'dropped3out' | 'iff';
 
 const REACT = 0.1;
 const LEAD0 = RUN.leadOff + RUNNER.secondaryLead;
@@ -84,6 +85,24 @@ const DEFS: Record<RuleType, RuleDef> = {
       };
     },
     wrong: '1루가 비어 있으면(또는 2아웃이면) 포수가 놓친 세 번째 스트라이크에 타자는 1루로 뛸 수 있어요. 서 있으면 그대로 아웃이에요.',
+  },
+  dropped3out: {
+    prompt: '헛스윙! 공이 빠졌다! 어떻게 할까?',
+    showAt: 0,
+    decisionAt: 0.3,
+    window: 1.0,
+    correct: 'stop',
+    labels: { stop: '타석에서 물러난다', go: '1루로 뛴다' },
+    short: { stop: '물러난다', go: '1루로' },
+    pos: { stop: null, go: 'first' },
+    outcome: (scn) => {
+      const st = { runs: 0, outs: scn.situation.outs + 1, runners: R(true, false, false) };
+      return {
+        stop: { headline: '삼진 아웃', state: st, line: '1루에 주자가 있어서 낫아웃이 아니에요. 그대로 삼진 아웃이에요.' },
+        go: { headline: '이미 삼진 아웃', state: st, line: '1루까지 뛰었지만 이미 아웃이라 소용없어요. 괜히 뛰면 1루 주자가 헷갈려 2루로 뛰다 잡힐 수도 있어요.' },
+      };
+    },
+    wrong: '1루에 주자가 있고 2아웃이 아니면 낫아웃이 아니에요. 포수가 공을 놓쳐도 타자는 그대로 삼진 아웃이라 뛸 수 없어요.',
   },
   iff: {
     prompt: '인필드 플라이! 공이 떨어지면?',
@@ -168,7 +187,7 @@ export function ruleTimeline(scn: RunScenario, pitchFlight: number, choice: { id
     end: Infinity,
   };
   if (scn.rule === 'fullcount') fullcount(scn, tl, choice);
-  else if (scn.rule === 'dropped3') dropped3(scn, tl, choice);
+  else if (scn.rule === 'dropped3' || scn.rule === 'dropped3out') dropped3(scn, tl, choice);
   else iff(scn, tl, choice);
   return tl;
 }
@@ -205,13 +224,18 @@ function fullcount(scn: RunScenario, tl: RunTimeline, choice: { id: string; td: 
 
 function dropped3(scn: RunScenario, tl: RunTimeline, choice: { id: string; td: number } | null) {
   const box = batterBoxOf(scn);
+  const out = scn.rule === 'dropped3out';
   tl.me.push({ t: tl.start, pos: box.clone() });
   tl.meStart = Infinity;
-  // 공이 포수 뒤로 멀리 빠진다
-  const spot = P(-5, -17);
-  tl.ball.push({ from: CONTACT_POINT, to: spot.clone().setY(0.1), t0: 0, t1: 1.6, arc: 0.6, bounces: 2 });
+  // 낫아웃이면 공이 포수 뒤로 멀리 빠지고, 1루에 주자가 있으면 포수 옆으로 조금 튄다 (1루 주자는 리드 자리에서 돌아간다)
+  const spot = out ? P(1.5, -4) : P(-5, -17);
+  const tBall = out ? 0.8 : 1.6;
+  tl.ball.push({ from: CONTACT_POINT, to: spot.clone().setY(0.1), t0: 0, t1: tBall, arc: 0.6, bounces: 2 });
   const c0 = DEFAULT_FIELDERS.C.clone();
-  const reach = Math.max(1.6, RUNNER.catcherReact + c0.distanceTo(spot) / RUN.fielderSpeed);
+  const reach = Math.max(tBall, RUNNER.catcherReact + c0.distanceTo(spot) / RUN.fielderSpeed);
+  if (out) {
+    tl.others.push({ keys: [{ t: tl.tWindup, pos: leadSpot('first', RUN.leadOff) }, { t: 0, pos: along('first', LEAD0) }, { t: 0.8, pos: along('first', LEAD0) }, { t: 0.8 + LEAD0 / RUNNER.speed, pos: BASES.first.clone() }], batter: false, start: 0 });
+  }
   tl.fielders.C = [
     { t: RUNNER.catcherReact, pos: c0 },
     { t: reach, pos: spot.clone().setY(0) },
@@ -226,6 +250,13 @@ function dropped3(scn: RunScenario, tl: RunTimeline, choice: { id: string; td: n
   const arrive = leave + box.distanceTo(BASES.first) / RUN.speed;
   tl.meStart = leave;
   tl.me.push({ t: leave, pos: box.clone() }, { t: arrive, pos: BASES.first.clone() });
+  if (out) {
+    // 이미 아웃이라 포수는 공을 줍기만 하고 던지지 않는다
+    tl.calls.push({ t: 1.0, pos: BASES.home, text: '삼진 아웃', good: true });
+    tl.calls.push({ t: arrive, pos: BASES.first, text: '이미 아웃', good: true });
+    tl.end = arrive + 1.4;
+    return;
+  }
   tl.fielders['1B'] = walkKeys(DEFAULT_FIELDERS['1B'], bagSpot('first'), 0.4);
   const thr = outfieldThrow(spot, 'first', reach + RUNNER.catcherPickup, 0);
   // 송구는 내가 1루에 닿은 뒤에 도착한다 (낫아웃은 공이 멀리 빠진 장면으로 보여준다)
